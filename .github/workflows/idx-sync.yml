@@ -1,0 +1,79 @@
+name: IDX Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_dir:
+        description: 'Target directory inside the repo to sync IDX files into'
+        required: false
+        default: 'app'
+      archive_name:
+        description: 'Names the downloaded archive file'
+        required: false
+        default: 'idx-download.zip'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Ensure target dir exists
+        run: |
+          TARGET_DIR="${{ github.event.inputs.target_dir }}"
+          mkdir -p "$TARGET_DIR"
+
+      - name: Download IDX archive
+        env:
+          IDX_DOWNLOAD_URL: ${{ secrets.IDX_DOWNLOAD_URL }}
+          IDX_API_TOKEN: ${{ secrets.IDX_API_TOKEN }}
+          ARCHIVE_NAME: ${{ github.event.inputs.archive_name }}
+        run: |
+          if [ -z "$IDX_DOWNLOAD_URL" ]; then
+            echo 'Missing secret IDX_DOWNLOAD_URL. Set it in repo secrets.'
+            exit 1
+          fi
+          curl_args=("-L" "-o" "$ARCHIVE_NAME" "$IDX_DOWNLOAD_URL")
+          if [ -n "$IDX_API_TOKEN" ]; then
+            curl_args=("-H" "Authorization: Bearer $IDX_API_TOKEN" "-L" "-o" "$ARCHIVE_NAME" "$IDX_DOWNLOAD_URL")
+          fi
+          curl "${curl_args[@]}"
+          file "$ARCHIVE_NAME"
+
+      - name: Extract IDX archive
+        run: |
+          ARCHIVE_NAME="${{ github.event.inputs.archive_name }}"
+          TARGET_DIR="${{ github.event.inputs.target_dir }}"
+          mkdir -p /tmp/idx-src
+          if file "$ARCHIVE_NAME" | grep -q 'Zip archive data'; then
+            unzip -o "$ARCHIVE_NAME" -d /tmp/idx-src
+          elif file "$ARCHIVE_NAME" | grep -q 'gzip compressed data'; then
+            tar -xzf "$ARCHIVE_NAME" -C /tmp/idx-src
+          elif file "$ARCHIVE_NAME" | grep -q 'POSIX tar archive'; then
+            tar -xf "$ARCHIVE_NAME" -C /tmp/idx-src
+          else
+            echo "Unsupported archive type for $ARCHIVE_NAME"
+            exit 1
+          fi
+
+      - name: Sync extracted files into repo
+        run: |
+          TARGET_DIR="${{ github.event.inputs.target_dir }}"
+          rsync -av --delete --exclude='.git' /tmp/idx-src/ "$TARGET_DIR/"
+
+      - name: Commit synced changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add .
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git commit -m 'Sync files from IDX source'
+          git push origin HEAD:main

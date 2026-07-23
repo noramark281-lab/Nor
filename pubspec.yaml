@@ -1,0 +1,26 @@
+name: mexc_event_trader_app
+description: MEXC Event Futures Trading App
+publish_to: 'none'
+version: 1.1.0+11
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  http: ^1.1.0
+  flutter_secure_storage: ^9.0.0
+  encrypt: ^5.0.1
+  crypto: ^3.0.3
+  provider: ^6.1.1
+  fl_chart: ^0.66.0
+  intl: ^0.19.0
+  shared_preferences: ^2.2.2
+  web_socket_channel: ^2.4.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/

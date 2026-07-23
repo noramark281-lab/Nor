@@ -7,22 +7,21 @@ class AutoTradingStrategies {
 
   Future<String?> executeStrategy(String strategyName, String symbol, double amount, int duration) async {
     switch (strategyName) {
-      case 'sma':
+      case 'trend_following':
         return await _smaCrossover(symbol, amount, duration);
-      case 'bollinger':
+      case 'mean_reversion':
         return await _bollingerBands(symbol, amount, duration);
-      case 'stochastic':
+      case 'momentum':
         return await _stochastic(symbol, amount, duration);
-      case 'volume_price':
-        return await _volumePrice(symbol, amount, duration);
-      case 'heikin_ashi':
-        return await _heikinAshi(symbol, amount, duration);
       case 'breakout':
         return await _breakout(symbol, amount, duration);
+      case 'rsi_divergence':
+        return await _stochastic(symbol, amount, duration); // Using stochastic as proxy for RSI logic
       case 'random':
         return await _randomStrategy(symbol, amount, duration);
       default:
-        return null;
+        // Default to trend following if name mismatch
+        return await _smaCrossover(symbol, amount, duration);
     }
   }
 
@@ -84,38 +83,6 @@ class AutoTradingStrategies {
     final k = ((currentClose - lowestLow) / (highestHigh - lowestLow)) * 100;
     if (k < 20) return 'UP';
     if (k > 80) return 'DOWN';
-    return null;
-  }
-
-  Future<String?> _volumePrice(String symbol, double amount, int duration) async {
-    final klines = await _api.getKlines(symbol, '5m', limit: 10);
-    if (klines.length < 5) return null;
-    double avgVolume = 0;
-    for (var k in klines) {
-      avgVolume += double.parse(k[5].toString());
-    }
-    avgVolume /= klines.length;
-    final lastVolume = double.parse(klines.last[5].toString());
-    final lastClose = double.parse(klines.last[4].toString());
-    final prevClose = double.parse(klines[klines.length - 2][4].toString());
-    if (lastVolume > avgVolume * 1.5 && lastClose > prevClose) return 'UP';
-    if (lastVolume > avgVolume * 1.5 && lastClose < prevClose) return 'DOWN';
-    return null;
-  }
-
-  Future<String?> _heikinAshi(String symbol, double amount, int duration) async {
-    final klines = await _api.getKlines(symbol, '15m', limit: 5);
-    if (klines.length < 3) return null;
-    final prev = klines[klines.length - 2];
-    final curr = klines.last;
-    final prevOpen = double.parse(prev[1].toString());
-    final prevClose = double.parse(prev[4].toString());
-    final currOpen = double.parse(curr[1].toString());
-    final currClose = double.parse(curr[4].toString());
-    final prevGreen = prevClose > prevOpen;
-    final currGreen = currClose > currOpen;
-    if (!prevGreen && currGreen) return 'UP';
-    if (prevGreen && !currGreen) return 'DOWN';
     return null;
   }
 

@@ -1,27 +1,18 @@
-name: Flutter Build APK
+name: Flutter Build & Release
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
-  build:
+  build-android:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      actions: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -29,21 +20,16 @@ jobs:
           flutter-version: '3.24.0'
           channel: 'stable'
 
-      - name: Get dependencies
+      - name: Install dependencies
         run: flutter pub get
 
-      - name: Create key.properties from secrets
+      - name: Decode keystore
         run: |
-          cat > android/key.properties <<EOF
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          storeFile=upload-keystore.jks
-          EOF
-
-      - name: Decode Keystore from Secret
-        run: |
-          echo "${{ secrets.UPLOAD_KEYSTORE }}" | base64 -d > android/app/upload-keystore.jks
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore.jks
+          echo "storeFile=keystore.jks" > android/key.properties
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
 
       - name: Build Release APK
         run: flutter build apk --release
@@ -51,7 +37,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mexc-event-trader-apk
+          name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
       - name: Create Release & Upload APK
@@ -59,12 +45,12 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: build/app/outputs/flutter-apk/app-release.apk
-          tag_name: v${{ github.run_number }}
-          name: "MEXC Event Trader v${{ github.run_number }}"
+          tag_name: v10-run-${{ github.run_number }}
+          name: MEXC Event Trader v10-run-${{ github.run_number }}
           body: |
             🚀 إصدار تلقائي لتطبيق MEXC Event Trader
             - بناء مستقر (Stable Build)
             - توقيع رقمي (Signed APK)
             - جاهز للتثبيت على Android 5.0+
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}

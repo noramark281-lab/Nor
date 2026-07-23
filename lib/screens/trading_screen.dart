@@ -16,14 +16,8 @@ class _TradingScreenState extends State<TradingScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<TradingProvider>().startPriceUpdates();
+      context.read<TradingProvider>().initTrading();
     });
-  }
-
-  @override
-  void dispose() {
-    context.read<TradingProvider>().stopPriceUpdates();
-    super.dispose();
   }
 
   @override
@@ -59,7 +53,7 @@ class _TradingScreenState extends State<TradingScreen> {
           ),
           body: Column(
             children: [
-              _buildPayoutHeader(provider),
+              _buildPriceHeader(provider),
               _buildChartArea(provider),
               _buildTimeframes(provider),
               _buildDurationSelector(provider),
@@ -74,19 +68,31 @@ class _TradingScreenState extends State<TradingScreen> {
     );
   }
 
-  Widget _buildPayoutHeader(TradingProvider provider) {
+  Widget _buildPriceHeader(TradingProvider provider) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            'أدنى: 80%',
-            style: TextStyle(color: Colors.red[400], fontWeight: FontWeight.bold),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('السعر اللحظي', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(
+                '\$${provider.currentPrice.toStringAsFixed(2)}',
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF00C087)),
+              ),
+            ],
           ),
-          Text(
-            'أعلى: 80%',
-            style: TextStyle(color: Colors.green[400], fontWeight: FontWeight.bold),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Text('الرصيد المتاح', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(
+                '\$${provider.balance.toStringAsFixed(2)}',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
           ),
         ],
       ),
@@ -139,8 +145,8 @@ class _TradingScreenState extends State<TradingScreen> {
   }
 
   Widget _buildDurationSelector(TradingProvider provider) {
-    final durations = [10, 30, 60, 1440];
-    final labels = ['10 دقيقة', '30 دقيقة', '1 ساعة', '1 يوم'];
+    final durations = [1, 5, 10, 30, 60];
+    final labels = ['1د', '5د', '10د', '30د', '1س'];
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Row(
@@ -167,7 +173,7 @@ class _TradingScreenState extends State<TradingScreen> {
             icon: const Icon(Icons.remove_circle_outline),
             onPressed: () {
               if (provider.tradeAmount > 1) {
-                provider.setTradeAmount(provider.tradeAmount - 1);
+                provider.setTradeAmount(provider.tradeAmount - 5);
               }
             },
           ),
@@ -181,7 +187,7 @@ class _TradingScreenState extends State<TradingScreen> {
               ),
               onChanged: (v) {
                 final val = double.tryParse(v);
-                if (val != null && val >= 1 && val <= 250) {
+                if (val != null && val >= 1 && val <= 500) {
                   provider.setTradeAmount(val);
                 }
               },
@@ -190,8 +196,8 @@ class _TradingScreenState extends State<TradingScreen> {
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
             onPressed: () {
-              if (provider.tradeAmount < 250) {
-                provider.setTradeAmount(provider.tradeAmount + 1);
+              if (provider.tradeAmount < 500) {
+                provider.setTradeAmount(provider.tradeAmount + 5);
               }
             },
           ),
@@ -209,7 +215,7 @@ class _TradingScreenState extends State<TradingScreen> {
             child: ElevatedButton.icon(
               onPressed: provider.isLoading ? null : () => provider.placeOrder('DOWN'),
               icon: const Icon(Icons.arrow_downward),
-              label: const Text('أدنى', style: TextStyle(fontSize: 18)),
+              label: const Text('بيع (DOWN)', style: TextStyle(fontSize: 18)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
@@ -223,7 +229,7 @@ class _TradingScreenState extends State<TradingScreen> {
             child: ElevatedButton.icon(
               onPressed: provider.isLoading ? null : () => provider.placeOrder('UP'),
               icon: const Icon(Icons.arrow_upward),
-              label: const Text('أعلى', style: TextStyle(fontSize: 18)),
+              label: const Text('شراء (UP)', style: TextStyle(fontSize: 18)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,

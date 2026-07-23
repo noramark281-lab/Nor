@@ -29,16 +29,21 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Decode Keystore
+      - name: Create key.properties from secrets
+        run: |
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=app/upload-keystore.jks
+          EOF
+
+      - name: Decode Keystore from Secret
         run: |
           echo "${{ secrets.UPLOAD_KEYSTORE }}" | base64 -d > android/app/upload-keystore.jks
 
-      - name: Build APK
+      - name: Build Release APK
         run: flutter build apk --release
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -46,13 +51,17 @@ jobs:
           name: mexc-event-trader-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
-      - name: Upload APK to Release
+      - name: Create Release & Upload APK
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: svenstaro/upload-release-action@v2
+        uses: softprops/action-gh-release@v1
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: build/app/outputs/flutter-apk/app-release.apk
-          asset_name: mexc-event-trader.apk
-          tag: v${{ github.run_number }}
-          overwrite: true
-          body: "Automated release build for MEXC Event Trader"
+          files: build/app/outputs/flutter-apk/app-release.apk
+          tag_name: v${{ github.run_number }}
+          name: "MEXC Event Trader v${{ github.run_number }}"
+          body: |
+            🚀 إصدار تلقائي لتطبيق MEXC Event Trader
+            - بناء مستقر (Stable Build)
+            - توقيع رقمي (Signed APK)
+            - جاهز للتثبيت على Android 5.0+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -16,5 +16,11 @@ build/
 .DS_Store
 captures/
 
-# Keystore (don't commit real keys)
-# upload-keystore.jks is committed for CI but should be base64 encoded in secrets
+# NEVER commit secrets or keystores
+.env
+*.env
+android/app/upload-keystore.jks
+android/app/*.jks
+android/app/*.keystore
+android/app/my_keystore_base64.txt
+android/key.properties

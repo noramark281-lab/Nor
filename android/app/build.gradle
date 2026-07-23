@@ -28,6 +28,11 @@ if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.withReader('UTF-8') { reader ->
         keystoreProperties.load(reader)
     }
+} else {
+    keystoreProperties.setProperty('storePassword', System.getenv('STORE_PASSWORD') ?: "")
+    keystoreProperties.setProperty('keyPassword', System.getenv('KEY_PASSWORD') ?: "")
+    keystoreProperties.setProperty('keyAlias', System.getenv('KEY_ALIAS') ?: "")
+    keystoreProperties.setProperty('storeFile', System.getenv('STORE_FILE') ?: "upload-keystore.jks")
 }
 
 android {

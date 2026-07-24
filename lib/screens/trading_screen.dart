@@ -24,39 +24,53 @@ class _TradingScreenState extends State<TradingScreen> {
   Widget build(BuildContext context) {
     return Consumer<TradingProvider>(
       builder: (context, provider, child) {
+        // Show error snackbar
+        if (provider.lastError != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(provider.lastError!),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          });
+        }
+
         return Scaffold(
           appBar: AppBar(
             title: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                DropdownButton<String>(
-                  value: provider.selectedSymbol,
-                  underline: const SizedBox(),
-                  dropdownColor: Theme.of(context).colorScheme.surface,
-                  items: Constants.symbols.map((s) => DropdownMenuItem(
-                    value: s,
-                    child: Text(s, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  )).toList(),
-                  onChanged: (v) => provider.selectSymbol(v!),
-                ),
+                _buildSymbolDropdown(provider),
               ],
             ),
             actions: [
+              // API status indicator
+              Container(
+                margin: const EdgeInsets.only(right: 8),
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: provider.apiInitialized ? Colors.green : Colors.red,
+                ),
+              ),
               IconButton(
                 icon: const Icon(Icons.settings),
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ApiSetupScreen()),
-                ),
+                ).then((_) => provider.refreshApiStatus()),
               ),
             ],
           ),
           body: Column(
             children: [
               _buildPriceHeader(provider),
+              _buildApiWarning(provider),
               _buildChartArea(provider),
               _buildTimeframes(provider),
-              _buildDurationSelector(provider),
               _buildAmountInput(provider),
               const Spacer(),
               _buildTradeButtons(provider),
@@ -65,6 +79,19 @@ class _TradingScreenState extends State<TradingScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildSymbolDropdown(TradingProvider provider) {
+    return DropdownButton<String>(
+      value: provider.selectedSymbol,
+      underline: const SizedBox(),
+      dropdownColor: Theme.of(context).colorScheme.surface,
+      items: Constants.symbols.map((s) => DropdownMenuItem(
+        value: s,
+        child: Text(s, style: const TextStyle(fontWeight: FontWeight.bold)),
+      )).toList(),
+      onChanged: (v) => provider.selectSymbol(v!),
     );
   }
 
@@ -87,12 +114,37 @@ class _TradingScreenState extends State<TradingScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              const Text('الرصيد المتاح', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              const Text('رصيد USDT', style: TextStyle(fontSize: 12, color: Colors.grey)),
               Text(
                 '\$${provider.balance.toStringAsFixed(2)}',
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildApiWarning(TradingProvider provider) {
+    if (provider.apiInitialized) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.orange),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber, color: Colors.orange, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'لم يتم إعداد مفاتيح API. اضغط على الإعدادات لإدخال مفاتيح MEXC.',
+              style: TextStyle(color: Colors.orange[800], fontSize: 12),
+            ),
           ),
         ],
       ),
@@ -144,62 +196,73 @@ class _TradingScreenState extends State<TradingScreen> {
     );
   }
 
-  Widget _buildDurationSelector(TradingProvider provider) {
-    final durations = [1, 5, 10, 30, 60];
-    final labels = ['1د', '5د', '10د', '30د', '1س'];
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: List.generate(durations.length, (index) {
-          final isSelected = provider.selectedDuration == durations[index];
-          return ChoiceChip(
-            label: Text(labels[index]),
-            selected: isSelected,
-            onSelected: (_) => provider.selectDuration(durations[index]),
-            selectedColor: const Color(0xFF00C087),
-          );
-        }),
-      ),
-    );
-  }
-
+  /// Amount input with STRICT $1 cap enforcement
   Widget _buildAmountInput(TradingProvider provider) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          IconButton(
-            icon: const Icon(Icons.remove_circle_outline),
-            onPressed: () {
-              if (provider.tradeAmount > 1) {
-                provider.setTradeAmount(provider.tradeAmount - 5);
-              }
-            },
-          ),
-          Expanded(
-            child: TextField(
-              textAlign: TextAlign.center,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                hintText: '${provider.tradeAmount.toStringAsFixed(0)} USDT',
-                border: const OutlineInputBorder(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // $1 cap badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00C087).withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF00C087)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.security, color: Color(0xFF00C087), size: 14),
+                    SizedBox(width: 4),
+                    Text(
+                      'حد أقصى: \$1 للصفقة',
+                      style: TextStyle(color: Color(0xFF00C087), fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
               ),
-              onChanged: (v) {
-                final val = double.tryParse(v);
-                if (val != null && val >= 1 && val <= 500) {
-                  provider.setTradeAmount(val);
-                }
-              },
-            ),
+              Text(
+                'المبلغ: \$${provider.tradeAmount.toStringAsFixed(2)}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            onPressed: () {
-              if (provider.tradeAmount < 500) {
-                provider.setTradeAmount(provider.tradeAmount + 5);
-              }
-            },
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.remove_circle_outline),
+                onPressed: () {
+                  final newAmount = provider.tradeAmount - 0.5;
+                  if (newAmount >= Constants.minTradeAmount) {
+                    provider.setTradeAmount(newAmount);
+                  }
+                },
+              ),
+              Expanded(
+                child: Slider(
+                  value: provider.tradeAmount,
+                  min: Constants.minTradeAmount,
+                  max: Constants.maxTradeAmount,
+                  divisions: 10, // 0.1 steps up to 1.0
+                  label: '\$${provider.tradeAmount.toStringAsFixed(2)}',
+                  activeColor: const Color(0xFF00C087),
+                  onChanged: (v) => provider.setTradeAmount(v),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline),
+                onPressed: () {
+                  // Cannot exceed $1
+                  provider.setTradeAmount(Constants.maxTradeAmount);
+                },
+              ),
+            ],
           ),
         ],
       ),
@@ -207,34 +270,42 @@ class _TradingScreenState extends State<TradingScreen> {
   }
 
   Widget _buildTradeButtons(TradingProvider provider) {
+    final canTrade = provider.apiInitialized && provider.balance >= provider.tradeAmount;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
           Expanded(
             child: ElevatedButton.icon(
-              onPressed: provider.isLoading ? null : () => provider.placeOrder('DOWN'),
+              onPressed: canTrade && !provider.isLoading
+                  ? () => provider.placeOrder('DOWN')
+                  : null,
               icon: const Icon(Icons.arrow_downward),
-              label: const Text('بيع (DOWN)', style: TextStyle(fontSize: 18)),
+              label: const Text('بيع (SELL)', style: TextStyle(fontSize: 18)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                disabledBackgroundColor: Colors.red.withOpacity(0.3),
               ),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: ElevatedButton.icon(
-              onPressed: provider.isLoading ? null : () => provider.placeOrder('UP'),
+              onPressed: canTrade && !provider.isLoading
+                  ? () => provider.placeOrder('UP')
+                  : null,
               icon: const Icon(Icons.arrow_upward),
-              label: const Text('شراء (UP)', style: TextStyle(fontSize: 18)),
+              label: const Text('شراء (BUY)', style: TextStyle(fontSize: 18)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                disabledBackgroundColor: Colors.green.withOpacity(0.3),
               ),
             ),
           ),
@@ -262,6 +333,7 @@ class CandlestickPainter extends CustomPainter {
       if (k['high'] > maxPrice) maxPrice = k['high'];
     }
     final priceRange = maxPrice - minPrice;
+    if (priceRange == 0) return;
 
     for (int i = 0; i < klines.length; i++) {
       final k = klines[i];
@@ -273,11 +345,13 @@ class CandlestickPainter extends CustomPainter {
 
       final isGreen = k['close'] >= k['open'];
       paint.color = isGreen ? Colors.green : Colors.red;
+      paint.style = PaintingStyle.stroke;
 
       canvas.drawLine(Offset(x, highY), Offset(x, lowY), paint);
+      paint.style = PaintingStyle.fill;
       canvas.drawRect(
         Rect.fromLTRB(x - candleWidth / 2, openY, x + candleWidth / 2, closeY),
-        paint..style = PaintingStyle.fill,
+        paint,
       );
     }
   }

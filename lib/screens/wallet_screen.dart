@@ -17,6 +17,7 @@ class _WalletScreenState extends State<WalletScreen> {
   bool _isLoading = true;
   String? _error;
   Timer? _refreshTimer;
+  bool _hideBalances = false;
 
   @override
   void initState() {
@@ -58,6 +59,13 @@ class _WalletScreenState extends State<WalletScreen> {
     }
   }
 
+  double _getAssetValue(Map<String, dynamic> balance) {
+    // For non-USDT assets, we need to estimate USD value
+    // In a real app, you'd fetch actual prices
+    // For now, return 0 or estimate based on known prices
+    return 0.0; // Placeholder - implement price lookup
+  }
+
   double get _totalUSDT {
     double total = 0;
     for (var b in _balances) {
@@ -82,7 +90,13 @@ class _WalletScreenState extends State<WalletScreen> {
         centerTitle: true,
         actions: [
           IconButton(
+            icon: Icon(_hideBalances ? Icons.visibility_off : Icons.visibility),
+            tooltip: _hideBalances ? 'إظهار الأرصدة' : 'إخفاء الأرصدة',
+            onPressed: () => setState(() => _hideBalances = !_hideBalances),
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
+            tooltip: 'تحديث',
             onPressed: _loadData,
           ),
         ],
@@ -140,6 +154,10 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   Widget _buildTotalCard(Map<String, dynamic> usdt) {
+    final total = usdt['total'] as double;
+    final free = usdt['free'] as double;
+    final locked = usdt['locked'] as double;
+
     return Card(
       elevation: 4,
       color: const Color(0xFF00C087).withOpacity(0.1),
@@ -153,7 +171,7 @@ class _WalletScreenState extends State<WalletScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              '\$${(usdt['total'] as double).toStringAsFixed(2)}',
+              _hideBalances ? '****' : '\$${total.toStringAsFixed(2)}',
               style: const TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.bold,
@@ -165,12 +183,12 @@ class _WalletScreenState extends State<WalletScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  'متاح: \$${(usdt['free'] as double).toStringAsFixed(2)}',
+                  'متاح: ${_hideBalances ? '****' : '\$${free.toStringAsFixed(2)}'}',
                   style: const TextStyle(fontSize: 14),
                 ),
                 const SizedBox(width: 16),
                 Text(
-                  'محجوز: \$${(usdt['locked'] as double).toStringAsFixed(2)}',
+                  'محجوز: ${_hideBalances ? '****' : '\$${locked.toStringAsFixed(2)}'}',
                   style: const TextStyle(fontSize: 14, color: Colors.orange),
                 ),
               ],
@@ -252,9 +270,20 @@ class _WalletScreenState extends State<WalletScreen> {
               'متاح: ${(b['free'] as double).toStringAsFixed(6)}  |  محجوز: ${(b['locked'] as double).toStringAsFixed(6)}',
               style: const TextStyle(fontSize: 12),
             ),
-            trailing: Text(
-              (b['total'] as double).toStringAsFixed(b['asset'] == 'USDT' ? 2 : 6),
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  _hideBalances ? '****' : (b['total'] as double).toStringAsFixed(b['asset'] == 'USDT' ? 2 : 6),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                if (b['asset'] != 'USDT')
+                  Text(
+                    _hideBalances ? '****' : '\$${_getAssetValue(b).toStringAsFixed(2)}',
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  ),
+              ],
             ),
           )),
         ],

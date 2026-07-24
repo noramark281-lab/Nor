@@ -31,9 +31,15 @@ class _TradingScreenState extends State<TradingScreen> {
               SnackBar(
                 content: Text(provider.lastError!),
                 backgroundColor: Colors.red,
-                duration: const Duration(seconds: 3),
+                duration: const Duration(seconds: 4),
+                action: SnackBarAction(
+                  label: 'إغلاق',
+                  textColor: Colors.white,
+                  onPressed: () => provider.clearError(),
+                ),
               ),
             );
+            provider.clearError();
           });
         }
 
@@ -46,18 +52,29 @@ class _TradingScreenState extends State<TradingScreen> {
               ],
             ),
             actions: [
-              // API status indicator
-              Container(
-                margin: const EdgeInsets.only(right: 8),
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: provider.apiInitialized ? Colors.green : Colors.red,
+              // API status indicator with tooltip
+              Tooltip(
+                message: provider.apiInitialized ? 'متصل بـ MEXC API' : 'غير متصل - تحقق من مفاتيح API',
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: provider.apiInitialized ? Colors.green : Colors.red,
+                    boxShadow: [
+                      BoxShadow(
+                        color: (provider.apiInitialized ? Colors.green : Colors.red).withOpacity(0.5),
+                        blurRadius: 6,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               IconButton(
                 icon: const Icon(Icons.settings),
+                tooltip: 'إعدادات API',
                 onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ApiSetupScreen()),
@@ -65,20 +82,53 @@ class _TradingScreenState extends State<TradingScreen> {
               ),
             ],
           ),
-          body: Column(
+          body: Stack(
             children: [
-              _buildPriceHeader(provider),
-              _buildApiWarning(provider),
-              _buildChartArea(provider),
-              _buildTimeframes(provider),
-              _buildAmountInput(provider),
-              const Spacer(),
-              _buildTradeButtons(provider),
-              const SizedBox(height: 16),
+              Column(
+                children: [
+                  _buildPriceHeader(provider),
+                  _buildApiWarning(provider),
+                  _buildChartArea(provider),
+                  _buildTimeframes(provider),
+                  _buildAmountInput(provider),
+                  _buildFeeInfo(provider),
+                  const Spacer(),
+                  _buildTradeButtons(provider),
+                  const SizedBox(height: 16),
+                ],
+              ),
+              if (provider.isLoading)
+                Container(
+                  color: Colors.black.withOpacity(0.5),
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C087)),
+                    ),
+                  ),
+                ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildFeeInfo(TradingProvider provider) {
+    final fee = provider.getTradeFee(provider.tradeAmount);
+    final total = provider.getTotalWithFee(provider.tradeAmount);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.info_outline, size: 14, color: Colors.grey[600]),
+          const SizedBox(width: 4),
+          Text(
+            'رسوم المنصة: \$${fee.toStringAsFixed(4)} (0.1%) | المجموع: \$${total.toStringAsFixed(4)}',
+            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+          ),
+        ],
+      ),
     );
   }
 
@@ -279,7 +329,7 @@ class _TradingScreenState extends State<TradingScreen> {
           Expanded(
             child: ElevatedButton.icon(
               onPressed: canTrade && !provider.isLoading
-                  ? () => provider.placeOrder('DOWN')
+                  ? () => _showOrderConfirmation(context, provider, 'SELL', Colors.red)
                   : null,
               icon: const Icon(Icons.arrow_downward),
               label: const Text('بيع (SELL)', style: TextStyle(fontSize: 18)),
@@ -296,7 +346,7 @@ class _TradingScreenState extends State<TradingScreen> {
           Expanded(
             child: ElevatedButton.icon(
               onPressed: canTrade && !provider.isLoading
-                  ? () => provider.placeOrder('UP')
+                  ? () => _showOrderConfirmation(context, provider, 'BUY', Colors.green)
                   : null,
               icon: const Icon(Icons.arrow_upward),
               label: const Text('شراء (BUY)', style: TextStyle(fontSize: 18)),
@@ -308,6 +358,76 @@ class _TradingScreenState extends State<TradingScreen> {
                 disabledBackgroundColor: Colors.green.withOpacity(0.3),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showOrderConfirmation(BuildContext context, TradingProvider provider, String side, Color color) {
+    final fee = provider.getTradeFee(provider.tradeAmount);
+    final total = provider.getTotalWithFee(provider.tradeAmount);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber, color: color),
+            const SizedBox(width: 8),
+            Text('تأكيد ${side == 'BUY' ? 'الشراء' : 'البيع'}'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('الزوج: ${provider.selectedSymbol}'),
+            Text('النوع: ${side == 'BUY' ? 'شراء' : 'بيع'}'),
+            Text('المبلغ: \$${provider.tradeAmount.toStringAsFixed(2)}'),
+            Text('الرسوم: \$${fee.toStringAsFixed(4)}'),
+            const Divider(),
+            Text(
+              'المجموع: \$${total.toStringAsFixed(4)}',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange),
+              ),
+              child: const Text(
+                'تنبيه: هذا أمر تداول حقيقي على منصة MEXC. يرجى التأكد قبل المتابعة.',
+                style: TextStyle(fontSize: 12, color: Colors.orange),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              provider.placeOrder(side == 'BUY' ? 'UP' : 'DOWN').then((success) {
+                if (success && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('✅ تم تنفيذ أمر ${side == 'BUY' ? 'الشراء' : 'البيع'} بنجاح'),
+                      backgroundColor: Colors.green,
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                }
+              });
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: color),
+            child: Text(side == 'BUY' ? 'شراء' : 'بيع'),
           ),
         ],
       ),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/mexc_api_service.dart';
 import '../services/auto_trading_strategies.dart';
 import '../services/websocket_service.dart';
@@ -62,11 +63,21 @@ class TradingProvider extends ChangeNotifier {
   DateTime _lastTradeDate = DateTime.now();
 
   TradingProvider() {
-    _wsService = WebSocketService(onPriceUpdate: _handlePriceUpdate);
+    _wsService = WebSocketService(
+      onPriceUpdate: _handlePriceUpdate,
+      onError: (error) {
+        _lastError = error;
+        notifyListeners();
+      },
+      onConnected: () {
+        print('WebSocket connected');
+      },
+    );
     _init();
   }
 
   Future<void> _init() async {
+    await _loadPreferences();
     await MexcApiManager().initialize();
     _apiInitialized = MexcApiManager().isInitialized;
     if (_apiInitialized) {
@@ -74,6 +85,32 @@ class TradingProvider extends ChangeNotifier {
       fetchBalance();
     }
     notifyListeners();
+  }
+
+  Future<void> _loadPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedAmount = prefs.getDouble('tradeAmount') ?? 1.0;
+      // Enforce $1 cap on loaded amount
+      _tradeAmount = savedAmount > Constants.maxTradeAmount 
+          ? Constants.maxTradeAmount 
+          : (savedAmount < Constants.minTradeAmount ? Constants.minTradeAmount : savedAmount);
+      _selectedSymbol = prefs.getString('selectedSymbol') ?? 'BTCUSDT';
+      _botStrategy = prefs.getString('botStrategy') ?? 'scalping';
+    } catch (e) {
+      print('Error loading preferences: $e');
+    }
+  }
+
+  Future<void> _savePreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('tradeAmount', _tradeAmount);
+      await prefs.setString('selectedSymbol', _selectedSymbol);
+      await prefs.setString('botStrategy', _botStrategy);
+    } catch (e) {
+      print('Error saving preferences: $e');
+    }
   }
 
   // ========== GETTERS ==========
@@ -92,7 +129,18 @@ class TradingProvider extends ChangeNotifier {
   String get botStrategy => _botStrategy;
   String? get lastError => _lastError;
   bool get apiInitialized => _apiInitialized;
+
+  void clearError() {
+    _lastError = null;
+    notifyListeners();
+  }
   int get dailyTrades => _dailyTrades;
+
+  /// Calculate fee for a trade (0.1% for MEXC spot)
+  double getTradeFee(double amount) => amount * 0.001;
+
+  /// Calculate total cost including fee
+  double getTotalWithFee(double amount) => amount + getTradeFee(amount);
 
   // ========== SELECTION ==========
 
@@ -100,12 +148,14 @@ class TradingProvider extends ChangeNotifier {
     _selectedSymbol = symbol;
     _wsService.connect(symbol);
     _fetchKlines();
+    _savePreferences();
     notifyListeners();
   }
 
   void selectTimeframe(String tf) {
     _selectedTimeframe = tf;
     _fetchKlines();
+    _savePreferences();
     notifyListeners();
   }
 
@@ -120,11 +170,13 @@ class TradingProvider extends ChangeNotifier {
       amount = Constants.minTradeAmount;
     }
     _tradeAmount = amount;
+    _savePreferences();
     notifyListeners();
   }
 
   void setBotStrategy(String strategy) {
     _botStrategy = strategy;
+    _savePreferences();
     notifyListeners();
   }
 

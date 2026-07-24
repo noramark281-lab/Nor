@@ -43,7 +43,7 @@ class SettingsScreen extends StatelessWidget {
               const Divider(),
               const ListTile(
                 title: Text('الإصدار'),
-                trailing: Text('1.1.0'),
+                trailing: Text('6.0.0+60'),
               ),
             ],
           ),

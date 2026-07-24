@@ -1,4 +1,4 @@
-name: Build Signed APK & Release
+name: Build Signed APK & AAB Release
 
 on:
   push:
@@ -71,21 +71,38 @@ jobs:
         run: flutter build apk --release --no-tree-shake-icons
         timeout-minutes: 15
 
-      - name: Verify APK exists
+      - name: Build Release App Bundle (AAB)
+        run: flutter build appbundle --release --no-tree-shake-icons
+        timeout-minutes: 15
+
+      - name: Verify APK & AAB exist
         run: |
           APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+          AAB_PATH="build/app/outputs/bundle/release/app-release.aab"
           if [ ! -f "$APK_PATH" ]; then
             echo "❌ APK not found at $APK_PATH"
             exit 1
           fi
-          ls -lh "$APK_PATH"
-          echo "✅ APK built successfully: $(du -h $APK_PATH | cut -f1)"
+          if [ ! -f "$AAB_PATH" ]; then
+            echo "❌ AAB not found at $AAB_PATH"
+            exit 1
+          fi
+          ls -lh "$APK_PATH" "$AAB_PATH"
+          echo "✅ APK built: $(du -h $APK_PATH | cut -f1)"
+          echo "✅ AAB built: $(du -h $AAB_PATH | cut -f1)"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mexc-event-trader-apk
+          name: mexc-spot-trader-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      - name: Upload AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mexc-spot-trader-aab
+          path: build/app/outputs/bundle/release/app-release.aab
           retention-days: 30
 
       - name: Create GitHub Release & Upload APK
@@ -94,14 +111,17 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: "MEXC Event Trader v${{ github.run_number }}"
+          name: "MEXC Spot Trader v${{ github.run_number }}"
           body: |
-            🚀 إصدار تلقائي لتطبيق MEXC Event Trader
+            🚀 إصدار تلقائي لتطبيق MEXC Spot Trader
             - ✅ بناء مستقر (Stable Build)
-            - ✅ توقيع رقمي (Signed APK)
+            - ✅ توقيع رقمي (Signed APK & AAB)
             - ✅ جاهز للتثبيت على Android 5.0+ (API 21)
+            - ✅ AAB جاهز للرفع على Google Play
             - ✅ رابط التحميل المباشر في الأسفل
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -114,4 +134,5 @@ jobs:
           echo "========================================"
           echo "📦 Release URL: https://github.com/${{ github.repository }}/releases/tag/v${{ github.run_number }}"
           echo "📥 Direct APK: https://github.com/${{ github.repository }}/releases/download/v${{ github.run_number }}/app-release.apk"
+          echo "📥 Direct AAB: https://github.com/${{ github.repository }}/releases/download/v${{ github.run_number }}/app-release.aab"
           echo "========================================"

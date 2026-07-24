@@ -1,8 +1,18 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'api_manager.dart';
 import '../utils/constants.dart';
+
+/// Custom exception for API errors
+class MexcApiException implements Exception {
+  final String message;
+  final int? statusCode;
+  MexcApiException(this.message, {this.statusCode});
+  @override
+  String toString() => 'MexcApiException: $message (Status: $statusCode)';
+}
 
 /// MexcApiService - Real MEXC Spot API v3 integration
 /// Provides: account info, balances, real spot orders, market data
@@ -17,12 +27,18 @@ class MexcApiService {
       final response = await _api.signedGet('/api/v3/account');
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
+      } else if (response.statusCode == 401) {
+        throw MexcApiException('Unauthorized - Check your API keys', statusCode: 401);
+      } else if (response.statusCode == 429) {
+        throw MexcApiException('Rate limit exceeded - Please wait', statusCode: 429);
+      } else {
+        throw MexcApiException('Account error: ${response.body}', statusCode: response.statusCode);
       }
-      print('Account error: ${response.statusCode} - ${response.body}');
+    } on MexcApiException {
+      rethrow;
     } catch (e) {
-      print('Account exception: $e');
+      throw MexcApiException('Account exception: $e');
     }
-    return null;
   }
 
   /// Get specific asset balance (free + locked)
@@ -82,6 +98,14 @@ class MexcApiService {
     String orderType = 'MARKET',
   }) async {
     try {
+      // Validate amount
+      if (amount <= 0) {
+        throw MexcApiException('Amount must be greater than 0');
+      }
+      if (amount > Constants.maxTradeAmount) {
+        throw MexcApiException('Amount exceeds max trade amount of \$${Constants.maxTradeAmount}');
+      }
+
       final body = {
         'symbol': symbol,
         'side': side,
@@ -92,12 +116,20 @@ class MexcApiService {
       final response = await _api.signedPost('/api/v3/order', body);
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
+      } else if (response.statusCode == 400) {
+        final error = jsonDecode(response.body);
+        throw MexcApiException('Bad request: ${error['msg'] ?? response.body}', statusCode: 400);
+      } else if (response.statusCode == 401) {
+        throw MexcApiException('Unauthorized - Check your API keys', statusCode: 401);
+      } else if (response.statusCode == 429) {
+        throw MexcApiException('Rate limit exceeded - Please wait', statusCode: 429);
+      } else {
+        throw MexcApiException('Order error: ${response.body}', statusCode: response.statusCode);
       }
-      print('Order error: ${response.statusCode} - ${response.body}');
-      return {'error': 'API ${response.statusCode}: ${response.body}'};
+    } on MexcApiException {
+      rethrow;
     } catch (e) {
-      print('Order exception: $e');
-      return {'error': e.toString()};
+      throw MexcApiException('Order exception: $e');
     }
   }
 

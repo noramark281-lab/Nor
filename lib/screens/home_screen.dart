@@ -99,7 +99,7 @@ class HomeMainScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'تطبيق تداول MEXC',
+                    'MEXC Spot Trader',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 4),

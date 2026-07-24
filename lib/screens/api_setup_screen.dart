@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_manager.dart';
+import '../services/mexc_api_service.dart';
 
 class ApiSetupScreen extends StatefulWidget {
   const ApiSetupScreen({super.key});
@@ -13,6 +14,31 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
   final _secretController = TextEditingController();
   bool _obscureSecret = true;
   bool _isSaving = false;
+  bool _isTesting = false;
+  String? _testResult;
+
+  Future<void> _testConnection() async {
+    setState(() => _isTesting = true);
+    try {
+      final tempManager = MexcApiManager();
+      await tempManager.saveCredentials(
+        _keyController.text.trim(),
+        _secretController.text.trim(),
+      );
+      await tempManager.initialize();
+      if (tempManager.isInitialized) {
+        final api = MexcApiService();
+        final account = await api.getAccountInfo();
+        setState(() => _testResult = '✅ الاتصال ناجح! نوع الحساب: ${account?['accountType'] ?? 'unknown'}');
+      } else {
+        setState(() => _testResult = '❌ فشل الاتصال: تحقق من المفاتيح');
+      }
+    } catch (e) {
+      setState(() => _testResult = '❌ خطأ: $e');
+    } finally {
+      setState(() => _isTesting = false);
+    }
+  }
 
   Future<void> _saveCredentials() async {
     setState(() => _isSaving = true);
@@ -82,7 +108,35 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: OutlinedButton.icon(
+                onPressed: _isTesting ? null : _testConnection,
+                icon: _isTesting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.network_check),
+                label: Text(_isTesting ? 'جاري الاختبار...' : 'اختبار الاتصال'),
+              ),
+            ),
+            if (_testResult != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _testResult!,
+                  style: TextStyle(
+                    color: _testResult!.startsWith('✅') ? Colors.green : Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -95,7 +149,7 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.save),
-                label: Text(_isSaving ? 'جاري الحفظ...' : 'حفظ'),
+                label: Text(_isSaving ? 'جاري الحفظ...' : 'حفظ المفاتيح'),
               ),
             ),
             const SizedBox(height: 16),

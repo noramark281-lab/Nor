@@ -63,7 +63,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               ),
               const SizedBox(height: 24),
               const Text(
-                'MEXC Event Trader',
+                'MEXC Spot Trader',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 28,
@@ -72,7 +72,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               ),
               const SizedBox(height: 8),
               const Text(
-                'العقود الآجلة للأحداث',
+                'تداول الفوري على MEXC',
                 style: TextStyle(
                   color: Colors.white70,
                   fontSize: 16,

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/backend_service.dart';
-import '../services/mexc_api_service.dart';
 import '../services/api_manager.dart';
 import '../utils/constants.dart';
 
@@ -14,7 +13,6 @@ class CloudBotScreen extends StatefulWidget {
 
 class _CloudBotScreenState extends State<CloudBotScreen> {
   final BackendService _backend = BackendService();
-  final MexcApiService _api = MexcApiService();
 
   Map<String, dynamic> _status = {};
   List<dynamic> _tradeHistory = [];
@@ -39,27 +37,13 @@ class _CloudBotScreenState extends State<CloudBotScreen> {
   Future<void> _initBackend() async {
     await MexcApiManager().initialize();
     if (MexcApiManager().isInitialized) {
-      final key = MexcApiManager().apiKey;
-      final secret = await _api.getAccountInfo(); // Just to verify
-      // Actually we need to get secret from storage
-      final apiKey = await _getApiKey();
-      final apiSecret = await _getApiSecret();
+      final apiKey = MexcApiManager().apiKey;
+      final apiSecret = MexcApiManager().apiSecret;
       if (apiKey != null && apiSecret != null) {
         await _backend.initializeBot(apiKey, apiSecret);
       }
     }
     _startRefresh();
-  }
-
-  Future<String?> _getApiKey() async {
-    return MexcApiManager().apiKey;
-  }
-
-  Future<String?> _getApiSecret() async {
-    // The secret is stored in secure storage, accessible via the manager
-    // We'll use a workaround - re-read from storage
-    // In a real app you'd expose a getter
-    return null; // Will be set via API setup
   }
 
   void _startRefresh() {

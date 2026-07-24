@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/mexc_api_service.dart';
 import '../services/auto_trading_strategies.dart';
 import '../services/websocket_service.dart';
-import '../services/database_service.dart';
 import '../services/api_manager.dart';
 import '../utils/constants.dart';
 
@@ -38,7 +37,6 @@ class TradeRecord {
 class TradingProvider extends ChangeNotifier {
   final MexcApiService _api = MexcApiService();
   final AutoTradingStrategies _strategies = AutoTradingStrategies();
-  final DatabaseService _db = DatabaseService();
   late WebSocketService _wsService;
 
   double _balance = 0.0;

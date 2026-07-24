@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/api_manager.dart';
+import 'api_setup_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -26,7 +27,7 @@ class SettingsScreen extends StatelessWidget {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const ApiSetupScreenWrapper()),
+                    MaterialPageRoute(builder: (_) => const ApiSetupScreen()),
                   );
                 },
               ),
@@ -53,12 +54,4 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-class ApiSetupScreenWrapper extends StatelessWidget {
-  const ApiSetupScreenWrapper({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('شاشة إعداد API')),
-    );
-  }
-}
+

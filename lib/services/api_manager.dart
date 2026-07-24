@@ -17,6 +17,7 @@ class MexcApiManager {
 
   bool get isInitialized => _initialized;
   String? get apiKey => _apiKey;
+  String? get apiSecret => _apiSecret;
 
   Future<void> initialize() async {
     _apiKey = await SecureStorageService.getApiKey();

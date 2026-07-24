@@ -34,8 +34,8 @@ jobs:
 
       - name: Verify keystore secret exists
         run: |
-          if [ -z "${{ secrets.UPLOAD_KEYSTORE }}" ]; then
-            echo "❌ Error: UPLOAD_KEYSTORE secret is missing!"
+          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "❌ Error: KEYSTORE_BASE64 secret is missing!"
             exit 1
           fi
           if [ -z "${{ secrets.KEYSTORE_PASSWORD }}" ]; then
@@ -54,7 +54,7 @@ jobs:
 
       - name: Decode keystore
         run: |
-          echo "${{ secrets.UPLOAD_KEYSTORE }}" | base64 -d > android/app/upload-keystore.jks
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/upload-keystore.jks
           ls -la android/app/upload-keystore.jks
 
       - name: Create key.properties

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Wallet, TrendingUp, Bot, ArrowLeftRight, AlertCircle, Zap } from 'lucide-react'
+import { Wallet, TrendingUp, Bot, ArrowLeftRight, CircleAlert as AlertCircle, Zap } from 'lucide-react'
 import { mexcApi, db } from '../lib/supabase'
 import { SYMBOLS, COLORS, MAX_TRADE_AMOUNT } from '../lib/constants'
 import type { AppSettings, Screen } from '../App'

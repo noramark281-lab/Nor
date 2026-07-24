@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Bot, Play, Square, AlertCircle, Activity } from 'lucide-react'
+import { Bot, Play, Square, CircleAlert as AlertCircle, Activity } from 'lucide-react'
 import { mexcApi, db } from '../lib/supabase'
 import { executeStrategy } from '../lib/strategies'
 import { STRATEGIES, MAX_DAILY_TRADES, MAX_TRADE_AMOUNT } from '../lib/constants'

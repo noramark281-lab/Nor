@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Home, CandlestickChart, Bot, History, Settings as SettingsIcon } from 'lucide-react'
+import { Chrome as Home, ChartCandlestick as CandlestickChart, Bot, History, Settings as SettingsIcon } from 'lucide-react'
 import { db } from './lib/supabase'
 import HomeScreen from './screens/HomeScreen'
 import TradingScreen from './screens/TradingScreen'

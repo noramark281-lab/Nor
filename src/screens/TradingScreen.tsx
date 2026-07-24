@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ArrowUp, ArrowDown, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react'
+import { ArrowUp, ArrowDown, CircleAlert as AlertCircle, CircleCheck as CheckCircle, RefreshCw } from 'lucide-react'
 import { mexcApi, db } from '../lib/supabase'
 import { SYMBOLS, TIMEFRAMES, MAX_TRADE_AMOUNT, MIN_TRADE_AMOUNT } from '../lib/constants'
 import type { AppSettings } from '../App'

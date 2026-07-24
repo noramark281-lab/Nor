@@ -97,7 +97,7 @@ class BackendService {
   // ========== TRADES ==========
 
   Future<Map<String, dynamic>> manualTrade(String side, {String? symbol, double? amountUsd}) async {
-    final body = <String, dynamic>{'side': side};
+    final body = {'side': side};
     if (symbol != null) body['symbol'] = symbol;
     if (amountUsd != null) body['amount_usd'] = amountUsd;
     return _postBody('/api/trade/manual', body);

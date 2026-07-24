@@ -46,7 +46,7 @@ class TradingProvider extends ChangeNotifier {
   String _selectedTimeframe = '15m';
   double _tradeAmount = 1.0; // Default $1 cap
   List<TradeRecord> _tradeHistory = [];
-  List<dynamic> _klines = [];
+  List<Map<String, dynamic>> _klines = [];
   bool _isLoading = false;
   bool _botRunning = false;
   String _botStrategy = 'scalping';
@@ -84,7 +84,9 @@ class TradingProvider extends ChangeNotifier {
   String get selectedTimeframe => _selectedTimeframe;
   double get tradeAmount => _tradeAmount;
   List<TradeRecord> get tradeHistory => _tradeHistory;
-  List<dynamic> get klines => _klines;
+  List<TradeRecord> get openOrders => _tradeHistory.where((t) => t.status == 'pending' || t.status == 'open').toList();
+  List<TradeRecord> get history => _tradeHistory;
+  List<Map<String, dynamic>> get klines => _klines;
   bool get isLoading => _isLoading;
   bool get botRunning => _botRunning;
   String get botStrategy => _botStrategy;
@@ -286,7 +288,7 @@ class TradingProvider extends ChangeNotifier {
 
   // ========== BOT (Local) ==========
 
-  void startLocalBot() {
+  void startBot() {
     if (_dailyTrades >= Constants.maxDailyTrades) {
       _lastError = 'تم الوصول للحد اليومي';
       notifyListeners();
@@ -313,7 +315,7 @@ class TradingProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void stopLocalBot() {
+  void stopBot() {
     _botRunning = false;
     _botTimer?.cancel();
     notifyListeners();

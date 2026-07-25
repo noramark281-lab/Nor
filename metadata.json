@@ -1,0 +1,6 @@
+{
+  "name": "MindfulTrader - Guided Meditation & Event Futures Hub",
+  "description": "Guided meditation app with AI visuals & TTS voiceovers, MEXC event futures trading terminal, Gemini AI assistant, and GitHub Android build tools.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

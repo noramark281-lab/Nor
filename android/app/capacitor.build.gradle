@@ -1,0 +1,14 @@
+// Capacitor build script
+android {
+  compileOptions {
+      sourceCompatibility JavaVersion.VERSION_21
+      targetCompatibility JavaVersion.VERSION_21
+  }
+}
+
+dependencies {
+}
+
+if (hasProperty('postBuildExtras')) {
+  postBuildExtras()
+}

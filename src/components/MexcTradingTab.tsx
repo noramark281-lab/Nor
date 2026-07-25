@@ -16,8 +16,9 @@ export const MexcTradingTab: React.FC = () => {
   const [selectedTimeframe, setSelectedTimeframe] = useState<'1m' | '5m' | '15m' | '1h' | '4h' | '1D'>('15m');
   const [eventDuration, setEventDuration] = useState<'10m' | '30m' | '1h' | '1d'>('10m');
   const [amount, setAmount] = useState<number>(1);
-  const [availableUsdt, setAvailableUsdt] = useState<number>(3.34);
-  const [accountStatus, setAccountStatus] = useState<string>('متصل ومحقق (3.34 USDT)');
+  const [availableUsdt, setAvailableUsdt] = useState<number>(0);
+  const [accountStatus, setAccountStatus] = useState<string>('جاري التحقق من الحساب...');
+  const [apiError, setApiError] = useState<string | null>(null);
 
   // Bot State
   const [botRunning, setBotRunning] = useState<boolean>(false);
@@ -38,14 +39,21 @@ export const MexcTradingTab: React.FC = () => {
       try {
         const res = await fetch('/api/mexc/account');
         const data = await res.json();
-        if (data.usdtBalance !== undefined) {
-          setAvailableUsdt(data.usdtBalance);
+        if (res.ok) {
+          if (data.usdtBalance !== undefined) {
+            setAvailableUsdt(data.usdtBalance);
+          }
+          if (data.status) {
+            setAccountStatus(data.status);
+          }
+          setApiError(null);
+        } else {
+          setApiError(data.error || 'خطأ في الاتصال بـ MEXC');
+          setAccountStatus('خطأ في الاتصال');
         }
-        if (data.status) {
-          setAccountStatus(data.status);
-        }
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
+        setApiError('فشل الوصول إلى الخادم');
       }
     };
 
@@ -237,16 +245,31 @@ export const MexcTradingTab: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12 font-sans" dir="rtl">
-      {/* Solution Explanation Banner Addressing Screenshots */}
-      <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 space-y-2">
-        <div className="flex items-center space-x-2 space-x-reverse text-emerald-400 font-bold text-xs">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-          <span>تم إصلاح خطأ API (code:700013 Invalid content Type) وخطأ (HTTP 404):</span>
+      {/* Error Alert for Real MEXC Connection */}
+      {apiError && (
+        <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-4 space-y-2">
+          <div className="flex items-center space-x-2 space-x-reverse text-rose-400 font-bold text-xs">
+            <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+            <span>خطأ في الاتصال الحقيقي بـ MEXC:</span>
+          </div>
+          <p className="text-[11px] text-rose-200/90 leading-relaxed">
+            {apiError}. تأكد من صحة مفاتيح API (MEXC_API_KEY و MEXC_SECRET_KEY) في إعدادات الخادم.
+          </p>
         </div>
-        <p className="text-[11px] text-emerald-200/90 leading-relaxed">
-          تم تحديث خادم التطبيق لمعالجة طلبيات MEXC بدون ترويسة Content-Type خاطئة في طلبات GET، كما تم تزويد السيرفر بجميع مسارات البوت والتداول التلقائي لمنع ظهور صفحة 404.
-        </p>
-      </div>
+      )}
+
+      {/* Connection Success Banner */}
+      {!apiError && availableUsdt > 0 && (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 space-y-2">
+          <div className="flex items-center space-x-2 space-x-reverse text-emerald-400 font-bold text-xs">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <span>تم الاتصال الحقيقي بنجاح:</span>
+          </div>
+          <p className="text-[11px] text-emerald-200/90 leading-relaxed">
+            الرصيد المعروض هو الرصيد الفعلي لمحفظتك على منصة MEXC. جميع العمليات الآن حقيقية 100%.
+          </p>
+        </div>
+      )}
 
       {/* Top Ticker Navigation Bar */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between text-xs overflow-x-auto text-slate-300">

@@ -274,18 +274,25 @@ app.get('/api/mexc/account', async (req, res) => {
       method: 'GET',
       headers: {
         'X-MEXC-APIKEY': apiKey,
-        // Crucial fix: DO NOT set Content-Type: application/json on GET calls to avoid code 700013
+        'Content-Type': '', // Force empty content type for GET
       },
     });
 
     if (!mexcRes.ok) {
       const errText = await mexcRes.text();
-      console.warn('MEXC API Response Warning:', errText);
-      return res.json({
-        success: true,
-        usdtBalance: 3.34,
-        status: 'Connected',
-        rawResponse: errText,
+      console.error('MEXC API Error:', errText);
+      // Try to parse error message
+      let errorMsg = 'فشل الاتصال بـ MEXC';
+      try {
+        const errJson = JSON.parse(errText);
+        errorMsg = errJson.msg || errorMsg;
+      } catch (e) {}
+      
+      return res.status(mexcRes.status).json({
+        success: false,
+        error: errorMsg,
+        code: mexcRes.status,
+        details: errText
       });
     }
 
@@ -304,43 +311,67 @@ app.get('/api/mexc/account', async (req, res) => {
       balances: data.balances || [],
       status: 'Live Connected',
     });
-  } catch (err: any) {
+    } catch (err: any) {
     console.error('MEXC account error:', err);
-    res.json({
-      success: true,
-      usdtBalance: 3.34,
-      status: 'Active (Fallback)',
-      error: err.message,
+    res.status(500).json({
+      success: false,
+      error: 'خطأ في الخادم عند الاتصال بـ MEXC',
+      details: err.message,
     });
   }
 });
 
-// 7. MEXC Trade / Order Execution Route
+// 7. MEXC Trade / Order Execution Route (Real Execution)
 app.post('/api/mexc/trade', async (req, res) => {
   try {
     const { symbol, side, amount } = req.body;
     const apiKey = process.env.MEXC_API_KEY;
     const secretKey = process.env.MEXC_SECRET_KEY;
 
-    const tradeId = `mexc-evt-${Date.now()}`;
-    const timestamp = Date.now();
+    if (!apiKey || !secretKey) {
+      throw new Error('مفاتيح API غير مهيأة للتداول الحقيقي');
+    }
 
-    botState.logs.unshift(`[${new Date().toLocaleTimeString('ar-EG')}] تم تنفيذ صفقة ${side === 'UP' ? 'أعلى ↗' : 'أدنى ↘'} بمبلغ ${amount} USDT على ${symbol || 'BTCUSDT'}.`);
+    const timestamp = Date.now();
+    // For MEXC, we need to map UP/DOWN to actual order types or use their specific event futures API if applicable.
+    // Assuming standard spot/margin for this example or direct order placement.
+    const sideParam = side === 'UP' ? 'BUY' : 'SELL';
+    const query = `symbol=${symbol}&side=${sideParam}&type=MARKET&quantity=${amount}&timestamp=${timestamp}`;
+    const signature = crypto.createHmac('sha256', secretKey).update(query).digest('hex');
+
+    const mexcRes = await fetch('https://api.mexc.com/api/v3/order', {
+      method: 'POST',
+      headers: {
+        'X-MEXC-APIKEY': apiKey,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: `${query}&signature=${signature}`
+    });
+
+    const data: any = await mexcRes.json();
+
+    if (!mexcRes.ok) {
+      throw new Error(data.msg || 'فشل تنفيذ الصفقة على MEXC');
+    }
+
+    botState.logs.unshift(`[${new Date().toLocaleTimeString('ar-EG')}] ✅ صفقة حقيقية ناجحة: ${side} بمبلغ ${amount} على ${symbol}.`);
     botState.tradesCount += 1;
     botState.lastTradeTime = new Date().toLocaleTimeString('ar-EG');
 
     res.json({
       success: true,
-      orderId: tradeId,
-      symbol: symbol || 'BTCUSDT',
-      type: side || 'UP',
-      amount: amount || 10,
+      orderId: data.orderId,
+      symbol: symbol,
+      type: side,
+      amount: amount,
       timestamp,
-      message: `تم إرسال صفقة ${side === 'UP' ? 'أعلى' : 'أدنى'} بنجاح إلى منصة MEXC.`,
+      message: 'تم تنفيذ الصفقة الحقيقية بنجاح على منصة MEXC',
+      details: data
     });
   } catch (err: any) {
     console.error('MEXC trade error:', err);
-    res.status(500).json({ error: err.message || 'فشل تنفيذ الصفقة على منصة MEXC' });
+    botState.logs.unshift(`[${new Date().toLocaleTimeString('ar-EG')}] ❌ خطأ في الصفقة: ${err.message}`);
+    res.status(500).json({ success: false, error: err.message || 'فشل تنفيذ الصفقة على منصة MEXC' });
   }
 });
 

@@ -23,10 +23,18 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm ci || npm install
+        run: npm ci
 
       - name: Type Check & Lint
         run: npm run lint
 
       - name: Build Production Distribution
         run: npm run build
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mexc-trading-terminal-dist
+          path: dist/
+          retention-days: 7
+

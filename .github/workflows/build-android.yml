@@ -29,7 +29,7 @@ jobs:
           java-version: '17'
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm ci || npm install
 
       - name: Build Web Frontend Assets
         run: npm run build

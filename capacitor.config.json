@@ -1,0 +1,8 @@
+{
+  "appId": "com.mexc.trading.app",
+  "appName": "MEXC Trading Bot",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

@@ -7,6 +7,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-android:
     name: Build Android APK and AAB
@@ -19,7 +22,7 @@ jobs:
       - name: Setup Node.js Environment
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '22'
           cache: 'npm'
 
       - name: Setup Java JDK 17
@@ -53,16 +56,34 @@ jobs:
           chmod +x gradlew
           ./gradlew bundleRelease --stacktrace
 
-      - name: Upload APK Artifact (Direct Download Link)
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: MEXC-Trading-Bot-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      - name: Upload AAB Artifact (Google Play Bundle)
+      - name: Upload AAB Artifact
         uses: actions/upload-artifact@v4
         with:
           name: MEXC-Trading-Bot-AAB
           path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
+
+      - name: Create GitHub Release & Upload APK / AAB
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: "MEXC Trading Bot Release v1.0.${{ github.run_number }}"
+          body: |
+            🚀 **MEXC Trading Bot Android Release**
+            
+            - **APK Download**: `app-debug.apk` (Direct install on Android phone)
+            - **AAB Download**: `app-release.aab` (Google Play App Bundle)
+          files: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/bundle/release/app-release.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

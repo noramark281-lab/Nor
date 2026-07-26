@@ -49,10 +49,16 @@ jobs:
           fi
           npx cap sync android
 
-      - name: Setup Keystore
+      - name: Create Key Properties
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
         run: |
-          echo "Setting up keystore..."
-          ls -la android/app/
+          cat > android/key.properties << EOF
+          storePassword=${KEYSTORE_PASSWORD}
+          keyPassword=${KEYSTORE_PASSWORD}
+          keyAlias=upload
+          storeFile=app/upload-keystore.jks
+          EOF
 
       - name: Build Android Signed Release APK
         env:
@@ -60,8 +66,6 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          export KEY_ALIAS=upload
-          export KEYSTORE_PATH=app/upload-keystore.jks
           ./gradlew assembleRelease --stacktrace
 
       - name: Build Android Signed Release AAB
@@ -70,8 +74,6 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          export KEY_ALIAS=upload
-          export KEYSTORE_PATH=app/upload-keystore.jks
           ./gradlew bundleRelease --stacktrace
 
       - name: Upload APK Artifact

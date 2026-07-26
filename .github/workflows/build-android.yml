@@ -51,7 +51,7 @@ jobs:
 
       - name: Create Key Properties
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
+          KEYSTORE_PASSWORD: ${{ github.event.inputs.keystore_password || secrets.KEYSTORE_PASSWORD }}
         run: |
           cat > android/key.properties << EOF
           storePassword=${KEYSTORE_PASSWORD}
@@ -62,7 +62,7 @@ jobs:
 
       - name: Build Android Signed Release APK
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
+          KEYSTORE_PASSWORD: ${{ github.event.inputs.keystore_password || secrets.KEYSTORE_PASSWORD }}
         run: |
           cd android
           chmod +x gradlew
@@ -70,7 +70,7 @@ jobs:
 
       - name: Build Android Signed Release AAB
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
+          KEYSTORE_PASSWORD: ${{ github.event.inputs.keystore_password || secrets.KEYSTORE_PASSWORD }}
         run: |
           cd android
           chmod +x gradlew
@@ -94,7 +94,7 @@ jobs:
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
+          KEYSTORE_PASSWORD: ${{ github.event.inputs.keystore_password || secrets.KEYSTORE_PASSWORD }}
         run: |
           TAG="v1.0.${{ github.run_number }}"
           APK="android/app/build/outputs/apk/release/app-release.apk#MEXC-Trading-Bot-${TAG}-release.apk"

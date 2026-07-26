@@ -20,6 +20,12 @@ jobs:
     name: Build Android APK and AAB
     runs-on: ubuntu-latest
 
+    env:
+      CM_KEYSTORE_PASSWORD: ${{ github.event.inputs.keystore_password || secrets.CM_KEYSTORE_PASSWORD }}
+      CM_KEY_PASSWORD: ${{ github.event.inputs.keystore_password || secrets.CM_KEY_PASSWORD }}
+      CM_KEY_ALIAS: ${{ secrets.CM_KEY_ALIAS || 'upload' }}
+      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4

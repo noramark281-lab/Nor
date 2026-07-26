@@ -68,7 +68,10 @@ jobs:
       - name: Decode Keystore for Signed Release
         run: |
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/upload-keystore.jks
+            mkdir -p android/app
+            # Use printf to avoid echo mangling and base64 --decode for deterministic decoding
+            printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+            chmod 600 android/app/upload-keystore.jks
             echo "Keystore decoded successfully."
           else
             echo "No KEYSTORE_BASE64 secret found. Release signing will fail."

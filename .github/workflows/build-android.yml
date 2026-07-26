@@ -20,6 +20,12 @@ jobs:
     name: Build Android APK and AAB
     runs-on: ubuntu-latest
 
+    env:
+      CM_KEYSTORE_PASSWORD: ${{ github.event.inputs.keystore_password || secrets.CM_KEYSTORE_PASSWORD }}
+      CM_KEY_PASSWORD: ${{ github.event.inputs.keystore_password || secrets.CM_KEY_PASSWORD }}
+      CM_KEY_ALIAS: ${{ secrets.CM_KEY_ALIAS || 'upload' }}
+      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -49,28 +55,29 @@ jobs:
           fi
           npx cap sync android
 
-      - name: Create Key Properties
-        env:
-          KEYSTORE_PASSWORD: ${{ github.event.inputs.keystore_password || secrets.KEYSTORE_PASSWORD }}
+      - name: Decode Keystore from Base64
         run: |
-          cat > android/key.properties << EOF
-          storePassword=${KEYSTORE_PASSWORD}
-          keyPassword=${KEYSTORE_PASSWORD}
-          keyAlias=upload
-          storeFile=upload-keystore.jks
-          EOF
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+            echo "Keystore decoded from base64 secret."
+          else
+            echo "No KEYSTORE_BASE64 secret found. Assuming keystore is already in repo."
+          fi
+
+      - name: Generate key.properties from env vars
+        run: |
+          envsubst < android/key.properties > android/key.properties.tmp
+          mv android/key.properties.tmp android/key.properties
+          echo "Generated key.properties:"
+          cat android/key.properties
 
       - name: Build Android Signed Release APK
-        env:
-          KEYSTORE_PASSWORD: ${{ github.event.inputs.keystore_password || secrets.KEYSTORE_PASSWORD }}
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleRelease --stacktrace
 
       - name: Build Android Signed Release AAB
-        env:
-          KEYSTORE_PASSWORD: ${{ github.event.inputs.keystore_password || secrets.KEYSTORE_PASSWORD }}
         run: |
           cd android
           chmod +x gradlew
@@ -94,7 +101,6 @@ jobs:
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          KEYSTORE_PASSWORD: ${{ github.event.inputs.keystore_password || secrets.KEYSTORE_PASSWORD }}
         run: |
           TAG="v1.0.${{ github.run_number }}"
           APK="android/app/build/outputs/apk/release/app-release.apk#MEXC-Trading-Bot-${TAG}-release.apk"

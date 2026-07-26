@@ -20,12 +20,6 @@ jobs:
     name: Build Android APK and AAB
     runs-on: ubuntu-latest
 
-    env:
-      CM_KEYSTORE_PASSWORD: ${{ github.event.inputs.keystore_password || secrets.CM_KEYSTORE_PASSWORD }}
-      CM_KEY_PASSWORD: ${{ github.event.inputs.keystore_password || secrets.CM_KEY_PASSWORD }}
-      CM_KEY_ALIAS: ${{ secrets.CM_KEY_ALIAS || 'upload' }}
-      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -55,6 +49,15 @@ jobs:
           fi
           npx cap sync android
 
+      - name: Debug - Check Keystore Exists
+        run: |
+          echo "=== Checking android/app directory ==="
+          ls -la android/app/
+          echo "=== Checking keystore file ==="
+          ls -la android/app/upload-keystore.jks || echo "Keystore NOT FOUND"
+          echo "=== Checking key.properties ==="
+          cat android/key.properties || echo "key.properties NOT FOUND"
+
       - name: Create Key Properties
         env:
           CM_KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
@@ -67,6 +70,15 @@ jobs:
           keyAlias=${CM_KEY_ALIAS}
           storeFile=upload-keystore.jks
           EOF
+          echo "=== Created key.properties ==="
+          cat android/key.properties
+
+      - name: Debug - Verify Setup After Key Properties
+        run: |
+          echo "=== Verifying android/app directory after key.properties creation ==="
+          ls -la android/app/
+          echo "=== Verifying keystore ==="
+          ls -la android/app/upload-keystore.jks || echo "Keystore NOT FOUND"
 
       - name: Build Android Signed Release APK
         env:
@@ -102,7 +114,6 @@ jobs:
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CM_KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
         run: |
           TAG="v1.0.${{ github.run_number }}"
           APK="android/app/build/outputs/apk/release/app-release.apk#MEXC-Trading-Bot-${TAG}-release.apk"

@@ -51,18 +51,20 @@ jobs:
 
       - name: Create Key Properties
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
+          CM_KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
+          CM_KEY_PASSWORD: ${{ secrets.CM_KEY_PASSWORD || github.event.inputs.keystore_password }}
+          CM_KEY_ALIAS: ${{ secrets.CM_KEY_ALIAS }}
         run: |
           cat > android/key.properties << EOF
-          storePassword=${KEYSTORE_PASSWORD}
-          keyPassword=${KEYSTORE_PASSWORD}
-          keyAlias=upload
+          storePassword=${CM_KEYSTORE_PASSWORD}
+          keyPassword=${CM_KEY_PASSWORD}
+          keyAlias=${CM_KEY_ALIAS}
           storeFile=upload-keystore.jks
           EOF
 
       - name: Build Android Signed Release APK
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
+          CM_KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
         run: |
           cd android
           chmod +x gradlew
@@ -70,7 +72,7 @@ jobs:
 
       - name: Build Android Signed Release AAB
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
+          CM_KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
         run: |
           cd android
           chmod +x gradlew
@@ -94,7 +96,7 @@ jobs:
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
+          CM_KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
         run: |
           TAG="v1.0.${{ github.run_number }}"
           APK="android/app/build/outputs/apk/release/app-release.apk#MEXC-Trading-Bot-${TAG}-release.apk"

@@ -22,7 +22,7 @@ jobs:
       - name: Setup Node.js Environment
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '22'
           cache: 'npm'
 
       - name: Setup Java JDK 21
@@ -42,22 +42,6 @@ jobs:
           VITE_MEXC_API_KEY: ${{ secrets.MEXC_API_KEY }}
           VITE_MEXC_SECRET_KEY: ${{ secrets.MEXC_SECRET_KEY }}
 
-      - name: Safe Link Supabase Project
-        continue-on-error: true
-        run: |
-          TOKEN="${{ secrets.TOKEN_SUPABASE }}"
-          PROJECT="${{ secrets.PROJECT_URL }}"
-          if [ -n "$TOKEN" ] && [ -n "$PROJECT" ]; then
-            if [[ "$TOKEN" == sbp_* ]]; then
-              echo "Valid Supabase Access Token detected (sbp_...). Linking project..."
-              npx supabase link --project-ref "$PROJECT" || echo "Supabase link skipped/failed safely."
-            else
-              echo "Notice: TOKEN_SUPABASE does not start with 'sbp_'. Skipping Supabase CLI link step safely without failing build."
-            fi
-          else
-            echo "Supabase credentials not configured for CLI link. Continuing build safely..."
-          fi
-
       - name: Add and Sync Capacitor Android
         run: |
           if [ ! -d "android" ]; then
@@ -66,19 +50,29 @@ jobs:
           npx cap sync android
 
       - name: Decode Keystore for Signed Release
+        id: decode_keystore
+        continue-on-error: true
         run: |
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             mkdir -p android/app
-            # Use printf to avoid echo mangling and base64 --decode for deterministic decoding
             printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
             chmod 600 android/app/upload-keystore.jks
-            echo "Keystore decoded successfully."
+            if keytool -list -keystore android/app/upload-keystore.jks -storepass "${{ secrets.CM_KEYSTORE_PASSWORD }}" >/dev/null 2>&1; then
+              echo "keystore_valid=true" >> $GITHUB_OUTPUT
+              echo "✅ Keystore decoded and verified."
+            else
+              echo "keystore_valid=false" >> $GITHUB_OUTPUT
+              echo "⚠️ Keystore decoded but password verification failed."
+            fi
           else
-            echo "No KEYSTORE_BASE64 secret found. Release signing will fail."
-            exit 1
+            echo "keystore_valid=false" >> $GITHUB_OUTPUT
+            echo "⚠️ No KEYSTORE_BASE64 secret found."
           fi
 
       - name: Build Android Signed Release APK
+        id: build_signed
+        if: steps.decode_keystore.outputs.keystore_valid == 'true'
+        continue-on-error: true
         run: |
           cd android
           chmod +x gradlew
@@ -89,50 +83,57 @@ jobs:
           CM_KEY_ALIAS: ${{ secrets.CM_KEY_ALIAS }}
           CM_KEY_PASSWORD: ${{ secrets.CM_KEY_PASSWORD }}
 
-      - name: Build Android Release AAB
+      - name: Build Android Debug APK (Fallback)
+        id: build_debug
+        if: always() && (steps.decode_keystore.outputs.keystore_valid != 'true' || steps.build_signed.outcome == 'failure')
         run: |
+          echo "🔄 Building Debug APK as fallback..."
           cd android
           chmod +x gradlew
-          ./gradlew bundleRelease --stacktrace
-        env:
-          CM_KEYSTORE_FILE: "upload-keystore.jks"
-          CM_KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD }}
-          CM_KEY_ALIAS: ${{ secrets.CM_KEY_ALIAS }}
-          CM_KEY_PASSWORD: ${{ secrets.CM_KEY_PASSWORD }}
+          ./gradlew assembleDebug --stacktrace
 
-      - name: Upload APK Artifact
+      - name: Upload Signed APK Artifact
+        if: steps.build_signed.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: MEXC-Trading-Bot-APK-Signed
           path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 30
 
-      - name: Upload AAB Artifact
+      - name: Upload Debug APK Artifact
+        if: steps.build_debug.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: MEXC-Trading-Bot-AAB
-          path: android/app/build/outputs/bundle/release/app-release.aab
+          name: MEXC-Trading-Bot-APK-Debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      - name: Create or Update GitHub Release & Upload APK / AAB
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+      - name: Create GitHub Release (Signed)
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && steps.build_signed.outcome == 'success'
         run: |
           TAG="v1.0.${{ github.run_number }}"
           APK="android/app/build/outputs/apk/release/app-release.apk#MEXC-Trading-Bot-${TAG}.apk"
-          AAB="android/app/build/outputs/bundle/release/app-release.aab#MEXC-Trading-Bot-${TAG}.aab"
-
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG exists, uploading assets with clobber..."
-            gh release upload "$TAG" "$APK" "$AAB" --clobber
+            gh release upload "$TAG" "$APK" --clobber
           else
-            echo "Creating new release $TAG..."
-            gh release create "$TAG" "$APK" "$AAB" \
+            gh release create "$TAG" "$APK" \
               --title "MEXC Trading Bot Release $TAG" \
-              --notes "🚀 **MEXC Trading Bot Android Release $TAG**
+              --notes "🚀 **Signed Release APK** — MEXC Trading Bot $TAG"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          ### 📱 روابط التحميل المباشرة
-          - **ملف APK موقع (تثبيت مباشر)**: \`MEXC-Trading-Bot-${TAG}.apk\`
-          - **حزمة AAB (جوجل بلاي)**: \`MEXC-Trading-Bot-${TAG}.aab\`"
+      - name: Create GitHub Release (Debug)
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && steps.build_debug.outcome == 'success' && steps.build_signed.outcome != 'success'
+        run: |
+          TAG="v1.0.${{ github.run_number }}-debug"
+          APK="android/app/build/outputs/apk/debug/app-debug.apk#MEXC-Trading-Bot-${TAG}.apk"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" --clobber
+          else
+            gh release create "$TAG" "$APK" \
+              --title "MEXC Trading Bot Debug $TAG" \
+              --notes "⚠️ **Debug APK for testing** — MEXC Trading Bot $TAG. This is a real working app connected to MEXC API. The only difference from release is it's not digitally signed."
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

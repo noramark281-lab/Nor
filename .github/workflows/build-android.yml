@@ -72,17 +72,16 @@ jobs:
 
       - name: Create GitHub Release & Upload APK / AAB
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: "MEXC Trading Bot Release v1.0.${{ github.run_number }}"
-          body: |
-            🚀 **MEXC Trading Bot Android Release**
-            
-            - **APK Download**: `app-debug.apk` (تثبيت مباشر على الهاتف)
-            - **AAB Download**: `app-release.aab` (حزمة Google Play)
-          files: |
-            android/app/build/outputs/apk/debug/app-debug.apk
-            android/app/build/outputs/bundle/release/app-release.aab
+        run: |
+          gh release create "v1.0.${{ github.run_number }}" \
+            "android/app/build/outputs/apk/debug/app-debug.apk#MEXC-Trading-Bot-v1.0.${{ github.run_number }}-debug.apk" \
+            "android/app/build/outputs/bundle/release/app-release.aab#MEXC-Trading-Bot-v1.0.${{ github.run_number }}-release.aab" \
+            --title "MEXC Trading Bot Release v1.0.${{ github.run_number }}" \
+            --notes "🚀 **MEXC Trading Bot Android Release v1.0.${{ github.run_number }}**
+
+          ### 📱 Download Links
+          - **APK (Direct Install)**: \`MEXC-Trading-Bot-v1.0.${{ github.run_number }}-debug.apk\`
+          - **AAB (Google Play Bundle)**: \`MEXC-Trading-Bot-v1.0.${{ github.run_number }}-release.aab\`"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

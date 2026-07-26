@@ -39,6 +39,20 @@ jobs:
       - name: Install Dependencies
         run: npm ci || npm install
 
+      # ==========================================
+      # خطوة ربط واستدعاء إعدادات Supabase
+      # ==========================================
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link Supabase Project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.TOKEN_SUPABASE }}
+        run: |
+          supabase link --project-ref ${{ secrets.PROJECT_URL }}
+
       - name: Build Web Frontend Assets
         run: npm run build
 

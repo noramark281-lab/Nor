@@ -86,9 +86,19 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease --stacktrace
+          ./gradlew assembleRelease --stacktrace 2>&1 | tee build-log.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Upload Build Log on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: android/build-log.txt
+          retention-days: 1
 
       - name: Build Android Signed Release AAB
+        if: success()
         env:
           CM_KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
         run: |
@@ -97,6 +107,7 @@ jobs:
           ./gradlew bundleRelease --stacktrace
 
       - name: Upload APK Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: MEXC-Trading-Bot-APK
@@ -104,6 +115,7 @@ jobs:
           retention-days: 30
 
       - name: Upload AAB Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: MEXC-Trading-Bot-AAB
@@ -111,7 +123,7 @@ jobs:
           retention-days: 30
 
       - name: Create or Update GitHub Release & Upload APK / AAB
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

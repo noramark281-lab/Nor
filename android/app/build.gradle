@@ -3,26 +3,6 @@ apply plugin: 'com.android.application'
 android {
     namespace = "com.mexc.trading.app"
     compileSdk = rootProject.ext.compileSdkVersion
-    
-    signingConfigs {
-        release {
-            def keystorePropertiesFile = rootProject.file("key.properties")
-            def keystoreProperties = new Properties()
-            if (keystorePropertiesFile.exists()) {
-                keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
-                storeFile file(keystoreProperties['storeFile'])
-                storePassword keystoreProperties['storePassword']
-                keyAlias keystoreProperties['keyAlias']
-                keyPassword keystoreProperties['keyPassword']
-            } else {
-                storeFile file(System.getenv("KEYSTORE_PATH") ?: "upload-keystore.jks")
-                storePassword System.getenv("KEYSTORE_PASSWORD")
-                keyAlias System.getenv("KEY_ALIAS") ?: "upload"
-                keyPassword System.getenv("KEYSTORE_PASSWORD")
-            }
-        }
-    }
-    
     defaultConfig {
         applicationId "com.mexc.trading.app"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -40,12 +20,13 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
-        }
-        debug {
-            signingConfig signingConfigs.release
         }
     }
+}
+
+configurations.all {
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
 }
 
 repositories {

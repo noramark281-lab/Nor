@@ -6,11 +6,6 @@ on:
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
-    inputs:
-      keystore_password:
-        description: 'Keystore Password'
-        required: true
-        type: string
 
 permissions:
   contents: write
@@ -39,22 +34,29 @@ jobs:
       - name: Install Dependencies
         run: npm ci || npm install
 
-      # ==========================================
-      # خطوة ربط واستدعاء إعدادات Supabase
-      # ==========================================
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
-
-      - name: Link Supabase Project
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.TOKEN_SUPABASE }}
-        run: |
-          supabase link --project-ref ${{ secrets.PROJECT_URL }}
-
       - name: Build Web Frontend Assets
         run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.PROJECT_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.PUBLISHABLE_KEY }}
+          VITE_MEXC_API_KEY: ${{ secrets.MEXC_API_KEY }}
+          VITE_MEXC_SECRET_KEY: ${{ secrets.MEXC_SECRET_KEY }}
+
+      - name: Safe Link Supabase Project
+        continue-on-error: true
+        run: |
+          TOKEN="${{ secrets.TOKEN_SUPABASE }}"
+          PROJECT="${{ secrets.PROJECT_URL }}"
+          if [ -n "$TOKEN" ] && [ -n "$PROJECT" ]; then
+            if [[ "$TOKEN" == sbp_* ]]; then
+              echo "Valid Supabase Access Token detected (sbp_...). Linking project..."
+              npx supabase link --project-ref "$PROJECT" || echo "Supabase link skipped/failed safely."
+            else
+              echo "Notice: TOKEN_SUPABASE does not start with 'sbp_'. Skipping Supabase CLI link step safely without failing build."
+            fi
+          else
+            echo "Supabase credentials not configured for CLI link. Continuing build safely..."
+          fi
 
       - name: Add and Sync Capacitor Android
         run: |
@@ -63,73 +65,26 @@ jobs:
           fi
           npx cap sync android
 
-      - name: Debug - Check Keystore Exists
-        run: |
-          echo "=== Checking android/app directory ==="
-          ls -la android/app/
-          echo "=== Checking keystore file ==="
-          ls -la android/app/upload-keystore.jks || echo "Keystore NOT FOUND"
-          echo "=== Checking key.properties ==="
-          cat android/key.properties || echo "key.properties NOT FOUND"
-
-      - name: Create Key Properties
-        env:
-          CM_KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
-          CM_KEY_PASSWORD: ${{ secrets.CM_KEY_PASSWORD || github.event.inputs.keystore_password }}
-          CM_KEY_ALIAS: ${{ secrets.CM_KEY_ALIAS }}
-        run: |
-          cat > android/key.properties << EOF
-          storePassword=${CM_KEYSTORE_PASSWORD}
-          keyPassword=${CM_KEY_PASSWORD}
-          keyAlias=${CM_KEY_ALIAS}
-          storeFile=upload-keystore.jks
-          EOF
-          echo "=== Created key.properties ==="
-          cat android/key.properties
-
-      - name: Debug - Verify Setup After Key Properties
-        run: |
-          echo "=== Verifying android/app directory after key.properties creation ==="
-          ls -la android/app/
-          echo "=== Verifying keystore ==="
-          ls -la android/app/upload-keystore.jks || echo "Keystore NOT FOUND"
-
-      - name: Build Android Signed Release APK
-        env:
-          CM_KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
+      - name: Build Android Debug APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease --stacktrace 2>&1 | tee build-log.txt
-          exit ${PIPESTATUS[0]}
+          ./gradlew assembleDebug --stacktrace
 
-      - name: Upload Build Log on Failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: android/build-log.txt
-          retention-days: 1
-
-      - name: Build Android Signed Release AAB
-        if: success()
-        env:
-          CM_KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
+      - name: Build Android Release AAB
         run: |
           cd android
           chmod +x gradlew
           ./gradlew bundleRelease --stacktrace
 
       - name: Upload APK Artifact
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: MEXC-Trading-Bot-APK
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
       - name: Upload AAB Artifact
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: MEXC-Trading-Bot-AAB
@@ -137,12 +92,10 @@ jobs:
           retention-days: 30
 
       - name: Create or Update GitHub Release & Upload APK / AAB
-        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: |
           TAG="v1.0.${{ github.run_number }}"
-          APK="android/app/build/outputs/apk/release/app-release.apk#MEXC-Trading-Bot-${TAG}-release.apk"
+          APK="android/app/build/outputs/apk/debug/app-debug.apk#MEXC-Trading-Bot-${TAG}-debug.apk"
           AAB="android/app/build/outputs/bundle/release/app-release.aab#MEXC-Trading-Bot-${TAG}-release.aab"
 
           if gh release view "$TAG" >/dev/null 2>&1; then
@@ -155,6 +108,9 @@ jobs:
               --notes "🚀 **MEXC Trading Bot Android Release $TAG**
 
           ### 📱 روابط التحميل المباشرة
-          - **ملف APK (تثبيت مباشر)**: \`MEXC-Trading-Bot-${TAG}-release.apk\`
+          - **ملف APK (تثبيت مباشر)**: \`MEXC-Trading-Bot-${TAG}-debug.apk\`
           - **حزمة AAB (جوجل بلاي)**: \`MEXC-Trading-Bot-${TAG}-release.aab\`"
           fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

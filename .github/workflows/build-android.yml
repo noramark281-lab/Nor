@@ -1,34 +1,94 @@
-- name: Determine release tag
-  id: tag
-  run: echo "tag=${{ env.RELEASE_TAG }}" >> $GITHUB_OUTPUT
+name: Build Android APK & AAB
 
-- name: Check if release exists
-  id: check_release
-  env:
-    TAG: ${{ steps.tag.outputs.tag }}
-    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  run: |
-    if gh release view "$TAG" >/dev/null 2>&1; then
-      echo "exists=true" >> $GITHUB_OUTPUT
-    else
-      echo "exists=false" >> $GITHUB_OUTPUT
-    fi
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
 
-- name: Create release (only if not exists)
-  if: steps.check_release.outputs.exists == 'false'
-  uses: actions/create-release@v1
-  with:
-    tag_name: ${{ steps.tag.outputs.tag }}
-    release_name: Release ${{ steps.tag.outputs.tag }}
-    body: Release created by workflow
-  env:
-    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+permissions:
+  contents: write
 
-- name: Update release (optional — run when it exists)
-  if: steps.check_release.outputs.exists == 'true'
-  env:
-    TAG: ${{ steps.tag.outputs.tag }}
-    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  run: |
-    gh release edit "$TAG" --title "Release $TAG" --notes "Updated by CI"
-    
+jobs:
+  build-android:
+    name: Build Android APK and AAB
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Setup Java JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Build Web Frontend Assets
+        run: npm run build
+
+      - name: Add and Sync Capacitor Android
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+          npx cap sync android
+
+      - name: Build Android Debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Build Android Release AAB
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease --stacktrace
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MEXC-Trading-Bot-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Upload AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MEXC-Trading-Bot-AAB
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: Create or Update GitHub Release & Upload APK / AAB
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: |
+          TAG="v1.0.${{ github.run_number }}"
+          APK="android/app/build/outputs/apk/debug/app-debug.apk#MEXC-Trading-Bot-${TAG}-debug.apk"
+          AAB="android/app/build/outputs/bundle/release/app-release.aab#MEXC-Trading-Bot-${TAG}-release.aab"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists, uploading assets with clobber..."
+            gh release upload "$TAG" "$APK" "$AAB" --clobber
+          else
+            echo "Creating new release $TAG..."
+            gh release create "$TAG" "$APK" "$AAB" \
+              --title "MEXC Trading Bot Release $TAG" \
+              --notes "🚀 **MEXC Trading Bot Android Release $TAG**
+
+          ### 📱 روابط التحميل المباشرة
+          - **ملف APK (تثبيت مباشر)**: \`MEXC-Trading-Bot-${TAG}-debug.apk\`
+          - **حزمة AAB (جوجل بلاي)**: \`MEXC-Trading-Bot-${TAG}-release.aab\`"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

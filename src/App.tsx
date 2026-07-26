@@ -273,7 +273,13 @@ export default function App() {
     await fetch('/api/mexc/position/close', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ positionId, symbol }),
+      body: JSON.stringify({
+        positionId,
+        symbol,
+        apiKey: credentials.apiKey,
+        secretKey: credentials.secretKey,
+        mode,
+      }),
     });
     fetchAccountAndPositions();
   };

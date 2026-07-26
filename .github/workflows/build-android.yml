@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
+    inputs:
+      keystore_password:
+        description: 'Keystore Password'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -44,23 +49,36 @@ jobs:
           fi
           npx cap sync android
 
-      - name: Build Android Debug APK
+      - name: Setup Keystore
         run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          echo "Setting up keystore..."
+          ls -la android/app/
 
-      - name: Build Android Release AAB
+      - name: Build Android Signed Release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
         run: |
           cd android
           chmod +x gradlew
+          export KEY_ALIAS=upload
+          export KEYSTORE_PATH=app/upload-keystore.jks
+          ./gradlew assembleRelease --stacktrace
+
+      - name: Build Android Signed Release AAB
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
+        run: |
+          cd android
+          chmod +x gradlew
+          export KEY_ALIAS=upload
+          export KEYSTORE_PATH=app/upload-keystore.jks
           ./gradlew bundleRelease --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: MEXC-Trading-Bot-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 30
 
       - name: Upload AAB Artifact
@@ -72,9 +90,12 @@ jobs:
 
       - name: Create or Update GitHub Release & Upload APK / AAB
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
         run: |
           TAG="v1.0.${{ github.run_number }}"
-          APK="android/app/build/outputs/apk/debug/app-debug.apk#MEXC-Trading-Bot-${TAG}-debug.apk"
+          APK="android/app/build/outputs/apk/release/app-release.apk#MEXC-Trading-Bot-${TAG}-release.apk"
           AAB="android/app/build/outputs/bundle/release/app-release.aab#MEXC-Trading-Bot-${TAG}-release.aab"
 
           if gh release view "$TAG" >/dev/null 2>&1; then
@@ -87,8 +108,6 @@ jobs:
               --notes "🚀 **MEXC Trading Bot Android Release $TAG**
 
           ### 📱 روابط التحميل المباشرة
-          - **ملف APK (تثبيت مباشر)**: \`MEXC-Trading-Bot-${TAG}-debug.apk\`
+          - **ملف APK (تثبيت مباشر)**: \`MEXC-Trading-Bot-${TAG}-release.apk\`
           - **حزمة AAB (جوجل بلاي)**: \`MEXC-Trading-Bot-${TAG}-release.aab\`"
           fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

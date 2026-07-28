@@ -70,7 +70,12 @@ A high-performance full-stack web application for trading crypto futures on MEXC
 
 ## 🧪 GitHub Actions CI
 
-This repository is equipped with GitHub Actions (`.github/workflows/ci.yml`) to automatically test type safety and build the production bundle on every push to `main`.
+This repository is equipped with GitHub Actions:
+- `.github/workflows/ci.yml` for build and type-check validation.
+- `.github/workflows/deploy-pages.yml` for automatic deployment to GitHub Pages.
+
+After the workflow runs successfully, the live web app will be available at:
+- https://noramark281-lab.github.io/Nor/
 
 ---
 

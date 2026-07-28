@@ -3,8 +3,11 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
+const isGithubPages = process.env.GITHUB_ACTIONS === 'true';
+
 export default defineConfig(() => {
   return {
+    base: isGithubPages ? '/Nor/' : '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

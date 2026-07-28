@@ -11,6 +11,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { AIAnalysisResult, Language } from '../types';
+import { getApiUrl } from '../utils/api';
 
 interface AiAssistantProps {
   selectedSymbol: string;
@@ -43,7 +44,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({
     setIsLoading(true);
     setAppliedSuccess(false);
     try {
-      const response = await fetch('/api/ai/analyze', {
+      const response = await fetch(getApiUrl('/api/ai/analyze'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol: sym, language: lang }),

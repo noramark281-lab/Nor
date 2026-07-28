@@ -6,6 +6,7 @@ import { AiAssistant } from './components/AiAssistant';
 import { AccountManager } from './components/AccountManager';
 import { ApiSettingsModal } from './components/ApiSettingsModal';
 import { MobileDownloadModal } from './components/MobileDownloadModal';
+import { getApiUrl } from './utils/api';
 
 import {
   MarketTicker,
@@ -65,7 +66,7 @@ export default function App() {
   useEffect(() => {
     const fetchTickers = async () => {
       try {
-        const res = await fetch('/api/mexc/tickers');
+        const res = await fetch(getApiUrl('/api/mexc/tickers'));
         const contentType = res.headers.get('content-type') || '';
         if (res.ok && contentType.includes('application/json')) {
           const data = await res.json();
@@ -87,7 +88,7 @@ export default function App() {
   useEffect(() => {
     const fetchKlines = async () => {
       try {
-        const res = await fetch(`/api/mexc/klines?symbol=${selectedSymbol}&interval=Min15`);
+        const res = await fetch(getApiUrl(`/api/mexc/klines?symbol=${selectedSymbol}&interval=Min15`));
         const contentType = res.headers.get('content-type') || '';
         if (res.ok && contentType.includes('application/json')) {
           const data = await res.json();
@@ -109,7 +110,7 @@ export default function App() {
   useEffect(() => {
     const fetchDepth = async () => {
       try {
-        const res = await fetch(`/api/mexc/depth?symbol=${selectedSymbol}`);
+        const res = await fetch(getApiUrl(`/api/mexc/depth?symbol=${selectedSymbol}`));
         const contentType = res.headers.get('content-type') || '';
         if (res.ok && contentType.includes('application/json')) {
           const data = await res.json();
@@ -134,7 +135,7 @@ export default function App() {
   const fetchAccountAndPositions = async () => {
     try {
       // Account
-      const accRes = await fetch('/api/mexc/account', {
+      const accRes = await fetch(getApiUrl('/api/mexc/account'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -152,7 +153,7 @@ export default function App() {
       }
 
       // Positions
-      const posRes = await fetch('/api/mexc/positions', {
+      const posRes = await fetch(getApiUrl('/api/mexc/positions'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -182,7 +183,7 @@ export default function App() {
   // 5. Poll 24/7 Cloud Bot List & Logs (Every 5 seconds)
   const fetchBotsAndLogs = async () => {
     try {
-      const res = await fetch('/api/bot/list');
+      const res = await fetch(getApiUrl('/api/bot/list'));
       const contentType = res.headers.get('content-type') || '';
       if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
@@ -217,7 +218,7 @@ export default function App() {
     setCredentials(updated);
 
     try {
-      const testRes = await fetch('/api/mexc/test-credentials', {
+      const testRes = await fetch(getApiUrl('/api/mexc/test-credentials'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey, secretKey }),
@@ -248,7 +249,7 @@ export default function App() {
     tpPrice?: number;
     slPrice?: number;
   }) => {
-    const res = await fetch('/api/mexc/order/place', {
+    const res = await fetch(getApiUrl('/api/mexc/order/place'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -271,7 +272,7 @@ export default function App() {
   // Handler: Close Position
   const handleClosePosition = async (positionId: string, symbol: string) => {
     const posObj = positions.find(p => p.id === positionId);
-    await fetch('/api/mexc/position/close', {
+    await fetch(getApiUrl('/api/mexc/position/close'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -298,7 +299,7 @@ export default function App() {
 
   // Handler: Toggle Bot State
   const handleToggleBot = async (botId: string, enabled: boolean) => {
-    await fetch('/api/bot/toggle', {
+    await fetch(getApiUrl('/api/bot/toggle'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ botId, enabled }),
@@ -308,7 +309,7 @@ export default function App() {
 
   // Handler: Update Bot Config
   const handleUpdateBotConfig = async (updatedBot: BotStrategyConfig) => {
-    await fetch('/api/bot/update-config', {
+    await fetch(getApiUrl('/api/bot/update-config'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ bot: updatedBot }),

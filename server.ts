@@ -12,6 +12,17 @@ const PORT = 3000;
 
 app.use(express.json());
 
+// Enable CORS for mobile apps, APK, and external web clients
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, ApiKey, Request-Time, Signature, X-MEXC-APIKEY');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // Initialize Gemini Client safely
 let aiClient: GoogleGenAI | null = null;
 function getAiClient(): GoogleGenAI | null {
@@ -422,21 +433,22 @@ app.get('/api/mexc/depth', async (req: Request, res: Response) => {
 app.post('/api/mexc/test-credentials', async (req: Request, res: Response) => {
   const { apiKey, secretKey } = req.body || {};
 
-  const keyToUse = apiKey || process.env.MEXC_API_KEY || process.env.AMEXC_API_KEY;
+  const keyToUse = apiKey || process.env.MEXC_API_KEY || process.env.AMEXC_API_KEY || process.env.MEXC_APPP;
   const secretToUse = secretKey || process.env.MEXC_SECRET_KEY || process.env.MEXCS_SECRET_KEY;
 
   if (!keyToUse || !secretToUse) {
     return res.json({
       success: false,
-      message: 'MEXC API Key or Secret Key missing. Please input credentials or set env variables.',
+      message: 'لم يتم العثور على مفتاح API أو المفتاح السري لـ MEXC. يرجى إدخالها في الشاشة أو ضبطها في إعدادات البيئة.',
     });
   }
 
+  // 1. Try MEXC Contract / Futures API
   try {
     const reqTime = Date.now().toString();
     const signature = generateMexcSignature(keyToUse, secretToUse, reqTime);
 
-    const response = await fetch('https://contract.mexc.com/api/v1/private/account/assets', {
+    const futuresRes = await fetch('https://contract.mexc.com/api/v1/private/account/assets', {
       headers: {
         'ApiKey': keyToUse,
         'Request-Time': reqTime,
@@ -446,34 +458,56 @@ app.post('/api/mexc/test-credentials', async (req: Request, res: Response) => {
       }
     });
 
-    const contentType = response.headers.get('content-type') || '';
-    if (response.ok && contentType.includes('application/json')) {
-      const data = await response.json();
+    const contentType = futuresRes.headers.get('content-type') || '';
+    if (futuresRes.ok && contentType.includes('application/json')) {
+      const data = await futuresRes.json();
       if (data && data.success) {
         return res.json({
           success: true,
-          message: 'Connected successfully to MEXC Futures API!',
+          mexcType: 'FUTURES',
+          message: 'تم الاتصال والتحقق بنجاح من حساب العقود الآجلة في منصة MEXC!',
           mexcData: data.data,
         });
-      } else {
-        return res.json({
-          success: false,
-          message: data?.message || 'MEXC API rejected credentials. Check API Key permissions (Contract Trading enabled).',
-          rawResponse: data,
-        });
       }
-    } else {
-      return res.json({
-        success: false,
-        message: `MEXC Server returned HTTP status ${response.status}`,
-      });
     }
   } catch (err: any) {
-    return res.json({
-      success: false,
-      message: `Connection error: ${err?.message || 'Network unreachable'}`,
-    });
+    console.error('Futures API check error:', err);
   }
+
+  // 2. Try MEXC Spot API
+  try {
+    const ts = Date.now();
+    const queryString = `timestamp=${ts}`;
+    const spotSig = crypto.createHmac('sha256', secretToUse).update(queryString).digest('hex');
+
+    const spotRes = await fetch(`https://api.mexc.com/api/v3/account?${queryString}&signature=${spotSig}`, {
+      headers: {
+        'X-MEXC-APIKEY': keyToUse,
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      }
+    });
+
+    const spotContentType = spotRes.headers.get('content-type') || '';
+    if (spotRes.ok && spotContentType.includes('application/json')) {
+      const spotData = await spotRes.json();
+      if (spotData && (spotData.balances || spotData.accountType)) {
+        return res.json({
+          success: true,
+          mexcType: 'SPOT',
+          message: 'تم الاتصال والتحقق بنجاح من حساب التداول الفوري (Spot) في منصة MEXC!',
+          mexcData: spotData.balances,
+        });
+      }
+    }
+  } catch (err: any) {
+    console.error('Spot API check error:', err);
+  }
+
+  return res.json({
+    success: false,
+    message: 'فشل التحقق من مفاتيح MEXC. يرجى التأكد من صحة المفاتيح وتفعيل صلاحيات التداول (Contract Trading / Spot) وعدم حظر IP.',
+  });
 });
 
 // 6. Fetch MEXC Account Assets / Balance

@@ -270,12 +270,16 @@ export default function App() {
 
   // Handler: Close Position
   const handleClosePosition = async (positionId: string, symbol: string) => {
+    const posObj = positions.find(p => p.id === positionId);
     await fetch('/api/mexc/position/close', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         positionId,
         symbol,
+        side: posObj?.side,
+        size: posObj?.size,
+        leverage: posObj?.leverage,
         apiKey: credentials.apiKey,
         secretKey: credentials.secretKey,
         mode,

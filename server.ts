@@ -441,6 +441,7 @@ app.post('/api/mexc/test-credentials', async (req: Request, res: Response) => {
         'ApiKey': keyToUse,
         'Request-Time': reqTime,
         'Signature': signature,
+        'Content-Type': 'application/json',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
       }
     });
@@ -709,35 +710,42 @@ app.post('/api/mexc/order/place', async (req: Request, res: Response) => {
   });
 });
 
-// 9. Close Position (LIVE MEXC + Simulation Fallback)
+// 9. Close Position
 app.post('/api/mexc/position/close', async (req: Request, res: Response) => {
-  const { positionId, symbol, apiKey, secretKey, mode, size } = req.body;
+  const { positionId, symbol, side, size, leverage, apiKey, secretKey, mode } = req.body;
 
   const keyToUse = apiKey || process.env.MEXC_API_KEY;
   const secretToUse = secretKey || process.env.MEXC_SECRET_KEY;
 
-  // --- LIVE MEXC CLOSE ---
-  if (mode === 'live' && keyToUse && secretToUse && symbol) {
+  if (mode === 'live' && keyToUse && secretToUse) {
     try {
       const reqTime = Date.now().toString();
-      // MEXC close order: side 4 = Close Long, side 2 = Close Short
-      // We need position info to know side; try close endpoint first
-      const bodyObj: any = {
+      // MEXC Futures Side code for close: 2: Close Short, 4: Close Long
+      let sideCode = 4; // default close long
+      if (side === 'LONG') sideCode = 4;
+      else if (side === 'SHORT') sideCode = 2;
+
+      const bodyObj = {
         symbol,
+        price: 0,
         vol: parseFloat(size || '0'),
-        price: 0, // market close
+        side: sideCode,
+        type: 5, // 5: Market Price Order
+        openType: 1, // 1: Isolated, 2: Cross
+        leverage: parseInt(leverage || 20, 10),
       };
 
       const paramsStr = JSON.stringify(bodyObj);
       const signature = generateMexcSignature(keyToUse, secretToUse, reqTime, paramsStr);
 
-      const response = await fetch('https://contract.mexc.com/api/v1/private/position/close_position', {
+      const response = await fetch('https://contract.mexc.com/api/v1/private/order/submit', {
         method: 'POST',
         headers: {
           'ApiKey': keyToUse,
           'Request-Time': reqTime,
           'Signature': signature,
           'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
         },
         body: paramsStr,
       });
@@ -748,35 +756,22 @@ app.post('/api/mexc/position/close', async (req: Request, res: Response) => {
           return res.json({
             success: true,
             source: 'mexc_live',
-            message: `Position on ${symbol} closed successfully on MEXC!`,
-            orderId: data.data?.orderId,
+            message: 'Position closed successfully on MEXC Futures!',
           });
         } else {
           return res.json({
             success: false,
-            source: 'mexc_live',
-            message: data?.message || 'MEXC close position failed.',
+            message: data?.message || 'MEXC position close failed.',
           });
         }
-      } else {
-        const errText = await response.text();
-        return res.json({
-          success: false,
-          source: 'mexc_live',
-          message: `MEXC HTTP ${response.status}: ${errText}`,
-        });
       }
     } catch (err: any) {
-      console.error('Live MEXC Close Position Error:', err);
-      return res.json({
-        success: false,
-        source: 'mexc_live',
-        message: `Connection error: ${err?.message || 'Network unreachable'}`,
-      });
+      console.error('Live MEXC Position Close Error:', err);
+      return res.status(500).json({ success: false, message: err?.message || 'Network error closing position' });
     }
   }
 
-  // --- SIMULATION FALLBACK ---
+  // Simulation mode
   const idx = simulatedPositions.findIndex(p => p.id === positionId);
   if (idx !== -1) {
     const pos = simulatedPositions[idx];
@@ -799,7 +794,6 @@ app.post('/api/mexc/position/close', async (req: Request, res: Response) => {
 
     return res.json({
       success: true,
-      source: 'simulation',
       message: `Position closed. Realized PnL: $${realizedPnL.toFixed(2)} USDT`,
     });
   }
@@ -853,107 +847,6 @@ app.post('/api/bot/update-config', (req: Request, res: Response) => {
     return res.json({ success: true, bot });
   }
   res.status(400).json({ success: false, message: 'Invalid bot config' });
-});
-
-// 10b. Cancel Order (LIVE MEXC)
-app.post('/api/mexc/order/cancel', async (req: Request, res: Response) => {
-  const { apiKey, secretKey, mode, symbol, orderId } = req.body;
-
-  const keyToUse = apiKey || process.env.MEXC_API_KEY;
-  const secretToUse = secretKey || process.env.MEXC_SECRET_KEY;
-
-  if (mode === 'live' && keyToUse && secretToUse && symbol && orderId) {
-    try {
-      const reqTime = Date.now().toString();
-      const bodyObj = { symbol, orderId };
-      const paramsStr = JSON.stringify(bodyObj);
-      const signature = generateMexcSignature(keyToUse, secretToUse, reqTime, paramsStr);
-
-      const response = await fetch('https://contract.mexc.com/api/v1/private/order/cancel', {
-        method: 'POST',
-        headers: {
-          'ApiKey': keyToUse,
-          'Request-Time': reqTime,
-          'Signature': signature,
-          'Content-Type': 'application/json',
-        },
-        body: paramsStr,
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        return res.json({
-          success: data?.success || false,
-          source: 'mexc_live',
-          message: data?.message || 'Order cancel processed.',
-        });
-      } else {
-        const errText = await response.text();
-        return res.json({ success: false, source: 'mexc_live', message: errText });
-      }
-    } catch (err: any) {
-      console.error('Live MEXC Cancel Order Error:', err);
-      return res.json({ success: false, message: err?.message || 'Cancel failed' });
-    }
-  }
-
-  res.json({ success: true, source: 'simulation', message: 'Order cancelled (simulation).' });
-});
-
-// 10c. Open Orders List (LIVE MEXC)
-app.post('/api/mexc/orders/open', async (req: Request, res: Response) => {
-  const { apiKey, secretKey, mode, symbol } = req.body;
-
-  const keyToUse = apiKey || process.env.MEXC_API_KEY;
-  const secretToUse = secretKey || process.env.MEXC_SECRET_KEY;
-
-  if (mode === 'live' && keyToUse && secretToUse) {
-    try {
-      const reqTime = Date.now().toString();
-      const bodyObj: any = { pageSize: 50, page: 1 };
-      if (symbol) bodyObj.symbol = symbol;
-      const paramsStr = JSON.stringify(bodyObj);
-      const signature = generateMexcSignature(keyToUse, secretToUse, reqTime, paramsStr);
-
-      const response = await fetch('https://contract.mexc.com/api/v1/private/order/list/open_orders', {
-        method: 'POST',
-        headers: {
-          'ApiKey': keyToUse,
-          'Request-Time': reqTime,
-          'Signature': signature,
-          'Content-Type': 'application/json',
-        },
-        body: paramsStr,
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.success && Array.isArray(data.data)) {
-          const formatted = data.data.map((o: any) => ({
-            orderId: o.orderId,
-            symbol: o.symbol,
-            side: o.side === 1 ? 'BUY' : (o.side === 3 ? 'SELL' : 'OTHER'),
-            type: o.type === 5 ? 'MARKET' : 'LIMIT',
-            price: parseFloat(o.price || '0'),
-            size: parseFloat(o.vol || '0'),
-            filled: parseFloat(o.dealVol || '0'),
-            status: o.state === 1 ? 'PENDING' : (o.state === 2 ? 'FILLED' : 'CANCELLED'),
-            createdAt: o.createTime || Date.now(),
-          }));
-          return res.json({ success: true, source: 'mexc_live', orders: formatted });
-        }
-        return res.json({ success: true, source: 'mexc_live', orders: [] });
-      } else {
-        const errText = await response.text();
-        return res.json({ success: false, source: 'mexc_live', message: errText });
-      }
-    } catch (err: any) {
-      console.error('Live MEXC Open Orders Error:', err);
-      return res.json({ success: false, message: err?.message || 'Fetch failed' });
-    }
-  }
-
-  res.json({ success: true, source: 'simulation', orders: [] });
 });
 
 // 11. AI Gemini Market Analyst Endpoint

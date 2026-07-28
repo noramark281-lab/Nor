@@ -422,8 +422,8 @@ app.get('/api/mexc/depth', async (req: Request, res: Response) => {
 app.post('/api/mexc/test-credentials', async (req: Request, res: Response) => {
   const { apiKey, secretKey } = req.body || {};
 
-  const keyToUse = apiKey || process.env.MEXC_API_KEY;
-  const secretToUse = secretKey || process.env.MEXC_SECRET_KEY;
+  const keyToUse = apiKey || process.env.MEXC_API_KEY || process.env.AMEXC_API_KEY;
+  const secretToUse = secretKey || process.env.MEXC_SECRET_KEY || process.env.MEXCS_SECRET_KEY;
 
   if (!keyToUse || !secretToUse) {
     return res.json({
@@ -480,8 +480,8 @@ app.post('/api/mexc/test-credentials', async (req: Request, res: Response) => {
 app.post('/api/mexc/account', async (req: Request, res: Response) => {
   const { apiKey, secretKey, mode } = req.body || {};
 
-  const keyToUse = apiKey || process.env.MEXC_API_KEY;
-  const secretToUse = secretKey || process.env.MEXC_SECRET_KEY;
+  const keyToUse = apiKey || process.env.MEXC_API_KEY || process.env.AMEXC_API_KEY;
+  const secretToUse = secretKey || process.env.MEXC_SECRET_KEY || process.env.MEXCS_SECRET_KEY;
 
   if (mode === 'live' && keyToUse && secretToUse) {
     try {
@@ -534,8 +534,8 @@ app.post('/api/mexc/account', async (req: Request, res: Response) => {
 app.post('/api/mexc/positions', async (req: Request, res: Response) => {
   const { apiKey, secretKey, mode } = req.body || {};
 
-  const keyToUse = apiKey || process.env.MEXC_API_KEY;
-  const secretToUse = secretKey || process.env.MEXC_SECRET_KEY;
+  const keyToUse = apiKey || process.env.MEXC_API_KEY || process.env.AMEXC_API_KEY;
+  const secretToUse = secretKey || process.env.MEXC_SECRET_KEY || process.env.MEXCS_SECRET_KEY;
 
   if (mode === 'live' && keyToUse && secretToUse) {
     try {
@@ -603,8 +603,8 @@ app.post('/api/mexc/positions', async (req: Request, res: Response) => {
 app.post('/api/mexc/order/place', async (req: Request, res: Response) => {
   const { apiKey, secretKey, mode, symbol, side, type, price, size, leverage, openType, tpPrice, slPrice } = req.body;
 
-  const keyToUse = apiKey || process.env.MEXC_API_KEY;
-  const secretToUse = secretKey || process.env.MEXC_SECRET_KEY;
+  const keyToUse = apiKey || process.env.MEXC_API_KEY || process.env.AMEXC_API_KEY;
+  const secretToUse = secretKey || process.env.MEXC_SECRET_KEY || process.env.MEXCS_SECRET_KEY;
 
   if (mode === 'live' && keyToUse && secretToUse) {
     try {
@@ -714,8 +714,8 @@ app.post('/api/mexc/order/place', async (req: Request, res: Response) => {
 app.post('/api/mexc/position/close', async (req: Request, res: Response) => {
   const { positionId, symbol, side, size, leverage, apiKey, secretKey, mode } = req.body;
 
-  const keyToUse = apiKey || process.env.MEXC_API_KEY;
-  const secretToUse = secretKey || process.env.MEXC_SECRET_KEY;
+  const keyToUse = apiKey || process.env.MEXC_API_KEY || process.env.AMEXC_API_KEY;
+  const secretToUse = secretKey || process.env.MEXC_SECRET_KEY || process.env.MEXCS_SECRET_KEY;
 
   if (mode === 'live' && keyToUse && secretToUse) {
     try {

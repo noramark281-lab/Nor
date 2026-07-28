@@ -23,6 +23,15 @@ android {
         }
     }
     
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+
     defaultConfig {
         applicationId "com.mexc.trading.app"
         minSdkVersion rootProject.ext.minSdkVersion

@@ -165,3 +165,4 @@ jobs:
           - **ملف APK (تثبيت مباشر)**: \`MEXC-Trading-Bot-${TAG}-release.apk\`
           - **حزمة AAB (جوجل بلاي)**: \`MEXC-Trading-Bot-${TAG}-release.aab\`"
           fi
+          

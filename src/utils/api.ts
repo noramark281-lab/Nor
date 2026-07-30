@@ -3,17 +3,18 @@ export const CLOUD_BACKEND_URL = 'https://ais-dev-qebjzwuwu77wdhxro4kz36-4798879
 export function getApiUrl(path: string): string {
   if (typeof window === 'undefined') return path;
 
-  const isMobileOrStandalone =
+  // Only use cloud backend URL when running as a native Android/Capacitor app
+  const isNativeApp =
     window.location.protocol === 'file:' ||
-    window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1' ||
     window.location.origin.includes('capacitor') ||
     !!(window as any).Capacitor?.isNativePlatform?.();
 
-  if (isMobileOrStandalone) {
+  if (isNativeApp) {
     const cleanPath = path.startsWith('/') ? path : `/${path}`;
     return `${CLOUD_BACKEND_URL}${cleanPath}`;
   }
 
+  // In all browser environments (including Replit preview, localhost dev),
+  // use relative paths so requests hit the local Express server
   return path;
 }

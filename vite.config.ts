@@ -3,22 +3,26 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
-const isGithubPages = process.env.GITHUB_ACTIONS === 'true';
-
 export default defineConfig(() => {
   return {
-    base: isGithubPages ? '/Nor/' : '/',
+    // استخدام مسار فارغ أو نسبي لضمان عمل التطبيق في بيئات مختلفة (Android & GitHub Pages)
+    base: '', 
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      outDir: 'dist',
+      assetsDir: 'assets',
+      // التأكد من أن المسارات في ملفات الـ JS/CSS نسبية أيضاً
+      modulePreload: {
+        polyfill: true
+      }
+    },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
   };

@@ -124,7 +124,6 @@ let serverLogs: LogEntry[] = [
   { id: '2', timestamp: new Date().toLocaleTimeString(), type: 'success', message: 'Connected to MEXC simulated execution environment.' }
 ];
 
-// Helper to push logs safely with limit
 function addLog(type: LogEntry['type'], message: string) {
   serverLogs.unshift({
     id: Date.now().toString(),
@@ -137,12 +136,10 @@ function addLog(type: LogEntry['type'], message: string) {
   }
 }
 
-// Helper: MEXC Spot API Signature Generator
 function generateMexcSpotSignature(secretKey: string, queryString: string): string {
   return crypto.createHmac('sha256', secretKey).update(queryString).digest('hex');
 }
 
-// Helper: MEXC Contract/Futures API Signature Generator
 function generateMexcFuturesSignature(apiKey: string, secretKey: string, reqTime: string, paramsStr: string = ''): string {
   const strToSign = apiKey + reqTime + paramsStr;
   return crypto.createHmac('sha256', secretKey).update(strToSign).digest('hex');
@@ -152,17 +149,14 @@ function generateMexcFuturesSignature(apiKey: string, secretKey: string, reqTime
 // 3. API Endpoints
 // ---------------------------------------------------------------------------
 
-// Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Get Server Logs
 app.get('/api/logs', (req, res) => {
   res.json({ logs: serverLogs });
 });
 
-// Update API Credentials
 app.post('/api/credentials', (req, res) => {
   const { apiKey, secretKey } = req.body;
   if (!apiKey || !secretKey) {
@@ -174,7 +168,6 @@ app.post('/api/credentials', (req, res) => {
   res.json({ message: 'Credentials updated successfully.', apiKeySet: true });
 });
 
-// Test MEXC API Credentials (Spot & Futures)
 app.post('/api/mexc/test-credentials', async (req, res) => {
   const { apiKey, secretKey } = req.body;
   const keyToUse = apiKey || currentCredentials.apiKey;
@@ -185,7 +178,6 @@ app.post('/api/mexc/test-credentials', async (req, res) => {
   }
 
   try {
-    // 1. Try Spot Account Check
     const ts = Date.now();
     const queryString = `recvWindow=5000&timestamp=${ts}`;
     const spotSig = generateMexcSpotSignature(secretToUse, queryString);
@@ -203,7 +195,6 @@ app.post('/api/mexc/test-credentials', async (req, res) => {
       message: 'Successfully authenticated with MEXC Spot API!',
     });
   } catch (spotErr: any) {
-    // 2. Fallback to Contract / Futures Check
     try {
       const ts = Date.now().toString();
       const futuresSig = generateMexcFuturesSignature(keyToUse, secretToUse, ts, '');
@@ -240,7 +231,6 @@ app.post('/api/mexc/test-credentials', async (req, res) => {
   }
 });
 
-// Fetch Real-time Balance
 app.get('/api/mexc/balance', async (req, res) => {
   if (!currentCredentials.apiKey || !currentCredentials.secretKey) {
     return res.json({ isSimulated: true, ...simulatedAccount });
@@ -268,17 +258,14 @@ app.get('/api/mexc/balance', async (req, res) => {
       currency: 'USDT',
     });
   } catch (err) {
-    // Fallback to simulation if live API fails
     return res.json({ isSimulated: true, ...simulatedAccount });
   }
 });
 
-// Fetch Active Positions
 app.get('/api/mexc/positions', (req, res) => {
   res.json({ positions });
 });
 
-// Execute Trading Order
 app.post('/api/mexc/order/place', async (req, res) => {
   const orderReq: MexcOrderRequest = req.body;
 
@@ -287,7 +274,6 @@ app.post('/api/mexc/order/place', async (req, res) => {
   }
 
   if (orderReq.isSimulated || !currentCredentials.apiKey) {
-    // Execute simulated order
     const entryPrice = orderReq.price || (orderReq.symbol.includes('BTC') ? 92000 : 3400);
     const leverage = orderReq.leverage || 10;
     const positionMargin = (entryPrice * orderReq.quantity) / leverage;
@@ -323,7 +309,6 @@ app.post('/api/mexc/order/place', async (req, res) => {
     });
   }
 
-  // Live Order Logic (Spot Example)
   try {
     const ts = Date.now();
     const queryString = `symbol=${orderReq.symbol}&side=${orderReq.side}&type=${orderReq.type}&quantity=${orderReq.quantity}&timestamp=${ts}`;
@@ -344,7 +329,6 @@ app.post('/api/mexc/order/place', async (req, res) => {
   }
 });
 
-// Close Active Position
 app.post('/api/mexc/position/close', (req, res) => {
   const { positionId } = req.body;
   const index = positions.findIndex(p => p.id === positionId);
@@ -365,7 +349,6 @@ app.post('/api/mexc/position/close', (req, res) => {
   res.json({ success: true, closedPositionId: positionId, pnl: realizedPnL });
 });
 
-// Bot Management Endpoints
 app.get('/api/bots', (req, res) => {
   res.json({ bots: activeBots });
 });
@@ -385,7 +368,7 @@ app.post('/api/bots/toggle', (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. Gemini AI Integration (Market Analysis & Insights)
+// 4. Gemini AI Integration
 // ---------------------------------------------------------------------------
 app.post('/api/ai/analyze', async (req, res) => {
   const { symbol = 'BTCUSDT', timeframe = '1h' } = req.body;
@@ -417,7 +400,6 @@ app.post('/api/ai/analyze', async (req, res) => {
       Return raw JSON only without markdown code blocks.
     `;
 
-    // Fixed model name to official stable gemini-2.0-flash
     const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: prompt,
@@ -431,7 +413,6 @@ app.post('/api/ai/analyze', async (req, res) => {
     res.json({ symbol, ...analysis });
   } catch (err: any) {
     addLog('error', `AI Analysis error: ${err.message}`);
-    // Fallback response on AI error
     res.json({
       symbol,
       recommendation: 'BUY',
@@ -444,7 +425,6 @@ app.post('/api/ai/analyze', async (req, res) => {
   }
 });
 
-// Simulated Background Bot Trading Engine Loop
 setInterval(() => {
   activeBots.forEach(bot => {
     if (bot.status === 'active') {
@@ -453,7 +433,6 @@ setInterval(() => {
     }
   });
 
-  // Periodically update PnL on open simulated positions
   positions.forEach(pos => {
     const fluctuation = (Math.random() - 0.49) * 20;
     pos.markPrice += fluctuation;
@@ -462,7 +441,6 @@ setInterval(() => {
   });
 }, 5000);
 
-// Start Express Server
 app.listen(PORT, () => {
   console.log(`🚀 MEXC AI Trading Backend Engine running on port ${PORT}`);
   console.log(`📡 Gemini AI API configured: ${apiKey ? 'YES' : 'NO'}`);

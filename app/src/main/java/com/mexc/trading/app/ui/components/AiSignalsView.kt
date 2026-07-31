@@ -44,12 +44,10 @@ fun AiSignalsView(
             colors = CardDefaults.cardColors(containerColor = DarkSurface),
             shape = RoundedCornerShape(8.dp)
         ) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .padding(12.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
@@ -74,12 +72,17 @@ fun AiSignalsView(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(10.dp))
+
                 Button(
                     onClick = { onGenerateAnalysis(selectedSymbol, null) },
                     enabled = !isLoading,
                     colors = ButtonDefaults.buttonColors(containerColor = PurpleAi),
                     shape = RoundedCornerShape(6.dp),
-                    modifier = Modifier.testTag("btn_analyze_symbol")
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
+                        .testTag("btn_analyze_symbol")
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(
@@ -87,8 +90,10 @@ fun AiSignalsView(
                             modifier = Modifier.size(16.dp),
                             strokeWidth = 2.dp
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Analyzing $selectedSymbol with Gemini AI...", color = TextPrimary, fontWeight = FontWeight.Bold)
                     } else {
-                        Text("Analyze $selectedSymbol", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("⚡ Run Gemini AI Analysis for $selectedSymbol", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             }
@@ -176,9 +181,9 @@ fun AiSignalsView(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         AiStatItem("Suggested Leverage", "${aiResult.suggestedLeverage}x")
-                        AiStatItem("Entry Price", String.format("%.2f", aiResult.suggestedEntryPrice))
-                        AiStatItem("Take Profit", String.format("%.2f", aiResult.suggestedTakeProfit))
-                        AiStatItem("Stop Loss", String.format("%.2f", aiResult.suggestedStopLoss))
+                        AiStatItem("Entry Price", String.format(java.util.Locale.US, "%.2f", aiResult.suggestedEntryPrice))
+                        AiStatItem("Take Profit", String.format(java.util.Locale.US, "%.2f", aiResult.suggestedTakeProfit))
+                        AiStatItem("Stop Loss", String.format(java.util.Locale.US, "%.2f", aiResult.suggestedStopLoss))
                     }
                 }
             }
@@ -197,8 +202,8 @@ fun AiSignalsView(
                     Column(modifier = Modifier.padding(10.dp)) {
                         Text("Support Levels", color = LongGreen, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("S1: ${String.format("%.2f", aiResult.support1)} USDT", color = TextSecondary, fontSize = 12.sp)
-                        Text("S2: ${String.format("%.2f", aiResult.support2)} USDT", color = TextSecondary, fontSize = 12.sp)
+                        Text("S1: ${String.format(java.util.Locale.US, "%.2f", aiResult.support1)} USDT", color = TextSecondary, fontSize = 12.sp)
+                        Text("S2: ${String.format(java.util.Locale.US, "%.2f", aiResult.support2)} USDT", color = TextSecondary, fontSize = 12.sp)
                     }
                 }
 
@@ -209,8 +214,8 @@ fun AiSignalsView(
                     Column(modifier = Modifier.padding(10.dp)) {
                         Text("Resistance Levels", color = ShortRed, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("R1: ${String.format("%.2f", aiResult.resistance1)} USDT", color = TextSecondary, fontSize = 12.sp)
-                        Text("R2: ${String.format("%.2f", aiResult.resistance2)} USDT", color = TextSecondary, fontSize = 12.sp)
+                        Text("R1: ${String.format(java.util.Locale.US, "%.2f", aiResult.resistance1)} USDT", color = TextSecondary, fontSize = 12.sp)
+                        Text("R2: ${String.format(java.util.Locale.US, "%.2f", aiResult.resistance2)} USDT", color = TextSecondary, fontSize = 12.sp)
                     }
                 }
             }
@@ -229,7 +234,7 @@ fun AiSignalsView(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        AiStatItem("RSI (14)", String.format("%.1f", aiResult.rsi))
+                        AiStatItem("RSI (14)", String.format(java.util.Locale.US, "%.1f", aiResult.rsi))
                         AiStatItem("MACD Signal", aiResult.macdSignal)
                         AiStatItem("Trend", aiResult.trend)
                     }

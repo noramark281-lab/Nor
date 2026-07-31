@@ -27,12 +27,12 @@ fun TickerHeader(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    val lastPriceStr = currentTicker?.let { String.format("%.2f", it.lastPrice) } ?: "--"
+    val lastPriceStr = currentTicker?.let { String.format(java.util.Locale.US, "%.2f", it.lastPrice) } ?: "--"
     val isPositive = (currentTicker?.riseFallRate ?: 0.0) >= 0
     val changePctStr = currentTicker?.let {
         val pct = it.riseFallRate * 100
         val sign = if (pct >= 0) "+" else ""
-        "$sign${String.format("%.2f", pct)}%"
+        "$sign${String.format(java.util.Locale.US, "%.2f", pct)}%"
     } ?: "0.00%"
 
     Surface(
@@ -122,19 +122,19 @@ fun TickerHeader(
             ) {
                 TickerStatItem(
                     label = "24h High",
-                    value = currentTicker?.let { String.format("%.2f", it.high24Price) } ?: "--"
+                    value = currentTicker?.let { String.format(java.util.Locale.US, "%.2f", it.high24Price) } ?: "--"
                 )
                 TickerStatItem(
                     label = "24h Low",
-                    value = currentTicker?.let { String.format("%.2f", it.low24Price) } ?: "--"
+                    value = currentTicker?.let { String.format(java.util.Locale.US, "%.2f", it.low24Price) } ?: "--"
                 )
                 TickerStatItem(
                     label = "Funding Rate",
-                    value = currentTicker?.let { String.format("%.4f%%", it.fundingRate * 100) } ?: "--"
+                    value = currentTicker?.let { String.format(java.util.Locale.US, "%.4f%%", it.fundingRate * 100) } ?: "--"
                 )
                 TickerStatItem(
                     label = "24h Vol",
-                    value = currentTicker?.let { String.format("%.1fM", it.volume24 / 1_000_000) } ?: "--"
+                    value = currentTicker?.let { String.format(java.util.Locale.US, "%.1fM", it.volume24 / 1_000_000) } ?: "--"
                 )
             }
         }

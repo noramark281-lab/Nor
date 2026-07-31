@@ -101,18 +101,18 @@ private fun OrderBookRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = String.format("%.2f", entry.price),
+                text = String.format(java.util.Locale.US, "%.2f", entry.price),
                 color = priceColor,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = String.format("%.3f", entry.amount),
+                text = String.format(java.util.Locale.US, "%.3f", entry.amount),
                 color = TextPrimary,
                 fontSize = 11.sp
             )
             Text(
-                text = String.format("%.2f", entry.total),
+                text = String.format(java.util.Locale.US, "%.2f", entry.total),
                 color = TextSecondary,
                 fontSize = 11.sp
             )

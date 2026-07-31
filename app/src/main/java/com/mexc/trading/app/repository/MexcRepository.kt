@@ -13,11 +13,12 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs
@@ -218,11 +219,130 @@ class MexcRepository(context: Context) {
     private fun startMarketSimulationLoop() {
         scope.launch {
             while (true) {
-                updateSimulatedTickers()
-                updateSimulatedOrderBook()
+                val startTime = System.currentTimeMillis()
+                val fetchSuccess = fetchRealMexcTickers()
+                if (!fetchSuccess) {
+                    updateSimulatedTickers()
+                    updateSimulatedOrderBook()
+                } else {
+                    fetchRealMexcOrderBook(_selectedSymbol.value)
+                }
                 updatePositionsPnL()
-                delay(2000)
+                val elapsed = System.currentTimeMillis() - startTime
+                _latencyMs.value = max(15L, elapsed)
+                _isConnected.value = true
+                delay(2500)
             }
+        }
+    }
+
+    private suspend fun fetchRealMexcTickers(): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                // Query official MEXC Futures Ticker API
+                val request = Request.Builder()
+                    .url("https://contract.mexc.com/api/v1/contract/ticker")
+                    .get()
+                    .build()
+
+                val response = httpClient.newCall(request).execute()
+                val bodyStr = response.body?.string() ?: ""
+                if (response.isSuccessful && bodyStr.contains("BTC_USDT")) {
+                    val rootJson = json.parseToJsonElement(bodyStr)
+                    val dataArray = rootJson.jsonObject["data"]?.jsonArray
+                    if (dataArray != null && dataArray.isNotEmpty()) {
+                        val realTickers = mutableListOf<MarketTicker>()
+                        val targetSymbols = basePrices.keys
+
+                        for (elem in dataArray) {
+                            val obj = elem.jsonObject
+                            val sym = obj["symbol"]?.jsonPrimitive?.content ?: continue
+                            if (sym in targetSymbols) {
+                                val lastP = obj["lastPrice"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: basePrices[sym] ?: 50000.0
+                                val riseFall = obj["riseFallRate"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0
+                                val high24 = obj["high24Price"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: (lastP * 1.02)
+                                val low24 = obj["low24Price"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: (lastP * 0.98)
+                                val vol24 = obj["volume24"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 50000000.0
+                                val amt24 = obj["amount24"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 1000000000.0
+                                val funding = obj["fundingRate"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 0.0001
+                                val fairP = obj["fairPrice"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: lastP
+                                val indexP = obj["indexPrice"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: lastP
+
+                                basePrices[sym] = lastP
+                                realTickers.add(
+                                    MarketTicker(
+                                        symbol = sym,
+                                        lastPrice = lastP,
+                                        riseFallRate = riseFall,
+                                        high24Price = high24,
+                                        low24Price = low24,
+                                        volume24 = vol24,
+                                        amount24 = amt24,
+                                        fundingRate = funding,
+                                        fairPrice = fairP,
+                                        indexPrice = indexP
+                                    )
+                                )
+                            }
+                        }
+
+                        if (realTickers.isNotEmpty()) {
+                            _tickers.value = realTickers
+                            val currentSymbol = _selectedSymbol.value
+                            val currentPrice = basePrices[currentSymbol] ?: 67450.0
+                            updateLastKlineCandle(currentPrice)
+                            return@withContext true
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // Network unreachable or rate limited, fallback to simulated tick
+            }
+            return@withContext false
+        }
+    }
+
+    private suspend fun fetchRealMexcOrderBook(symbol: String) {
+        withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("https://contract.mexc.com/api/v1/contract/depth/$symbol")
+                    .get()
+                    .build()
+
+                val response = httpClient.newCall(request).execute()
+                val bodyStr = response.body?.string() ?: ""
+                if (response.isSuccessful && bodyStr.contains("bids")) {
+                    val rootObj = json.parseToJsonElement(bodyStr).jsonObject
+                    val dataObj = rootObj["data"]?.jsonObject
+                    if (dataObj != null) {
+                        val bidsArray = dataObj["bids"]?.jsonArray
+                        val asksArray = dataObj["asks"]?.jsonArray
+
+                        val bids = bidsArray?.take(8)?.mapNotNull { item ->
+                            val arr = item.jsonArray
+                            val p = arr.getOrNull(0)?.jsonPrimitive?.content?.toDoubleOrNull() ?: return@mapNotNull null
+                            val amt = arr.getOrNull(1)?.jsonPrimitive?.content?.toDoubleOrNull() ?: return@mapNotNull null
+                            OrderBookEntry(price = p, amount = amt, total = p * amt)
+                        } ?: emptyList()
+
+                        val asks = asksArray?.take(8)?.mapNotNull { item ->
+                            val arr = item.jsonArray
+                            val p = arr.getOrNull(0)?.jsonPrimitive?.content?.toDoubleOrNull() ?: return@mapNotNull null
+                            val amt = arr.getOrNull(1)?.jsonPrimitive?.content?.toDoubleOrNull() ?: return@mapNotNull null
+                            OrderBookEntry(price = p, amount = amt, total = p * amt)
+                        } ?: emptyList()
+
+                        if (bids.isNotEmpty() && asks.isNotEmpty()) {
+                            _orderBook.value = OrderBookData(bids = bids, asks = asks)
+                            return@withContext
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // Fallback
+            }
+            updateSimulatedOrderBook()
         }
     }
 
@@ -500,7 +620,7 @@ class MexcRepository(context: Context) {
         )
 
         val level = if (finalPnL >= 0) "SUCCESS" else "WARN"
-        val pnlFormatted = String.format("%.2f", finalPnL)
+        val pnlFormatted = String.format(Locale.US, "%.2f", finalPnL)
         logDao.insertLog(
             LogEntity(
                 id = UUID.randomUUID().toString(),
@@ -593,7 +713,7 @@ class MexcRepository(context: Context) {
                         )
                         botDao.updateBot(updatedBot)
 
-                        val profitText = String.format("%.2f", tradeProfit)
+                        val profitText = String.format(Locale.US, "%.2f", tradeProfit)
                         logDao.insertLog(
                             LogEntity(
                                 id = UUID.randomUUID().toString(),

@@ -41,7 +41,7 @@ fun OrderFormView(
     var leverage by remember { mutableIntStateOf(10) }
 
     var limitPriceText by remember(currentPrice, selectedType) {
-        mutableStateOf(String.format("%.2f", currentPrice))
+        mutableStateOf(String.format(java.util.Locale.US, "%.2f", currentPrice))
     }
     var amountText by remember { mutableStateOf("0.05") }
     var tpPriceText by remember { mutableStateOf("") }
@@ -251,7 +251,7 @@ fun OrderFormView(
                             if (priceToUse > 0) {
                                 val maxMargin = (availableBalance * (pct / 100.0))
                                 val maxVolume = (maxMargin * leverage) / priceToUse
-                                amountText = String.format("%.3f", maxVolume)
+                                amountText = String.format(java.util.Locale.US, "%.3f", maxVolume)
                             }
                         }
                         .padding(vertical = 4.dp),
@@ -327,7 +327,7 @@ fun OrderFormView(
         ) {
             Text(text = "Margin Required:", color = TextMuted, fontSize = 11.sp)
             Text(
-                text = "${String.format("%.2f", reqMargin)} USDT",
+                text = "${String.format(java.util.Locale.US, "%.2f", reqMargin)} USDT",
                 color = TextPrimary,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold

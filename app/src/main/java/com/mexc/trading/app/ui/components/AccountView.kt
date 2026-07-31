@@ -74,7 +74,7 @@ fun AccountView(
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "${String.format("%.2f", account.equity)} ${account.currency}",
+                    text = "${String.format(java.util.Locale.US, "%.2f", account.equity)} ${account.currency}",
                     color = TextPrimary,
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold
@@ -88,9 +88,9 @@ fun AccountView(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    AccStatItem("Available Balance", "${String.format("%.2f", account.availableBalance)} USDT")
-                    AccStatItem("Position Margin", "${String.format("%.2f", account.positionMargin)} USDT")
-                    AccStatItem("Frozen Balance", "${String.format("%.2f", account.frozenBalance)} USDT")
+                    AccStatItem("Available Balance", "${String.format(java.util.Locale.US, "%.2f", account.availableBalance)} USDT")
+                    AccStatItem("Position Margin", "${String.format(java.util.Locale.US, "%.2f", account.positionMargin)} USDT")
+                    AccStatItem("Frozen Balance", "${String.format(java.util.Locale.US, "%.2f", account.frozenBalance)} USDT")
                 }
             }
         }
@@ -112,7 +112,7 @@ fun AccountView(
                 Spacer(modifier = Modifier.height(6.dp))
                 val sign = if (isPnlPositive) "+" else ""
                 Text(
-                    text = "$sign${String.format("%.2f", account.unrealizedPnL)} USDT (${sign}${String.format("%.2f", account.unrealizedPnLPercent)}%)",
+                    text = "$sign${String.format(java.util.Locale.US, "%.2f", account.unrealizedPnL)} USDT (${sign}${String.format(java.util.Locale.US, "%.2f", account.unrealizedPnLPercent)}%)",
                     color = pnlColor,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
@@ -141,7 +141,7 @@ fun AccountView(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     val marginRatio = if (account.equity > 0) (account.positionMargin / account.equity) * 100 else 0.0
-                    AccStatItem("Margin Usage Ratio", String.format("%.1f%%", marginRatio))
+                    AccStatItem("Margin Usage Ratio", String.format(java.util.Locale.US, "%.1f%%", marginRatio))
                     AccStatItem("Account Status", if (marginRatio < 60) "SAFE" else "WARNING")
                     AccStatItem("Default Leverage", "20x Cross")
                 }

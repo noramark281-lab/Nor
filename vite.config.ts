@@ -1,25 +1,23 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
   return {
-    // استخدام مسار فارغ أو نسبي لضمان عمل التطبيق في بيئات مختلفة (Android & GitHub Pages)
-    base: '', 
+    // استخدام './' لضمان عمل المسارات النسبية على Android و GitHub Pages
+    base: './', 
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        // توجيه @ إلى مجلد src لضمان عمل الـ imports بشكل صحيح
+        '@': path.resolve(__dirname, './src'),
       },
     },
     build: {
       outDir: 'dist',
       assetsDir: 'assets',
-      // التأكد من أن المسارات في ملفات الـ JS/CSS نسبية أيضاً
-      modulePreload: {
-        polyfill: true
-      }
+      modulePreload: true,
     },
     server: {
       host: '0.0.0.0',

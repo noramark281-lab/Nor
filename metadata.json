@@ -1,0 +1,6 @@
+{
+  "name": "MEXC Bot",
+  "description": "Professional MEXC Futures trading terminal with live market data, manual execution, 24/7 cloud automated trading strategies, position monitoring, and risk management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

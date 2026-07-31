@@ -54,8 +54,6 @@ jobs:
           ls -la android/app/
           echo "=== Checking keystore file ==="
           ls -la android/app/upload-keystore.jks || echo "Keystore NOT FOUND"
-          echo "=== Checking key.properties ==="
-          cat android/key.properties || echo "key.properties NOT FOUND"
 
       - name: Decode KEYSTORE_BASE64 if provided
         env:
@@ -79,20 +77,22 @@ jobs:
             echo "Keystore exists."
           fi
 
-      - name: Create Key Properties
+      - name: Create Key Properties in both App and Root Android Directories
         env:
           CM_KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD || github.event.inputs.keystore_password || 'testpass123' }}
           CM_KEY_PASSWORD: ${{ secrets.CM_KEY_PASSWORD || github.event.inputs.keystore_password || 'testpass123' }}
           CM_KEY_ALIAS: ${{ secrets.CM_KEY_ALIAS || 'upload' }}
         run: |
-          cat > android/key.properties << EOF
+          cat > android/app/key.properties << EOF
           storePassword=${CM_KEYSTORE_PASSWORD}
           keyPassword=${CM_KEY_PASSWORD}
           keyAlias=${CM_KEY_ALIAS}
           storeFile=upload-keystore.jks
           EOF
-          echo "=== Created key.properties ==="
-          cat android/key.properties
+          
+          cp android/app/key.properties android/key.properties
+          echo "=== Created key.properties successfully ==="
+          cat android/app/key.properties
 
       - name: Debug - Verify Setup After Key Properties
         run: |
@@ -103,7 +103,7 @@ jobs:
 
       - name: Build Android Signed Release APK
         env:
-          CM_KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
+          CM_KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD || github.event.inputs.keystore_password || 'testpass123' }}
         run: |
           cd android
           chmod +x gradlew
@@ -121,7 +121,7 @@ jobs:
       - name: Build Android Signed Release AAB
         if: success()
         env:
-          CM_KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD || github.event.inputs.keystore_password }}
+          CM_KEYSTORE_PASSWORD: ${{ secrets.CM_KEYSTORE_PASSWORD || github.event.inputs.keystore_password || 'testpass123' }}
         run: |
           cd android
           chmod +x gradlew
@@ -165,4 +165,3 @@ jobs:
           - **ملف APK (تثبيت مباشر)**: \`MEXC-Trading-Bot-${TAG}-release.apk\`
           - **حزمة AAB (جوجل بلاي)**: \`MEXC-Trading-Bot-${TAG}-release.aab\`"
           fi
-          

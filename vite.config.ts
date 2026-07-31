@@ -5,12 +5,11 @@ import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
   return {
-    // استخدام './' لضمان عمل المسارات النسبية على Android و GitHub Pages
-    base: './', 
+    // دعم المسارات النسبية لضمان عمل التطبيق على الأندرويد و GitHub Pages
+    base: './',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        // توجيه @ إلى مجلد src لضمان عمل الـ imports بشكل صحيح
         '@': path.resolve(__dirname, './src'),
       },
     },

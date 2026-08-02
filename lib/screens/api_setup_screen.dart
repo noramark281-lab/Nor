@@ -35,7 +35,7 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
 
     setState(() => _isSaving = true);
     try {
-      await MexcApiManager().saveCredentials(
+      await MexcApiManager().setCredentials(
         _keyController.text.trim(),
         _secretController.text.trim(),
       );

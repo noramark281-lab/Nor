@@ -4,6 +4,15 @@ on:
   push:
     branches: [main, master]
   workflow_dispatch:
+    inputs:
+      mexc_api_key:
+        description: 'MEXC API Key (optional, overrides repository secret)'
+        required: false
+        type: string
+      mexc_secret_key:
+        description: 'MEXC Secret Key (optional, overrides repository secret)'
+        required: false
+        type: string
 
 jobs:
   build:
@@ -31,8 +40,21 @@ jobs:
       - name: Analyze
         run: flutter analyze --no-fatal-infos --no-fatal-warnings || true
 
-      - name: Build APK
-        run: flutter build apk --release
+      - name: Determine API credentials
+        id: creds
+        run: |
+          API_KEY="${{ inputs.mexc_api_key || secrets.MEXC_API_KEY }}"
+          SECRET_KEY="${{ inputs.mexc_secret_key || secrets.MEXC_SECRET_KEY }}"
+          echo "Using API key length: ${#API_KEY}"
+          echo "Using secret key length: ${#SECRET_KEY}"
+          echo "api_key=$API_KEY" >> "$GITHUB_OUTPUT"
+          echo "secret_key=$SECRET_KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Build APK with credentials
+        run: |
+          flutter build apk --release \
+            --dart-define=MEXC_API_KEY="${{ steps.creds.outputs.api_key }}" \
+            --dart-define=MEXC_SECRET_KEY="${{ steps.creds.outputs.secret_key }}"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

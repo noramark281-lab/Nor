@@ -24,7 +24,6 @@ class WalletProvider with ChangeNotifier {
 
   // ── Orders ──────────────────────────────────────────────────────
   List<Map<String, dynamic>> _openOrders = [];
-  List<Map<String, dynamic>> _allOrders = [];
 
   // ── Trades ──────────────────────────────────────────────────────
   List<Map<String, dynamic>> _recentTrades = [];

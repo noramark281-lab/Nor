@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/market_provider.dart';
-import '../providers/theme_provider.dart';
 import '../models/event_contract.dart';
 import 'trading_screen.dart';
 import 'wallet_screen.dart';

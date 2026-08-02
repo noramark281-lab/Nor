@@ -5,7 +5,6 @@ import '../services/mexc_api_service.dart';
 import '../services/auto_trading_strategies.dart';
 import '../services/api_manager.dart';
 import '../models/event_contract.dart';
-import 'wallet_provider.dart';
 
 class TradingProvider with ChangeNotifier {
   final MexcApiService _api = MexcApiService();

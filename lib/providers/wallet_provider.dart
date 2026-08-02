@@ -70,11 +70,14 @@ class WalletProvider with ChangeNotifier {
 
   // ── Initialization ──────────────────────────────────────────────
   Future<void> initialize() async {
-    if (_isInitialized) return;
-    _isInitialized = MexcApiManager().isInitialized;
-    if (_isInitialized) {
+    final apiReady = MexcApiManager().isInitialized;
+    if (apiReady) {
+      _isInitialized = true;
       await syncAll();
       _startAutoSync();
+    } else {
+      _isInitialized = false;
+      _syncTimer?.cancel();
     }
   }
 

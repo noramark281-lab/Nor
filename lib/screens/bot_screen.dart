@@ -1,14 +1,42 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/trading_provider.dart';
+import '../providers/wallet_provider.dart';
 import '../models/event_contract.dart';
 
-class BotScreen extends StatelessWidget {
+class BotScreen extends StatefulWidget {
   const BotScreen({super.key});
+
+  @override
+  State<BotScreen> createState() => _BotScreenState();
+}
+
+class _BotScreenState extends State<BotScreen> {
+  Timer? _walletSyncTimer;
+
+  void _startBotWalletSync(WalletProvider wallet) {
+    _walletSyncTimer?.cancel();
+    _walletSyncTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) wallet.syncAll();
+    });
+  }
+
+  void _stopBotWalletSync() {
+    _walletSyncTimer?.cancel();
+    _walletSyncTimer = null;
+  }
+
+  @override
+  void dispose() {
+    _stopBotWalletSync();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final bot = context.watch<TradingProvider>();
+    final wallet = context.watch<WalletProvider>();
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F1320),
@@ -21,7 +49,10 @@ class BotScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.account_balance_wallet_outlined),
             tooltip: 'تحديث الرصيد',
-            onPressed: () => bot.syncBalance(),
+            onPressed: () {
+              bot.syncBalance();
+              wallet.syncAll();
+            },
           ),
         ],
       ),
@@ -69,6 +100,11 @@ class BotScreen extends StatelessWidget {
                         style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'محفظة: ${wallet.totalUsdtValue.toStringAsFixed(2)} USDT',
+                    style: TextStyle(color: Colors.white.withOpacity(0.7), fontFamily: 'Cairo', fontSize: 13),
                   ),
                   if (bot.consecutiveLosses > 0)
                     Padding(
@@ -136,6 +172,46 @@ class BotScreen extends StatelessWidget {
               ),
             if (bot.lastSignal != null) const SizedBox(height: 24),
 
+            // أوامر مفتوحة من المحفظة
+            if (wallet.openOrders.isNotEmpty) ...[
+              const Text(
+                'أوامر مفتوحة في المحفظة',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                textAlign: TextAlign.right,
+              ),
+              const SizedBox(height: 12),
+              ...wallet.openOrders.take(3).map((order) {
+                final symbol = order['symbol']?.toString() ?? '';
+                final side = order['side']?.toString() ?? '';
+                final isBuy = side.toUpperCase() == 'BUY';
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1D2D),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isBuy ? const Color(0xFF00C087).withOpacity(0.3) : const Color(0xFFFF3B30).withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        side,
+                        style: TextStyle(
+                          color: isBuy ? const Color(0xFF00C087) : const Color(0xFFFF3B30),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(symbol, style: const TextStyle(color: Colors.white)),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 24),
+            ],
+
             const Text(
               'اختر استراتيجية',
               style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
@@ -172,12 +248,16 @@ class BotScreen extends StatelessWidget {
               ),
               onPressed: bot.loading
                   ? null
-                  : () {
+                  : () async {
                       if (bot.isTrading) {
                         bot.stopAutoTrading();
+                        _stopBotWalletSync();
                       } else {
                         bot.startAutoTrading();
+                        _startBotWalletSync(wallet);
                       }
+                      // مزامنة المحفظة بعد تغيير الحالة
+                      await wallet.syncAll();
                     },
               icon: bot.loading
                   ? const SizedBox(

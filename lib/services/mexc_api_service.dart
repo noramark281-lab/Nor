@@ -1,7 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' show Random;
-
 import 'api_manager.dart';
 
 /// ═══════════════════════════════════════════════════════════════════
@@ -20,7 +18,6 @@ class MexcApiService {
   MexcApiService._internal();
 
   final _api = MexcApiManager();
-  final _random = Random();
 
   // ═══════════════════════════════════════════════════════════════
   // 1) بيانات الحساب والرصيد (حقيقية)

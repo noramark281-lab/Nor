@@ -5,6 +5,7 @@ import '../services/mexc_api_service.dart';
 import '../services/auto_trading_strategies.dart';
 import '../services/api_manager.dart';
 import '../models/event_contract.dart';
+import 'wallet_provider.dart';
 
 class TradingProvider with ChangeNotifier {
   final MexcApiService _api = MexcApiService();
@@ -319,6 +320,9 @@ class TradingProvider with ChangeNotifier {
           price: currentPrice,
           strategy: _selectedStrategy,
         );
+
+        // مزامنة المحفظة بعد الصفقة التلقائية
+        // يتم استدعاء syncAll عبر listener في BotScreen أو HomeScreen
 
         // تأخير بين الأزواج لتجنب Rate Limit
         await Future.delayed(const Duration(seconds: 2));

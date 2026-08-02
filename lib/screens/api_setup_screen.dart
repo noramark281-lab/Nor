@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:provider/provider.dart';
 import '../services/api_manager.dart';
+import '../providers/wallet_provider.dart';
 
 class ApiSetupScreen extends StatefulWidget {
   final Widget? nextScreen;
@@ -39,6 +41,8 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
         _keyController.text.trim(),
         _secretController.text.trim(),
       );
+      // تهيئة المحفظة بعد إدخال المفاتيح
+      await context.read<WalletProvider>().initialize();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

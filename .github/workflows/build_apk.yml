@@ -5,12 +5,8 @@ on:
     branches: [main, master]
   workflow_dispatch:
     inputs:
-      mexc_api_key:
-        description: 'MEXC API Key (optional, overrides repository secret)'
-        required: false
-        type: string
-      mexc_secret_key:
-        description: 'MEXC Secret Key (optional, overrides repository secret)'
+      build_notes:
+        description: 'Build notes (optional)'
         required: false
         type: string
 
@@ -33,22 +29,38 @@ jobs:
         with:
           flutter-version: '3.24.0'
           channel: 'stable'
+          cache: true
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Analyze
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings || true
+      - name: Analyze code
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
-      - name: Determine API credentials
+      - name: Verify API secrets exist
         id: creds
         run: |
-          API_KEY="${{ inputs.mexc_api_key || secrets.MEXC_API_KEY }}"
-          SECRET_KEY="${{ inputs.mexc_secret_key || secrets.MEXC_SECRET_KEY }}"
-          echo "Using API key length: ${#API_KEY}"
-          echo "Using secret key length: ${#SECRET_KEY}"
+          API_KEY="${{ secrets.MEXC_API_KEY }}"
+          SECRET_KEY="${{ secrets.MEXC_SECRET_KEY }}"
+
+          if [ -z "$API_KEY" ]; then
+            echo "❌ Error: MEXC_API_KEY repository secret is not set."
+            echo "Please add it at: Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+
+          if [ -z "$SECRET_KEY" ]; then
+            echo "❌ Error: MEXC_SECRET_KEY repository secret is not set."
+            echo "Please add it at: Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+
+          echo "✅ API credentials verified (key length: ${#API_KEY}, secret length: ${#SECRET_KEY})"
           echo "api_key=$API_KEY" >> "$GITHUB_OUTPUT"
           echo "secret_key=$SECRET_KEY" >> "$GITHUB_OUTPUT"
+        env:
+          MEXC_API_KEY: ${{ secrets.MEXC_API_KEY }}
+          MEXC_SECRET_KEY: ${{ secrets.MEXC_SECRET_KEY }}
 
       - name: Build APK with credentials
         run: |
@@ -56,19 +68,27 @@ jobs:
             --dart-define=MEXC_API_KEY="${{ steps.creds.outputs.api_key }}" \
             --dart-define=MEXC_SECRET_KEY="${{ steps.creds.outputs.secret_key }}"
 
-      - name: Upload Artifact
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
 
       - name: Create Release
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         run: |
           TAG="v${{ github.run_number }}.${{ github.run_attempt }}"
+          echo "Creating release $TAG"
           gh release create "$TAG" \
             build/app/outputs/flutter-apk/app-release.apk \
-            --title "Release $TAG" \
-            --generate-notes
+            --title "MEXC Trader $TAG" \
+            --generate-notes \
+            --notes "$(cat <<'EOF'
+          ### ⚠️  تنبيه أمان
+          هذا APK مبني بمفاتيح API مضمنة. استخدمه على جهازك الخاص فقط.
+          لا تشارك هذا الملف مع أي شخص.
+          EOF
+          )"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

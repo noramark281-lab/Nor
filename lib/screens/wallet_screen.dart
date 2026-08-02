@@ -375,7 +375,7 @@ class _WalletScreenState extends State<WalletScreen>
                       ),
                     ),
                     if (symbol == 'USDT')
-                      const Text(
+                      Text(
                         '\$${total.toStringAsFixed(2)}',
                         style: TextStyle(
                           color: Colors.grey,

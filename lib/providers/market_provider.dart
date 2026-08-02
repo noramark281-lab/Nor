@@ -44,7 +44,7 @@ class MarketProvider with ChangeNotifier {
   /// يجلب بيانات السوق الحقيقية من MEXC ويحوّلها إلى EventContract
   Future<List<EventContract>> _fetchRealMarketData() async {
     final tickers = await _api.getAllTickers24hr();
-    final pairs = MexcApiService.eventPairs;
+    const pairs = MexcApiService.eventPairs;
     final contracts = <EventContract>[];
 
     for (final pair in pairs) {

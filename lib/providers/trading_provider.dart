@@ -10,7 +10,7 @@ class TradingProvider with ChangeNotifier {
   final MexcApiService _api = MexcApiService();
   final AutoTradingStrategies _strategies = AutoTradingStrategies();
 
-  List<TradeRecord> _trades = [];
+  final List<TradeRecord> _trades = [];
   bool _isTrading = false;
   String _selectedStrategy = 'Hybrid';
   double _balance = 0.0;

@@ -39,8 +39,8 @@ class MexcApiManager {
     if (_initialized) return;
 
     // 1️⃣ محاولة قراءة المفاتيح من متغيرات البناء أولاً
-    final buildKey = AppConstants.buildTimeApiKey;
-    final buildSecret = AppConstants.buildTimeApiSecret;
+    const buildKey = AppConstants.buildTimeApiKey;
+    const buildSecret = AppConstants.buildTimeApiSecret;
 
     if (buildKey.isNotEmpty && buildSecret.isNotEmpty) {
       _apiKey = buildKey;

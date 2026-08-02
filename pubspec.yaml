@@ -22,14 +22,13 @@ dependencies:
   shimmer: ^3.0.0
   pull_to_refresh: ^2.0.0
 
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
 flutter:
   uses-material-design: true
   assets:
     - assets/
     - assets/images/
-  fonts:
-    - family: Cairo
-      fonts:
-        - asset: assets/fonts/Cairo-Regular.ttf
-        - asset: assets/fonts/Cairo-Bold.ttf
-          weight: 700

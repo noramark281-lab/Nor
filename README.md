@@ -38,3 +38,11 @@ flutter build apk --release
 ## CI/CD
 
 يتم بناء APK تلقائياً عبر GitHub Actions ونشره في Releases.
+
+### رابط آخر إصدار
+https://github.com/noramark281-lab/Nor/releases/latest
+
+### متطلبات التشغيل
+- Android 6.0+ (API 23+)
+- اتصال إنترنت مستقر
+- مفاتيح API من MEXC (للتداول الحقيقي)

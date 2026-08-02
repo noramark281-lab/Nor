@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+// import 'dart:io'; // unused - kept for future file operations
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
@@ -23,7 +23,6 @@ class MexcApiManager {
   String? _apiKey;
   String? _apiSecret;
   int _serverTimeOffset = 0;
-  DateTime? _lastTimeSync;
 
   // ── Rate limiter ────────────────────────────────────────────────
   final Map<String, List<DateTime>> _requestLog = {};
@@ -97,7 +96,6 @@ class MexcApiManager {
         // تقدير وقت السيرفر = serverTime + (roundTrip / 2)
         final estimatedServerTime = serverTime + (roundTrip ~/ 2);
         _serverTimeOffset = estimatedServerTime - localAfter;
-        _lastTimeSync = DateTime.now();
         debugLog('⏱ Server time synced. Offset: ${_serverTimeOffset}ms, RTT: ${roundTrip}ms');
       }
     } catch (e) {

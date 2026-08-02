@@ -304,7 +304,7 @@ class MexcApiService {
     final trades = <Map<String, dynamic>>[];
     try {
       // نحصل على الأزواج المتاحة أولاً
-      final symbols = await getExchangeInfo();
+      // final symbols = await getExchangeInfo();
       // نقتصر على الأزواج الشائعة لتجنب Rate Limit
       final popularSymbols = [
         'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT',

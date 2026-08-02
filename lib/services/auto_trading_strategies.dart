@@ -1,9 +1,7 @@
 import 'dart:math';
-import '../models/event_contract.dart';
 
 /// استراتيجيات التداول الآلي (5 استراتيجيات)
 class AutoTradingStrategies {
-  final Random _rnd = Random();
 
   // 1. Momentum - تتبع الزخم
   Map<String, dynamic> momentumStrategy(List<double> prices) {

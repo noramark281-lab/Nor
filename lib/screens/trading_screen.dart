@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/event_contract.dart';
 import '../providers/trading_provider.dart';
+import '../providers/wallet_provider.dart';
 import '../services/api_manager.dart';
 
 class TradingScreen extends StatefulWidget {
@@ -23,6 +24,7 @@ class _TradingScreenState extends State<TradingScreen> {
     // تحديث الرصيد عند فتح الشاشة
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<TradingProvider>().syncBalance();
+      context.read<WalletProvider>().syncAll();
     });
   }
 
@@ -36,6 +38,7 @@ class _TradingScreenState extends State<TradingScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TradingProvider>();
+    final wallet = context.watch<WalletProvider>();
     final contract = widget.contract;
 
     return Scaffold(
@@ -52,7 +55,10 @@ class _TradingScreenState extends State<TradingScreen> {
           IconButton(
             icon: const Icon(Icons.account_balance_wallet_outlined),
             tooltip: 'تحديث الرصيد',
-            onPressed: () => provider.syncBalance(),
+            onPressed: () {
+              provider.syncBalance();
+              wallet.syncAll();
+            },
           ),
         ],
       ),
@@ -82,6 +88,11 @@ class _TradingScreenState extends State<TradingScreen> {
                   Text(
                     '${provider.balance.toStringAsFixed(2)} USDT',
                     style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'محفظة: ${wallet.totalUsdtValue.toStringAsFixed(2)} USDT',
+                    style: const TextStyle(color: Colors.white60, fontSize: 12, fontFamily: 'Cairo'),
                   ),
                   if (!MexcApiManager().isInitialized)
                     const Padding(
@@ -317,6 +328,8 @@ class _TradingScreenState extends State<TradingScreen> {
     if (!mounted) return;
 
     if (success) {
+      // مزامنة المحفظة بعد الصفقة الناجحة
+      await context.read<WalletProvider>().syncAll();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

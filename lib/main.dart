@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'providers/market_provider.dart';
 import 'providers/trading_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/wallet_provider.dart';
 import 'services/api_manager.dart';
 import 'screens/splash_screen.dart';
 
@@ -22,6 +23,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => MarketProvider()),
         ChangeNotifierProvider(create: (_) => TradingProvider()),
+        ChangeNotifierProvider(create: (_) => WalletProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, theme, _) {

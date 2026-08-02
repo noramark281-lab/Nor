@@ -4,6 +4,7 @@ import '../providers/market_provider.dart';
 import '../providers/theme_provider.dart';
 import '../models/event_contract.dart';
 import 'trading_screen.dart';
+import 'wallet_screen.dart';
 import 'bot_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
@@ -21,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _pages = const [
     _MarketTab(),
     TradingScreen(),
+    WalletScreen(),
     BotScreen(),
     HistoryScreen(),
     SettingsScreen(),
@@ -31,16 +33,22 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _pages[_currentIndex],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (i) => setState(() => _currentIndex = i),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (i) => setState(() => _currentIndex = i),
         backgroundColor: const Color(0xFF1A1D2D),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard), label: 'الرئيسية'),
-          NavigationDestination(icon: Icon(Icons.candlestick_chart), label: 'التداول'),
-          NavigationDestination(icon: Icon(Icons.smart_toy), label: 'البوت'),
-          NavigationDestination(icon: Icon(Icons.history), label: 'التاريخ'),
-          NavigationDestination(icon: Icon(Icons.settings), label: 'الإعدادات'),
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: const Color(0xFF2D5AF5),
+        unselectedItemColor: Colors.grey,
+        selectedLabelStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 11),
+        unselectedLabelStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 11),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'الرئيسية'),
+          BottomNavigationBarItem(icon: Icon(Icons.candlestick_chart), label: 'التداول'),
+          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: 'المحفظة'),
+          BottomNavigationBarItem(icon: Icon(Icons.smart_toy), label: 'البوت'),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'التاريخ'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'الإعدادات'),
         ],
       ),
     );

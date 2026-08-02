@@ -42,10 +42,11 @@ jobs:
 
       - name: Create Release
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ github.run_number }}.${{ github.run_attempt }}
-          name: Release v${{ github.run_number }}.${{ github.run_attempt }}
-          files: build/app/outputs/flutter-apk/app-release.apk
+        run: |
+          TAG="v${{ github.run_number }}.${{ github.run_attempt }}"
+          gh release create "$TAG" \
+            build/app/outputs/flutter-apk/app-release.apk \
+            --title "Release $TAG" \
+            --generate-notes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

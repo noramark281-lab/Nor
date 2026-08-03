@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../config/constants.dart';
+import '../utils/constants.dart';
 
 /// Custom exceptions for MEXC API errors
 class MexcApiException implements Exception {
@@ -17,7 +16,7 @@ class MexcApiException implements Exception {
 }
 
 class MexcRateLimitException extends MexcApiException {
-  MexcRateLimitException(super.message) : super(429);
+  MexcRateLimitException(String message) : super(message, 429);
 }
 
 /// Logger that works in BOTH debug and release builds (prints to stdout/logcat)
@@ -96,6 +95,12 @@ class MexcApiManager {
     await _storage.delete(key: 'mexc_api_key');
     await _storage.delete(key: 'mexc_secret_key');
   }
+
+  /// Alias for saveKeys (used by UI screens)
+  Future<void> setCredentials(String apiKey, String secretKey) => saveKeys(apiKey, secretKey);
+
+  /// Alias for clearKeys (used by UI screens)
+  Future<void> clearCredentials() => clearKeys();
 
   /// Syncs local time with MEXC server time to avoid timestamp errors
   Future<void> syncServerTime() async {

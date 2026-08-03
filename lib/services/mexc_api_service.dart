@@ -142,7 +142,6 @@ class MexcApiService {
   double _roundQuantity(double qty, double stepSize) {
     if (stepSize <= 0) return qty;
     final decimals = stepSize.toString().split('.').last.length;
-    final multiplier = math.pow(10, decimals);
     return (qty / stepSize).floorToDouble() * stepSize;
   }
 
@@ -228,7 +227,6 @@ class MexcApiService {
       if (filters['tickSize'] != null) {
         final tickSize = filters['tickSize'] as double;
         final decimals = tickSize.toString().split('.').last.length;
-        final multiplier = math.pow(10, decimals);
         prc = (price / tickSize).floorToDouble() * tickSize;
       }
     }

@@ -81,7 +81,7 @@ class SettingsScreen extends StatelessWidget {
           _tile(
             icon: Icons.info,
             title: 'الإصدار',
-            subtitle: '1.1.0',
+            subtitle: '1.6.0',
           ),
           _tile(
             icon: Icons.warning_amber,

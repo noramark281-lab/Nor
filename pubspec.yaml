@@ -10,22 +10,22 @@ dependencies:
   flutter:
     sdk: flutter
   http: ^1.1.0
-  flutter_secure_storage: ^9.0.0
+  flutter_secure_storage: ^10.3.1
   encrypt: ^5.0.1
   crypto: ^3.0.3
-  local_auth: ^2.1.8
+  local_auth: ^3.0.2
   provider: ^6.1.1
   shared_preferences: ^2.2.2
-  intl: ^0.18.1
-  fl_chart: ^0.66.0
-  google_fonts: ^6.1.0
+  intl: ^0.20.3
+  fl_chart: ^1.2.0
+  google_fonts: ^8.2.1
   shimmer: ^3.0.0
   pull_to_refresh: ^2.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true

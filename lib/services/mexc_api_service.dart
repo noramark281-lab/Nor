@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'api_manager.dart';
 
 /// ═══════════════════════════════════════════════════════════════════
-/// MEXC API Service - التداول الحقيقي عبر MEXC API v3
+/// MEXC API Service - التداول الحقيقي عبر MEXC API v3 / Futures & Events
 /// ═══════════════════════════════════════════════════════════════════
 class MexcApiService {
   static final MexcApiService _instance = MexcApiService._internal();
@@ -11,6 +11,9 @@ class MexcApiService {
   MexcApiService._internal();
 
   final _api = MexcApiManager();
+
+  /// الرابط الأساسي المباشر للتداول الحقيقي والعقود الآجلة في MEXC
+  static const String baseUrl = 'https://contract.mexc.com';
 
   // Cache exchange info to avoid repeated calls
   List<Map<String, dynamic>>? _exchangeInfoCache;

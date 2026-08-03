@@ -261,6 +261,95 @@ class MexcApiService {
     }
   }
 
+  // 5) Technical Indicators
+  Future<double> calculateRSI(String symbol, {int period = 14, String interval = '1h'}) async {
+    try {
+      final klines = await getKlines(symbol, interval: interval, limit: period + 100);
+      if (klines.length < period + 1) return 0.0;
+
+      final prices = klines.map((k) => k['close'] as double).toList();
+      double gain = 0;
+      double loss = 0;
+
+      for (int i = 1; i <= period; i++) {
+        final diff = prices[i] - prices[i - 1];
+        if (diff >= 0)
+          gain += diff;
+        else
+          loss -= diff;
+      }
+
+      double avgGain = gain / period;
+      double avgLoss = loss / period;
+
+      for (int i = period + 1; i < prices.length; i++) {
+        final diff = prices[i] - prices[i - 1];
+        if (diff >= 0) {
+          avgGain = (avgGain * (period - 1) + diff) / period;
+          avgLoss = (avgLoss * (period - 1)) / period;
+        } else {
+          avgGain = (avgGain * (period - 1)) / period;
+          avgLoss = (avgLoss * (period - 1) - diff) / period;
+        }
+      }
+
+      if (avgLoss == 0) return 100.0;
+      final rs = avgGain / avgLoss;
+      return 100 - (100 / (1 + rs));
+    } catch (_) {
+      return 0.0;
+    }
+  }
+
+  Future<Map<String, double>> calculateSMAs(String symbol, {required List<int> periods, String interval = '1h'}) async {
+    try {
+      final maxPeriod = periods.reduce(math.max);
+      final klines = await getKlines(symbol, interval: interval, limit: maxPeriod);
+      final prices = klines.map((k) => k['close'] as double).toList();
+
+      final result = <String, double>{};
+      for (final p in periods) {
+        if (prices.length >= p) {
+          final sum = prices.sublist(prices.length - p).reduce((a, b) => a + b);
+          result['SMA$p'] = sum / p;
+        } else {
+          result['SMA$p'] = 0.0;
+        }
+      }
+      return result;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<double> getCurrentPrice(String symbol) async {
+    final ticker = await getTicker24hr(symbol);
+    return double.tryParse(ticker?['lastPrice']?.toString() ?? '0') ?? 0.0;
+  }
+
+  Future<List<Map<String, dynamic>>> getAllMyTrades() async {
+    final allTrades = <Map<String, dynamic>>[];
+    for (final pair in eventPairs) {
+      final sym = pair['symbol']!;
+      final trades = await getMyTrades(sym);
+      allTrades.addAll(trades.map((t) => {...t, 'symbol': sym}));
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
+    return allTrades;
+  }
+
+  Future<bool> cancelOrder(String symbol, String orderId) async {
+    try {
+      await _api.signedDelete('/api/v3/order', params: {
+        'symbol': symbol,
+        'orderId': orderId,
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static const List<Map<String, String>> eventPairs = [
     {'symbol': 'BTCUSDT', 'name': 'Bitcoin UP/Down', 'category': 'crypto'},
     {'symbol': 'ETHUSDT', 'name': 'Ethereum UP/Down', 'category': 'crypto'},

@@ -22,10 +22,10 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
   Future<void> _saveWithAuth() async {
     final didAuth = await _localAuth.authenticate(
       localizedReason: 'الرجاء التحقق من هويتك لحفظ مفاتيح API',
-      options: const AuthenticationOptions(
-        biometricOnly: true,
-        stickyAuth: true,
-      ),
+      // ignore: deprecated_member_use
+      biometricOnly: true,
+      // ignore: deprecated_member_use
+      stickyAuth: true,
     );
     if (!didAuth) {
       if (!mounted) return;

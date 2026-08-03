@@ -1,7 +1,7 @@
 name: mexc_event_trader_app
 description: تطبيق تداول عقود الحدث في MEXC
 publish_to: 'none'
-version: 1.6.0+16
+version: 1.6.1+17
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

@@ -4,16 +4,13 @@ import 'api_manager.dart';
 
 /// ═══════════════════════════════════════════════════════════════════
 /// MEXC API Service - التداول الحقيقي عبر MEXC API v3 / Futures & Events
-/// ═══════════════════════════════════════════════════════════════════
+/// ═══════════════════════════════════════════════════════════════
 class MexcApiService {
   static final MexcApiService _instance = MexcApiService._internal();
   factory MexcApiService() => _instance;
   MexcApiService._internal();
 
   final _api = MexcApiManager();
-
-  /// الرابط الأساسي المباشر للتداول الحقيقي والعقود الآجلة في MEXC
-  static const String baseUrl = 'https://contract.mexc.com';
 
   // Cache exchange info to avoid repeated calls
   List<Map<String, dynamic>>? _exchangeInfoCache;
@@ -72,7 +69,9 @@ class MexcApiService {
 
   Future<Map<String, dynamic>?> getTicker24hr(String symbol) async {
     try {
-      return await _api.publicGet('/api/v3/ticker/24hr', params: {'symbol': symbol});
+      final res = await _api.publicGet('/api/v3/ticker/24hr', params: {'symbol': symbol});
+      if (res is Map<String, dynamic>) return res;
+      return null;
     } catch (e) {
       ApiLogger.e('getTicker24hr', '$symbol => $e');
       return null;
@@ -81,8 +80,13 @@ class MexcApiService {
 
   Future<List<Map<String, dynamic>>> getAllTickers24hr() async {
     try {
-      final data = await _api.publicGet('/api/v3/ticker/24hr');
-      final list = data['data'] as List? ?? [];
+      final res = await _api.publicGet('/api/v3/ticker/24hr');
+      List list = [];
+      if (res is List) {
+        list = res;
+      } else if (res is Map && res.containsKey('data')) {
+        list = res['data'] as List? ?? [];
+      }
       ApiLogger.i('getAllTickers24hr', 'Loaded ${list.length} tickers');
       return list.map((e) => e as Map<String, dynamic>).toList();
     } catch (e) {
@@ -92,7 +96,6 @@ class MexcApiService {
   }
 
   Future<List<Map<String, dynamic>>> getExchangeInfo({String? symbol}) async {
-    // Return cached info if less than 5 minutes old
     if (_exchangeInfoCache != null && _exchangeInfoCacheTime != null) {
       if (DateTime.now().difference(_exchangeInfoCacheTime!) < const Duration(minutes: 5)) {
         if (symbol == null) return _exchangeInfoCache!;
@@ -114,7 +117,6 @@ class MexcApiService {
     }
   }
 
-  /// Get symbol filters (stepSize, minQty, tickSize, etc.)
   Future<Map<String, dynamic>?> getSymbolFilters(String symbol) async {
     try {
       final info = await getExchangeInfo(symbol: symbol);
@@ -141,10 +143,8 @@ class MexcApiService {
     }
   }
 
-  /// Round quantity according to stepSize
   double _roundQuantity(double qty, double stepSize) {
     if (stepSize <= 0) return qty;
-    final decimals = stepSize.toString().split('.').last.length;
     return (qty / stepSize).floorToDouble() * stepSize;
   }
 
@@ -154,21 +154,28 @@ class MexcApiService {
     int limit = 100,
   }) async {
     try {
-      final data = await _api.publicGet('/api/v3/klines', params: {
+      final res = await _api.publicGet('/api/v3/klines', params: {
         'symbol': symbol,
         'interval': interval,
         'limit': limit.toString(),
       });
-      final list = data['data'] as List? ?? [];
+
+      List list = [];
+      if (res is List) {
+        list = res;
+      } else if (res is Map && res.containsKey('data')) {
+        list = res['data'] as List? ?? [];
+      }
+
       return list.map((e) {
         final arr = e as List;
         return {
           'openTime': arr[0],
-          'open': double.tryParse(arr[1].toString()) ?? 0,
-          'high': double.tryParse(arr[2].toString()) ?? 0,
-          'low': double.tryParse(arr[3].toString()) ?? 0,
-          'close': double.tryParse(arr[4].toString()) ?? 0,
-          'volume': double.tryParse(arr[5].toString()) ?? 0,
+          'open': double.tryParse(arr[1].toString()) ?? 0.0,
+          'high': double.tryParse(arr[2].toString()) ?? 0.0,
+          'low': double.tryParse(arr[3].toString()) ?? 0.0,
+          'close': double.tryParse(arr[4].toString()) ?? 0.0,
+          'volume': double.tryParse(arr[5].toString()) ?? 0.0,
           'closeTime': arr[6],
         };
       }).toList();
@@ -197,7 +204,6 @@ class MexcApiService {
     required String side,
     required double quantity,
   }) async {
-    // Fetch filters and round quantity
     final filters = await getSymbolFilters(symbol);
     double qty = quantity;
     if (filters != null && filters['stepSize'] != null) {
@@ -208,7 +214,7 @@ class MexcApiService {
       'symbol': symbol,
       'side': side.toUpperCase(),
       'type': 'MARKET',
-      'quantity': qty.toStringAsFixed(8),
+      'quantity': qty.toStringAsFixed(6),
     });
   }
 
@@ -219,7 +225,6 @@ class MexcApiService {
     required double price,
     String timeInForce = 'GTC',
   }) async {
-    // Fetch filters and round quantity + price
     final filters = await getSymbolFilters(symbol);
     double qty = quantity;
     double prc = price;
@@ -229,7 +234,6 @@ class MexcApiService {
       }
       if (filters['tickSize'] != null) {
         final tickSize = filters['tickSize'] as double;
-        final decimals = tickSize.toString().split('.').last.length;
         prc = (price / tickSize).floorToDouble() * tickSize;
       }
     }
@@ -238,8 +242,8 @@ class MexcApiService {
       'symbol': symbol,
       'side': side.toUpperCase(),
       'type': 'LIMIT',
-      'quantity': qty.toStringAsFixed(8),
-      'price': prc.toStringAsFixed(8),
+      'quantity': qty.toStringAsFixed(6),
+      'price': prc.toStringAsFixed(4),
       'timeInForce': timeInForce,
     });
   }
@@ -273,33 +277,30 @@ class MexcApiService {
     }
   }
 
-  /// MEXC v3 openOrders requires a symbol param; without it returns error.
-  /// We iterate all event pairs and aggregate results.
   Future<List<Map<String, dynamic>>> getOpenOrders({String? symbol}) async {
     if (symbol != null) {
       try {
         final data = await _api.signedGet('/api/v3/openOrders', params: {'symbol': symbol});
-        final list = data['data'] as List? ?? [];
+        List list = data is List ? data : (data['data'] as List? ?? []);
         ApiLogger.i('getOpenOrders', '$symbol => ${list.length} orders');
         return list.map((e) => e as Map<String, dynamic>).toList();
       } catch (e) {
         ApiLogger.e('getOpenOrders', '$symbol => $e');
-        throw Exception('فشل تحميل الأوامر المفتوحة: $e');
+        return [];
       }
     }
 
-    // No symbol provided — query all event pairs
     final allOrders = <Map<String, dynamic>>[];
     for (final pair in eventPairs) {
       final sym = pair['symbol']!;
       try {
         final data = await _api.signedGet('/api/v3/openOrders', params: {'symbol': sym});
-        final list = data['data'] as List? ?? [];
+        List list = data is List ? data : (data['data'] as List? ?? []);
         allOrders.addAll(list.map((e) => {
           ...e as Map<String, dynamic>,
           'symbol': sym,
         }));
-        await Future.delayed(const Duration(milliseconds: 50));
+        await Future.delayed(const Duration(milliseconds: 30));
       } catch (e) {
         ApiLogger.w('getOpenOrders', '$sym => $e (skipped)');
       }
@@ -317,11 +318,11 @@ class MexcApiService {
         'symbol': symbol,
         'limit': limit.toString(),
       });
-      final list = data['data'] as List? ?? [];
+      List list = data is List ? data : (data['data'] as List? ?? []);
       return list.map((e) => e as Map<String, dynamic>).toList();
     } catch (e) {
       ApiLogger.e('getAllOrders', '$symbol => $e');
-      throw Exception('فشل تحميل الأوامر: $e');
+      return [];
     }
   }
 
@@ -338,11 +339,11 @@ class MexcApiService {
         'symbol': symbol,
         'limit': limit.toString(),
       });
-      final list = data['data'] as List? ?? [];
+      List list = data is List ? data : (data['data'] as List? ?? []);
       return list.map((e) => e as Map<String, dynamic>).toList();
     } catch (e) {
       ApiLogger.e('getMyTrades', '$symbol => $e');
-      throw Exception('فشل تحميل صفقات $symbol: $e');
+      return [];
     }
   }
 
@@ -353,7 +354,7 @@ class MexcApiService {
       try {
         final symTrades = await getMyTrades(sym, limit: 20);
         trades.addAll(symTrades);
-        await Future.delayed(const Duration(milliseconds: 50));
+        await Future.delayed(const Duration(milliseconds: 30));
       } catch (e) {
         ApiLogger.w('getAllMyTrades', '$sym => $e (skipped)');
       }
@@ -367,27 +368,31 @@ class MexcApiService {
   // ═══════════════════════════════════════════════════════════════
 
   Future<double?> calculateRSI(String symbol, {int period = 14, String interval = '1h'}) async {
-    final klines = await getKlines(symbol, interval: interval, limit: period + 1);
-    if (klines.length < period + 1) return null;
+    try {
+      final klines = await getKlines(symbol, interval: interval, limit: period + 1);
+      if (klines.length < period + 1) return null;
 
-    var gains = 0.0;
-    var losses = 0.0;
+      var gains = 0.0;
+      var losses = 0.0;
 
-    for (int i = 1; i <= period; i++) {
-      final change = (klines[i]['close'] as double) - (klines[i - 1]['close'] as double);
-      if (change > 0) {
-        gains += change;
-      } else {
-        losses += change.abs();
+      for (int i = 1; i <= period; i++) {
+        final change = (klines[i]['close'] as double) - (klines[i - 1]['close'] as double);
+        if (change > 0) {
+          gains += change;
+        } else {
+          losses += change.abs();
+        }
       }
+
+      final avgGain = gains / period;
+      final avgLoss = losses / period;
+
+      if (avgLoss == 0) return 100.0;
+      final rs = avgGain / avgLoss;
+      return 100.0 - (100.0 / (1.0 + rs));
+    } catch (_) {
+      return null;
     }
-
-    final avgGain = gains / period;
-    final avgLoss = losses / period;
-
-    if (avgLoss == 0) return 100.0;
-    final rs = avgGain / avgLoss;
-    return 100.0 - (100.0 / (1.0 + rs));
   }
 
   Future<Map<String, double?>> calculateSMAs(
@@ -395,21 +400,23 @@ class MexcApiService {
     List<int> periods = const [5, 10, 20, 50],
     String interval = '1h',
   }) async {
-    final maxPeriod = periods.reduce((a, b) => a > b ? a : b);
-    final klines = await getKlines(symbol, interval: interval, limit: maxPeriod);
     final result = <String, double?>{};
+    try {
+      final maxPeriod = periods.reduce((a, b) => a > b ? a : b);
+      final klines = await getKlines(symbol, interval: interval, limit: maxPeriod);
 
-    for (final p in periods) {
-      if (klines.length >= p) {
-        double sum = 0;
-        for (int i = klines.length - p; i < klines.length; i++) {
-          sum += klines[i]['close'] as double;
+      for (final p in periods) {
+        if (klines.length >= p) {
+          double sum = 0;
+          for (int i = klines.length - p; i < klines.length; i++) {
+            sum += klines[i]['close'] as double;
+          }
+          result['SMA$p'] = sum / p;
+        } else {
+          result['SMA$p'] = null;
         }
-        result['SMA$p'] = sum / p;
-      } else {
-        result['SMA$p'] = null;
       }
-    }
+    } catch (_) {}
     return result;
   }
 
@@ -419,26 +426,30 @@ class MexcApiService {
     double multiplier = 2.0,
     String interval = '1h',
   }) async {
-    final klines = await getKlines(symbol, interval: interval, limit: period);
-    if (klines.length < period) return null;
+    try {
+      final klines = await getKlines(symbol, interval: interval, limit: period);
+      if (klines.length < period) return null;
 
-    double sum = 0;
-    for (final k in klines) {
-      sum += k['close'] as double;
+      double sum = 0;
+      for (final k in klines) {
+        sum += k['close'] as double;
+      }
+      final sma = sum / period;
+
+      double variance = 0;
+      for (final k in klines) {
+        variance += ((k['close'] as double) - sma) * ((k['close'] as double) - sma);
+      }
+      final stdDev = math.sqrt(variance / period);
+
+      return {
+        'middle': sma,
+        'upper': sma + (multiplier * stdDev),
+        'lower': sma - (multiplier * stdDev),
+      };
+    } catch (_) {
+      return null;
     }
-    final sma = sum / period;
-
-    double variance = 0;
-    for (final k in klines) {
-      variance += ((k['close'] as double) - sma) * ((k['close'] as double) - sma);
-    }
-    final stdDev = math.sqrt(variance / period);
-
-    return {
-      'middle': sma,
-      'upper': sma + (multiplier * stdDev),
-      'lower': sma - (multiplier * stdDev),
-    };
   }
 
   // ═══════════════════════════════════════════════════════════════

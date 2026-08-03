@@ -21,20 +21,8 @@ class MarketProvider with ChangeNotifier {
     try {
       _contracts = await _fetchRealMarketData();
     } catch (e) {
-      _error = e.toString();
-      // Fallback: إذا فشلت الـ API، نعرض الأزواج المعروفة مع بيانات افتراضية
-      _contracts = MexcApiService.eventPairs.map((p) => EventContract(
-        symbol: p['symbol']!,
-        name: p['name']!,
-        category: p['category']!,
-        strikePrice: 0,
-        currentPrice: 0,
-        priceChangePercent: 0,
-        volume24h: 0,
-        expiryDate: DateTime.now().add(const Duration(days: 1)),
-        isActive: true,
-        side: 'UP',
-      )).toList();
+      _error = 'فشل تحميل بيانات السوق: $e';
+      _contracts = [];
     }
 
     _loading = false;
@@ -44,17 +32,23 @@ class MarketProvider with ChangeNotifier {
   /// يجلب بيانات السوق الحقيقية من MEXC ويحوّلها إلى EventContract
   Future<List<EventContract>> _fetchRealMarketData() async {
     final tickers = await _api.getAllTickers24hr();
+    if (tickers.isEmpty) {
+      throw Exception('لم يتم استلام بيانات السوق من MEXC. تحقق من الاتصال بالإنترنت.');
+    }
+
     const pairs = MexcApiService.eventPairs;
     final contracts = <EventContract>[];
 
     for (final pair in pairs) {
       final symbol = pair['symbol']!;
-      final ticker = tickers.firstWhere(
-        (t) => t['symbol'] == symbol,
-        orElse: () => {},
-      );
+      Map<String, dynamic>? ticker;
+      try {
+        ticker = tickers.firstWhere((t) => t['symbol'] == symbol);
+      } catch (_) {
+        ticker = null;
+      }
 
-      if (ticker.isNotEmpty) {
+      if (ticker != null && ticker.isNotEmpty) {
         final price = double.tryParse(ticker['lastPrice']?.toString() ?? '0') ?? 0.0;
         final change = double.tryParse(ticker['priceChangePercent']?.toString() ?? '0') ?? 0.0;
         final volume = double.tryParse(ticker['volume']?.toString() ?? '0') ?? 0.0;
@@ -72,21 +66,11 @@ class MarketProvider with ChangeNotifier {
           isActive: true,
           side: change >= 0 ? 'UP' : 'DOWN',
         ));
-      } else {
-        // إذا لم يُعثر على بيانات السوق، نستخدم بيانات افتراضية
-        contracts.add(EventContract(
-          symbol: symbol,
-          name: pair['name']!,
-          category: pair['category']!,
-          strikePrice: 0,
-          currentPrice: 0,
-          priceChangePercent: 0,
-          volume24h: 0,
-          expiryDate: DateTime.now().add(const Duration(days: 1)),
-          isActive: true,
-          side: 'UP',
-        ));
       }
+    }
+
+    if (contracts.isEmpty) {
+      throw Exception('لم يتم العثور على بيانات للأزواج المحددة. قد تكون MEXC API غير متاحة.');
     }
 
     return contracts;

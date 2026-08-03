@@ -5,13 +5,6 @@ import '../services/api_manager.dart';
 
 /// ═══════════════════════════════════════════════════════════════════
 /// Wallet Provider - إدارة المحفظة الحقيقية في MEXC
-///
-/// يوفر:
-/// • رصد لحظي لأرصدة Spot
-/// • الأوامر المفتوحة
-/// • سجل الصفقات
-/// • الربح/الخسارة الإجمالي
-/// • مزامنة تلقائية دورية
 /// ═══════════════════════════════════════════════════════════════════
 class WalletProvider with ChangeNotifier {
   final MexcApiService _api = MexcApiService();
@@ -34,6 +27,11 @@ class WalletProvider with ChangeNotifier {
   bool _isInitialized = false;
   Timer? _syncTimer;
 
+  // Per-operation error tracking
+  String? _balanceError;
+  String? _ordersError;
+  String? _tradesError;
+
   // ── Getters ─────────────────────────────────────────────────────
   Map<String, Map<String, double>> get balances => _balances;
   double get totalUsdtValue => _totalUsdtValue;
@@ -43,6 +41,9 @@ class WalletProvider with ChangeNotifier {
   List<Map<String, dynamic>> get recentTrades => _recentTrades;
   bool get loading => _loading;
   String? get error => _error;
+  String? get balanceError => _balanceError;
+  String? get ordersError => _ordersError;
+  String? get tradesError => _tradesError;
   bool get isInitialized => _isInitialized;
 
   /// قائمة الأصول مع قيمها (للعرض)
@@ -58,11 +59,10 @@ class WalletProvider with ChangeNotifier {
           'free': free,
           'locked': locked,
           'total': total,
-          'usdtValue': asset == 'USDT' ? total : 0.0, // ستُحسب لاحقاً
+          'usdtValue': asset == 'USDT' ? total : 0.0,
         });
       }
     });
-    // ترتيب حسب القيمة
     list.sort((a, b) => (b['total'] as double).compareTo(a['total'] as double));
     return list;
   }
@@ -99,7 +99,7 @@ class WalletProvider with ChangeNotifier {
   }
 
   // ── Sync Methods ────────────────────────────────────────────────
-  /// مزامنة كاملة للمحفظة
+  /// مزامنة كاملة للمحفظة — كل operation تُنفذ بشكل مستقل
   Future<void> syncAll() async {
     if (!MexcApiManager().isInitialized) {
       _error = 'مفاتيح API غير مفعلة';
@@ -109,25 +109,41 @@ class WalletProvider with ChangeNotifier {
 
     _loading = true;
     _error = null;
+    _balanceError = null;
+    _ordersError = null;
+    _tradesError = null;
     notifyListeners();
 
-    try {
-      await Future.wait([
-        _syncBalances(),
-        _syncOpenOrders(),
-        _syncRecentTrades(),
-      ]);
-      _isInitialized = true;
-    } on MexcRateLimitException catch (e) {
-      _error = 'تم تجاوز حد الطلبات: $e';
-    } on MexcApiException catch (e) {
-      _error = 'خطأ من MEXC: ${e.message}';
-    } catch (e) {
-      _error = 'خطأ في المزامنة: $e';
-    } finally {
-      _loading = false;
-      notifyListeners();
+    // Run each sync independently so failure in one doesn't block others
+    final balanceFuture = _syncBalances().catchError((e) {
+      _balanceError = 'خطأ في الأرصدة: $e';
+      ApiLogger.e('WalletProvider', 'Balance sync failed: $e');
+    });
+
+    final ordersFuture = _syncOpenOrders().catchError((e) {
+      _ordersError = 'خطأ في الأوامر: $e';
+      ApiLogger.e('WalletProvider', 'Orders sync failed: $e');
+    });
+
+    final tradesFuture = _syncRecentTrades().catchError((e) {
+      _tradesError = 'خطأ في الصفقات: $e';
+      ApiLogger.e('WalletProvider', 'Trades sync failed: $e');
+    });
+
+    await Future.wait([balanceFuture, ordersFuture, tradesFuture]);
+
+    // Build combined error if any
+    final errors = <String>[];
+    if (_balanceError != null) errors.add(_balanceError!);
+    if (_ordersError != null) errors.add(_ordersError!);
+    if (_tradesError != null) errors.add(_tradesError!);
+    if (errors.isNotEmpty) {
+      _error = errors.join(' | ');
     }
+
+    _isInitialized = true;
+    _loading = false;
+    notifyListeners();
   }
 
   /// مزامنة الأرصدة
@@ -139,12 +155,10 @@ class WalletProvider with ChangeNotifier {
   void _calculateTotals() {
     _availableUsdt = _balances['USDT']?['free'] ?? 0.0;
     _lockedUsdt = _balances['USDT']?['locked'] ?? 0.0;
-    // تقدير إجمالي القيمة (USDT + قيمة الأصول الأخرى)
     _totalUsdtValue = _availableUsdt + _lockedUsdt;
     _balances.forEach((asset, data) {
       if (asset != 'USDT') {
         final total = (data['free'] ?? 0.0) + (data['locked'] ?? 0.0);
-        // نفترض 1:1 للأصول غير المعروفة (في الإنتاج يجب ضربها بالسعر)
         _totalUsdtValue += total;
       }
     });

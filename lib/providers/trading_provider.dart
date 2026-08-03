@@ -322,9 +322,6 @@ class TradingProvider with ChangeNotifier {
 
         // مزامنة المحفظة بعد الصفقة التلقائية
         // يتم استدعاء syncAll عبر listener في BotScreen أو HomeScreen
-
-        // تأخير بين الأزواج لتجنب Rate Limit
-        await Future.delayed(const Duration(seconds: 2));
       }
     } catch (e) {
       _error = 'خطأ في دورة البوت: $e';

@@ -1,16 +1,9 @@
 import 'dart:async';
-import 'dart:convert';
+import 'dart:math' as math;
 import 'api_manager.dart';
 
 /// ═══════════════════════════════════════════════════════════════════
 /// MEXC API Service - التداول الحقيقي عبر MEXC API v3
-///
-/// يوفر:
-/// • جلب رصيد الحساب الحقيقي
-/// • تنفيذ أوامر السوق والحد الحقيقية
-/// • جلب بيانات السوق الحية (الأسعار، الحجم، التغير)
-/// • إدارة الأوامر (استعلام، إلغاء)
-/// • دعم عقود الحدث من خلال أزواج التداول الحقيقية
 /// ═══════════════════════════════════════════════════════════════════
 class MexcApiService {
   static final MexcApiService _instance = MexcApiService._internal();
@@ -19,15 +12,16 @@ class MexcApiService {
 
   final _api = MexcApiManager();
 
+  // Cache exchange info to avoid repeated calls
+  List<Map<String, dynamic>>? _exchangeInfoCache;
+  DateTime? _exchangeInfoCacheTime;
+
   // ═══════════════════════════════════════════════════════════════
   // 1) بيانات الحساب والرصيد (حقيقية)
   // ═══════════════════════════════════════════════════════════════
 
-  /// يجلب رصيد الحساب الحقيقي من MEXC
-  /// يُرجع Map<symbol, {free: ..., locked: ...}>
   Future<Map<String, Map<String, double>>> getRealBalances() async {
-    final response = await _api.signedGet('/api/v3/account');
-    final data = jsonDecode(response.body);
+    final data = await _api.signedGet('/api/v3/account');
     final balances = <String, Map<String, double>>{};
 
     if (data['balances'] != null) {
@@ -39,32 +33,32 @@ class MexcApiService {
         }
       }
     }
+    ApiLogger.i('getRealBalances', 'Found ${balances.length} non-zero balances');
     return balances;
   }
 
-  /// يجلب إجمالي رصيد USDT المتاح للتداول
   Future<double> getUsdtBalance() async {
     final balances = await getRealBalances();
     final usdt = balances['USDT'];
     return usdt?['free'] ?? 0.0;
   }
 
-  /// يتحقق من حالة الاتصال والمفاتيح
   Future<bool> testConnectivity() async {
     try {
-      final response = await _api.publicGet('/api/v3/time');
-      return response.statusCode == 200;
-    } catch (_) {
+      await _api.publicGet('/api/v3/time');
+      return true;
+    } catch (e) {
+      ApiLogger.e('testConnectivity', 'Failed: $e');
       return false;
     }
   }
 
-  /// يتحقق من صلاحية مفاتيح API
   Future<bool> testApiKeys() async {
     try {
       await _api.signedGet('/api/v3/account');
       return true;
-    } catch (_) {
+    } catch (e) {
+      ApiLogger.e('testApiKeys', 'Failed: $e');
       return false;
     }
   }
@@ -73,132 +67,149 @@ class MexcApiService {
   // 2) بيانات السوق الحية (حقيقية)
   // ═══════════════════════════════════════════════════════════════
 
-  /// يجلب بيانات السوق لزوج تداول محدد
   Future<Map<String, dynamic>?> getTicker24hr(String symbol) async {
     try {
-      final response = await _api.publicGet('/api/v3/ticker/24hr', params: {'symbol': symbol});
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
-      }
+      return await _api.publicGet('/api/v3/ticker/24hr', params: {'symbol': symbol});
     } catch (e) {
-      // ignore
+      ApiLogger.e('getTicker24hr', '$symbol => $e');
+      return null;
     }
-    return null;
   }
 
-  /// يجلب بيانات السوق لعدة أزواج
   Future<List<Map<String, dynamic>>> getAllTickers24hr() async {
     try {
-      final response = await _api.publicGet('/api/v3/ticker/24hr');
-      if (response.statusCode == 200) {
-        final list = jsonDecode(response.body) as List;
-        return list.map((e) => e as Map<String, dynamic>).toList();
-      }
+      final data = await _api.publicGet('/api/v3/ticker/24hr');
+      final list = data['data'] as List? ?? [];
+      ApiLogger.i('getAllTickers24hr', 'Loaded ${list.length} tickers');
+      return list.map((e) => e as Map<String, dynamic>).toList();
     } catch (e) {
-      // ignore
+      ApiLogger.e('getAllTickers24hr', 'Failed: $e');
+      throw Exception('فشل تحميل بيانات السوق: $e');
     }
-    return [];
   }
 
-  /// يجلب معلومات جميع أزواج التداول المتاحة
   Future<List<Map<String, dynamic>>> getExchangeInfo({String? symbol}) async {
+    // Return cached info if less than 5 minutes old
+    if (_exchangeInfoCache != null && _exchangeInfoCacheTime != null) {
+      if (DateTime.now().difference(_exchangeInfoCacheTime!) < const Duration(minutes: 5)) {
+        if (symbol == null) return _exchangeInfoCache!;
+        return _exchangeInfoCache!.where((s) => s['symbol'] == symbol).toList();
+      }
+    }
+
     try {
       final params = symbol != null ? {'symbol': symbol} : null;
-      final response = await _api.publicGet('/api/v3/exchangeInfo', params: params);
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final symbols = data['symbols'] as List;
-        return symbols.map((e) => e as Map<String, dynamic>).toList();
-      }
+      final data = await _api.publicGet('/api/v3/exchangeInfo', params: params);
+      final symbols = data['symbols'] as List? ?? [];
+      final result = symbols.map((e) => e as Map<String, dynamic>).toList();
+      _exchangeInfoCache = result;
+      _exchangeInfoCacheTime = DateTime.now();
+      return result;
     } catch (e) {
-      // ignore
+      ApiLogger.e('getExchangeInfo', 'Failed: $e');
+      throw Exception('فشل تحميل معلومات البورصة: $e');
     }
-    return [];
   }
 
-  /// يجلب بيانات Kline (الشموع) لتحليل فني
-  /// interval: 1m, 5m, 15m, 1h, 4h, 1d
+  /// Get symbol filters (stepSize, minQty, tickSize, etc.)
+  Future<Map<String, dynamic>?> getSymbolFilters(String symbol) async {
+    try {
+      final info = await getExchangeInfo(symbol: symbol);
+      if (info.isEmpty) return null;
+      final sym = info.first;
+      final filters = sym['filters'] as List? ?? [];
+      final result = <String, dynamic>{};
+      for (final f in filters) {
+        final filterType = f['filterType']?.toString() ?? '';
+        if (filterType == 'LOT_SIZE') {
+          result['stepSize'] = double.tryParse(f['stepSize'].toString()) ?? 0.00001;
+          result['minQty'] = double.tryParse(f['minQty'].toString()) ?? 0.0;
+          result['maxQty'] = double.tryParse(f['maxQty'].toString()) ?? double.infinity;
+        } else if (filterType == 'MIN_NOTIONAL') {
+          result['minNotional'] = double.tryParse(f['minNotional'].toString()) ?? 0.0;
+        } else if (filterType == 'PRICE_FILTER') {
+          result['tickSize'] = double.tryParse(f['tickSize'].toString()) ?? 0.01;
+        }
+      }
+      return result;
+    } catch (e) {
+      ApiLogger.e('getSymbolFilters', '$symbol => $e');
+      return null;
+    }
+  }
+
+  /// Round quantity according to stepSize
+  double _roundQuantity(double qty, double stepSize) {
+    if (stepSize <= 0) return qty;
+    final decimals = stepSize.toString().split('.').last.length;
+    final multiplier = math.pow(10, decimals);
+    return (qty / stepSize).floorToDouble() * stepSize;
+  }
+
   Future<List<Map<String, dynamic>>> getKlines(
     String symbol, {
     String interval = '1h',
     int limit = 100,
   }) async {
     try {
-      final response = await _api.publicGet('/api/v3/klines', params: {
+      final data = await _api.publicGet('/api/v3/klines', params: {
         'symbol': symbol,
         'interval': interval,
         'limit': limit.toString(),
       });
-      if (response.statusCode == 200) {
-        final list = jsonDecode(response.body) as List;
-        return list.map((e) {
-          final arr = e as List;
-          return {
-            'openTime': arr[0],
-            'open': double.tryParse(arr[1]) ?? 0,
-            'high': double.tryParse(arr[2]) ?? 0,
-            'low': double.tryParse(arr[3]) ?? 0,
-            'close': double.tryParse(arr[4]) ?? 0,
-            'volume': double.tryParse(arr[5]) ?? 0,
-            'closeTime': arr[6],
-          };
-        }).toList();
-      }
+      final list = data['data'] as List? ?? [];
+      return list.map((e) {
+        final arr = e as List;
+        return {
+          'openTime': arr[0],
+          'open': double.tryParse(arr[1].toString()) ?? 0,
+          'high': double.tryParse(arr[2].toString()) ?? 0,
+          'low': double.tryParse(arr[3].toString()) ?? 0,
+          'close': double.tryParse(arr[4].toString()) ?? 0,
+          'volume': double.tryParse(arr[5].toString()) ?? 0,
+          'closeTime': arr[6],
+        };
+      }).toList();
     } catch (e) {
-      // ignore
+      ApiLogger.e('getKlines', '$symbol => $e');
+      throw Exception('فشل تحميل الشموع: $e');
     }
-    return [];
   }
 
-  /// يجلب السعر اللحظي لزوج تداول
   Future<double?> getCurrentPrice(String symbol) async {
     try {
-      final response = await _api.publicGet('/api/v3/ticker/price', params: {'symbol': symbol});
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return double.tryParse(data['price'].toString());
-      }
+      final data = await _api.publicGet('/api/v3/ticker/price', params: {'symbol': symbol});
+      return double.tryParse(data['price'].toString());
     } catch (e) {
-      // ignore
+      ApiLogger.e('getCurrentPrice', '$symbol => $e');
+      return null;
     }
-    return null;
   }
 
   // ═══════════════════════════════════════════════════════════════
   // 3) تنفيذ الأوامر الحقيقية (Market & Limit)
   // ═══════════════════════════════════════════════════════════════
 
-  /// ينفذ أمر سوق حقيقي (MARKET ORDER)
-  ///
-  /// [symbol]  : زوج التداول، مثال: BTCUSDT
-  /// [side]    : BUY أو SELL
-  /// [quantity]: الكمية بالعملة الأساسية (مثال: 0.001 BTC)
-  ///
-  /// يُرجع بيانات الأمر المنفَّذ أو يرمي استثناءً
   Future<Map<String, dynamic>> placeMarketOrder({
     required String symbol,
-    required String side, // 'BUY' or 'SELL'
+    required String side,
     required double quantity,
   }) async {
-    final response = await _api.signedPost('/api/v3/order', body: {
+    // Fetch filters and round quantity
+    final filters = await getSymbolFilters(symbol);
+    double qty = quantity;
+    if (filters != null && filters['stepSize'] != null) {
+      qty = _roundQuantity(quantity, filters['stepSize'] as double);
+    }
+
+    return await _api.signedPost('/api/v3/order', body: {
       'symbol': symbol,
       'side': side.toUpperCase(),
       'type': 'MARKET',
-      'quantity': quantity.toStringAsFixed(8),
+      'quantity': qty.toStringAsFixed(8),
     });
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    return data;
   }
 
-  /// ينفذ أمر حد حقيقي (LIMIT ORDER)
-  ///
-  /// [symbol]     : زوج التداول
-  /// [side]       : BUY أو SELL
-  /// [quantity]   : الكمية
-  /// [price]      : السعر المطلوب
-  /// [timeInForce]: GTC (Good Till Cancel) افتراضياً
-  ///
   Future<Map<String, dynamic>> placeLimitOrder({
     required String symbol,
     required String side,
@@ -206,37 +217,48 @@ class MexcApiService {
     required double price,
     String timeInForce = 'GTC',
   }) async {
-    final response = await _api.signedPost('/api/v3/order', body: {
+    // Fetch filters and round quantity + price
+    final filters = await getSymbolFilters(symbol);
+    double qty = quantity;
+    double prc = price;
+    if (filters != null) {
+      if (filters['stepSize'] != null) {
+        qty = _roundQuantity(quantity, filters['stepSize'] as double);
+      }
+      if (filters['tickSize'] != null) {
+        final tickSize = filters['tickSize'] as double;
+        final decimals = tickSize.toString().split('.').last.length;
+        final multiplier = math.pow(10, decimals);
+        prc = (price / tickSize).floorToDouble() * tickSize;
+      }
+    }
+
+    return await _api.signedPost('/api/v3/order', body: {
       'symbol': symbol,
       'side': side.toUpperCase(),
       'type': 'LIMIT',
-      'quantity': quantity.toStringAsFixed(8),
-      'price': price.toStringAsFixed(8),
+      'quantity': qty.toStringAsFixed(8),
+      'price': prc.toStringAsFixed(8),
       'timeInForce': timeInForce,
     });
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    return data;
   }
 
   // ═══════════════════════════════════════════════════════════════
   // 4) إدارة الأوامر (استعلام / إلغاء)
   // ═══════════════════════════════════════════════════════════════
 
-  /// يستعلم عن حالة أمر محدد
   Future<Map<String, dynamic>?> queryOrder(String symbol, String orderId) async {
     try {
-      final response = await _api.signedGet('/api/v3/order', params: {
+      return await _api.signedGet('/api/v3/order', params: {
         'symbol': symbol,
         'orderId': orderId,
       });
-      return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
+      ApiLogger.e('queryOrder', '$symbol/$orderId => $e');
       return null;
     }
   }
 
-  /// يُلغي أمراً محدداً
   Future<bool> cancelOrder(String symbol, String orderId) async {
     try {
       await _api.signedDelete('/api/v3/order', params: {
@@ -245,36 +267,60 @@ class MexcApiService {
       });
       return true;
     } catch (e) {
+      ApiLogger.e('cancelOrder', '$symbol/$orderId => $e');
       return false;
     }
   }
 
-  /// يجلب جميع الأوامر المفتوحة (غير المنفذة) لزوج محدد
+  /// MEXC v3 openOrders requires a symbol param; without it returns error.
+  /// We iterate all event pairs and aggregate results.
   Future<List<Map<String, dynamic>>> getOpenOrders({String? symbol}) async {
-    try {
-      final params = symbol != null ? {'symbol': symbol} : null;
-      final response = await _api.signedGet('/api/v3/openOrders', params: params);
-      final list = jsonDecode(response.body) as List;
-      return list.map((e) => e as Map<String, dynamic>).toList();
-    } catch (e) {
-      return [];
+    if (symbol != null) {
+      try {
+        final data = await _api.signedGet('/api/v3/openOrders', params: {'symbol': symbol});
+        final list = data['data'] as List? ?? [];
+        ApiLogger.i('getOpenOrders', '$symbol => ${list.length} orders');
+        return list.map((e) => e as Map<String, dynamic>).toList();
+      } catch (e) {
+        ApiLogger.e('getOpenOrders', '$symbol => $e');
+        throw Exception('فشل تحميل الأوامر المفتوحة: $e');
+      }
     }
+
+    // No symbol provided — query all event pairs
+    final allOrders = <Map<String, dynamic>>[];
+    for (final pair in eventPairs) {
+      final sym = pair['symbol']!;
+      try {
+        final data = await _api.signedGet('/api/v3/openOrders', params: {'symbol': sym});
+        final list = data['data'] as List? ?? [];
+        allOrders.addAll(list.map((e) => {
+          ...e as Map<String, dynamic>,
+          'symbol': sym,
+        }));
+        await Future.delayed(const Duration(milliseconds: 50));
+      } catch (e) {
+        ApiLogger.w('getOpenOrders', '$sym => $e (skipped)');
+      }
+    }
+    ApiLogger.i('getOpenOrders', 'Total aggregated orders: ${allOrders.length}');
+    return allOrders;
   }
 
-  /// يجلب جميع الأوامر (المفتوحة والمغلقة) لزوج محدد
   Future<List<Map<String, dynamic>>> getAllOrders(
     String symbol, {
     int limit = 500,
   }) async {
     try {
-      final response = await _api.signedGet('/api/v3/allOrders', params: {
+      final data = await _api.signedGet('/api/v3/allOrders', params: {
         'symbol': symbol,
         'limit': limit.toString(),
       });
-      final list = jsonDecode(response.body) as List;
+      final list = data['data'] as List? ?? [];
       return list.map((e) => e as Map<String, dynamic>).toList();
     } catch (e) {
-      return [];
+      ApiLogger.e('getAllOrders', '$symbol => $e');
+      throw Exception('فشل تحميل الأوامر: $e');
     }
   }
 
@@ -282,56 +328,43 @@ class MexcApiService {
   // 5) البيانات التاريخية والمحفظة
   // ═══════════════════════════════════════════════════════════════
 
-  /// يجلب سجل الصفقات المنفذة (My Trades)
   Future<List<Map<String, dynamic>>> getMyTrades(
     String symbol, {
     int limit = 500,
   }) async {
     try {
-      final response = await _api.signedGet('/api/v3/myTrades', params: {
+      final data = await _api.signedGet('/api/v3/myTrades', params: {
         'symbol': symbol,
         'limit': limit.toString(),
       });
-      final list = jsonDecode(response.body) as List;
+      final list = data['data'] as List? ?? [];
       return list.map((e) => e as Map<String, dynamic>).toList();
     } catch (e) {
-      return [];
+      ApiLogger.e('getMyTrades', '$symbol => $e');
+      throw Exception('فشل تحميل صفقات $symbol: $e');
     }
   }
 
-  /// يجلب جميع الصفقات عبر جميع الأزواج (يتطلب استدعاءً لكل زوج)
   Future<List<Map<String, dynamic>>> getAllMyTrades() async {
     final trades = <Map<String, dynamic>>[];
-    try {
-      // نحصل على الأزواج المتاحة أولاً
-      // final symbols = await getExchangeInfo();
-      // نقتصر على الأزواج الشائعة لتجنب Rate Limit
-      final popularSymbols = [
-        'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT',
-        'DOGEUSDT', 'ADAUSDT', 'MATICUSDT', 'LINKUSDT',
-      ];
-
-      for (final sym in popularSymbols) {
-        try {
-          final symTrades = await getMyTrades(sym, limit: 20);
-          trades.addAll(symTrades);
-          // تأخير بسيط لتجنب الضغط على API
-          await Future.delayed(const Duration(milliseconds: 100));
-        } catch (_) {
-          // ignore errors for individual symbols
-        }
+    for (final pair in eventPairs) {
+      final sym = pair['symbol']!;
+      try {
+        final symTrades = await getMyTrades(sym, limit: 20);
+        trades.addAll(symTrades);
+        await Future.delayed(const Duration(milliseconds: 50));
+      } catch (e) {
+        ApiLogger.w('getAllMyTrades', '$sym => $e (skipped)');
       }
-    } catch (e) {
-      // ignore
     }
+    ApiLogger.i('getAllMyTrades', 'Total trades loaded: ${trades.length}');
     return trades;
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 6) مؤشرات التحليل الفني (محسوبة محلياً من بيانات Kline)
+  // 6) مؤشرات التحليل الفني
   // ═══════════════════════════════════════════════════════════════
 
-  /// يحسب RSI من بيانات Kline
   Future<double?> calculateRSI(String symbol, {int period = 14, String interval = '1h'}) async {
     final klines = await getKlines(symbol, interval: interval, limit: period + 1);
     if (klines.length < period + 1) return null;
@@ -356,7 +389,6 @@ class MexcApiService {
     return 100.0 - (100.0 / (1.0 + rs));
   }
 
-  /// يحسب المتوسطات المتحركة
   Future<Map<String, double?>> calculateSMAs(
     String symbol, {
     List<int> periods = const [5, 10, 20, 50],
@@ -380,7 +412,6 @@ class MexcApiService {
     return result;
   }
 
-  /// يحسب Bollinger Bands
   Future<Map<String, double?>?> calculateBollingerBands(
     String symbol, {
     int period = 20,
@@ -400,7 +431,7 @@ class MexcApiService {
     for (final k in klines) {
       variance += ((k['close'] as double) - sma) * ((k['close'] as double) - sma);
     }
-    final stdDev = (variance / period).abs().sqrt();
+    final stdDev = math.sqrt(variance / period);
 
     return {
       'middle': sma,
@@ -410,10 +441,9 @@ class MexcApiService {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 7) أزواج مخصصة لعقود الحدث (تستند إلى أزواج حقيقية)
+  // 7) أزواج مخصصة لعقود الحدث
   // ═══════════════════════════════════════════════════════════════
 
-  /// قائمة الأزواج الشائعة التي يمكن استخدامها كـ "عقود حدث"
   static const List<Map<String, String>> eventPairs = [
     {'symbol': 'BTCUSDT', 'name': 'Bitcoin UP/Down', 'category': 'crypto'},
     {'symbol': 'ETHUSDT', 'name': 'Ethereum UP/Down', 'category': 'crypto'},
@@ -424,17 +454,4 @@ class MexcApiService {
     {'symbol': 'LINKUSDT', 'name': 'Chainlink UP/Down', 'category': 'crypto'},
     {'symbol': 'MATICUSDT', 'name': 'Polygon UP/Down', 'category': 'crypto'},
   ];
-}
-
-extension on double {
-  double sqrt() {
-    if (this <= 0) return 0;
-    double x = this;
-    double prev;
-    do {
-      prev = x;
-      x = (x + this / x) / 2;
-    } while ((x - prev).abs() > 0.0001);
-    return x;
-  }
 }

@@ -91,8 +91,40 @@ class _MarketTabState extends State<_MarketTab> {
               ],
             ),
             const SizedBox(height: 16),
-            if (market.loading)
+            if (market.error != null)
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                      const SizedBox(height: 12),
+                      Text(
+                        market.error!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.red, fontFamily: 'Cairo'),
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        onPressed: market.loadContracts,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('إعادة المحاولة'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (market.loading)
               const Expanded(child: Center(child: CircularProgressIndicator()))
+            else if (market.contracts.isEmpty)
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    'لا توجد عقود متاحة حالياً',
+                    style: TextStyle(color: Colors.grey, fontFamily: 'Cairo'),
+                  ),
+                ),
+              )
             else
               Expanded(
                 child: ListView.builder(

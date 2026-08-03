@@ -1,13 +1,33 @@
-# Add project specific ProGuard rules here.
-# By default, the flags in this file are appended to flags specified
-# in a Gradle build script.
-# You can edit the include path and order by changing the proguardFiles
-# directive in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Flutter Secure Storage
+-keep class com.it_nomads.fluttersecurestorage.** { *; }
+-dontwarn com.it_nomads.fluttersecurestorage.**
 
-# Add any project specific keep options here:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# HTTP package
+-keep class io.flutter.plugins.** { *; }
+-keep class com.brianmt.flutter.** { *; }
+
+# Crypto (HMAC SHA256)
+-keep class javax.crypto.** { *; }
+-keep class java.security.** { *; }
+-keep class sun.misc.** { *; }
+-dontwarn javax.crypto.**
+-dontwarn java.security.**
+
+# Keep JSON serialization
+-keepclassmembers class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
+
+# Keep model classes
+-keep class com.nor.mexc_event_trader.models.** { *; }
+-keep class com.nor.mexc_event_trader.services.** { *; }
+
+# General Flutter
+-keep class io.flutter.app.** { *; }
+-keep class io.flutter.plugin.** { *; }
+-keep class io.flutter.util.** { *; }
+-keep class io.flutter.view.** { *; }
+-keep class io.flutter.** { *; }
+-keep class io.flutter.plugins.** { *; }
+-keep class com.google.firebase.** { *; }
+-dontwarn io.flutter.embedding.**

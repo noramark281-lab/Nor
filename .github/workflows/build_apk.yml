@@ -37,8 +37,8 @@ jobs:
       - name: Build APK
         run: |
           flutter build apk --release \
-            --dart-define=MEXC_API_KEY=${{ mx0vglr2qNx8HuICEQ }} \
-            --dart-define=MEXC_SECRET_KEY=${{ 2818482c53f6408db8556fca28dc18e7 }}
+            --dart-define=MEXC_API_KEY=${{  }} \
+            --dart-define=MEXC_SECRET_KEY=${{  }}
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 import 'api_manager.dart';
 
@@ -15,18 +16,61 @@ class MexcApiService {
   List<Map<String, dynamic>>? _exchangeInfoCache;
   DateTime? _exchangeInfoCacheTime;
 
+  /// فك تغليف الردود التي تأتي بصيغة {"code":0,"data":...} أو {"code":200,"data":...}
+  dynamic _unwrap(dynamic response) {
+    if (response is Map<String, dynamic>) {
+      final code = response['code'];
+      if (response.containsKey('code') &&
+          (code == 0 || code == '0' || code == 200 || code == '200') &&
+          response.containsKey('data')) {
+        return response['data'];
+      }
+    }
+    return response;
+  }
+
+  List _extractList(dynamic response) {
+    final unwrapped = _unwrap(response);
+    if (unwrapped is List) return unwrapped;
+    if (unwrapped is Map<String, dynamic> && unwrapped['data'] is List) {
+      return unwrapped['data'] as List;
+    }
+    return [];
+  }
+
+  Map<String, dynamic> _extractMap(dynamic response) {
+    final unwrapped = _unwrap(response);
+    if (unwrapped is Map<String, dynamic>) return unwrapped;
+    return {};
+  }
+
   // 1) الرصيد والحساب الحقيقي
   Future<Map<String, Map<String, double>>> getRealBalances() async {
-    final dynamic response = await _api.signedGet('/api/v3/account');
+    final dynamic raw = await _api.signedGet('/api/v3/account');
+    final response = _extractMap(raw);
     final balances = <String, Map<String, double>>{};
 
-    if (response is Map<String, dynamic> && response['balances'] is List) {
-      for (final b in response['balances']) {
-        final free = double.tryParse(b['free'].toString()) ?? 0.0;
-        final locked = double.tryParse(b['locked'].toString()) ?? 0.0;
-        if (free > 0 || locked > 0) {
-          balances[b['asset'].toString()] = {'free': free, 'locked': locked};
-        }
+    List? balanceList;
+    if (response['balances'] is List) {
+      balanceList = response['balances'] as List;
+    } else if (response['data'] is Map && response['data']['balances'] is List) {
+      balanceList = response['data']['balances'] as List;
+    }
+
+    if (balanceList == null) {
+      developer.log(
+        'MEXC account response unexpected format: $raw',
+        name: 'MexcApiService',
+      );
+      // نعيد فارغ بدون خطأ إذا كان المستخدم فعلياً ليس لديه أرصدة
+      return balances;
+    }
+
+    for (final b in balanceList) {
+      final free = double.tryParse(b['free'].toString()) ?? 0.0;
+      final locked = double.tryParse(b['locked'].toString()) ?? 0.0;
+      if (free > 0 || locked > 0) {
+        balances[b['asset'].toString()] = {'free': free, 'locked': locked};
       }
     }
     return balances;
@@ -60,7 +104,8 @@ class MexcApiService {
   Future<Map<String, dynamic>?> getTicker24hr(String symbol) async {
     try {
       final res = await _api.publicGet('/api/v3/ticker/24hr', params: {'symbol': symbol});
-      if (res is Map<String, dynamic>) return res;
+      final map = _extractMap(res);
+      if (map.isNotEmpty) return map;
       return null;
     } catch (_) {
       return null;
@@ -70,12 +115,7 @@ class MexcApiService {
   Future<List<Map<String, dynamic>>> getAllTickers24hr() async {
     try {
       final dynamic res = await _api.publicGet('/api/v3/ticker/24hr');
-      List list = [];
-      if (res is List) {
-        list = res;
-      } else if (res is Map<String, dynamic> && res['data'] is List) {
-        list = res['data'] as List;
-      }
+      final list = _extractList(res);
       return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     } catch (e) {
       throw Exception('فشل تحميل بيانات السوق: $e');
@@ -83,7 +123,10 @@ class MexcApiService {
   }
 
   Future<List<Map<String, dynamic>>> getExchangeInfo({String? symbol}) async {
-    if (_exchangeInfoCache != null && _exchangeInfoCacheTime != null) {
+    // إذا طلب رمز محدد ولا يوجد كاش كامل، نجلب مباشرة
+    if (symbol != null && _exchangeInfoCache == null) {
+      // لا نستخدم الكاش هنا
+    } else if (_exchangeInfoCache != null && _exchangeInfoCacheTime != null) {
       if (DateTime.now().difference(_exchangeInfoCacheTime!) < const Duration(minutes: 5)) {
         if (symbol == null) return _exchangeInfoCache!;
         return _exchangeInfoCache!.where((s) => s['symbol'] == symbol).toList();
@@ -93,13 +136,19 @@ class MexcApiService {
     try {
       final params = symbol != null ? {'symbol': symbol} : null;
       final dynamic data = await _api.publicGet('/api/v3/exchangeInfo', params: params);
+      final map = _extractMap(data);
       List symbols = [];
-      if (data is Map<String, dynamic> && data['symbols'] is List) {
+      if (map['symbols'] is List) {
+        symbols = map['symbols'] as List;
+      } else if (data is Map<String, dynamic> && data['symbols'] is List) {
         symbols = data['symbols'] as List;
       }
       final result = symbols.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      _exchangeInfoCache = result;
-      _exchangeInfoCacheTime = DateTime.now();
+      // نحفظ الكاش فقط إذا جلبنا القائمة الكاملة
+      if (symbol == null) {
+        _exchangeInfoCache = result;
+        _exchangeInfoCacheTime = DateTime.now();
+      }
       return result;
     } catch (e) {
       throw Exception('فشل تحميل معلومات البورصة: $e');
@@ -119,12 +168,36 @@ class MexcApiService {
           result['stepSize'] = double.tryParse(f['stepSize'].toString()) ?? 0.00001;
         } else if (filterType == 'PRICE_FILTER') {
           result['tickSize'] = double.tryParse(f['tickSize'].toString()) ?? 0.01;
+        } else if (filterType == 'MIN_NOTIONAL') {
+          result['minNotional'] = double.tryParse(f['minNotional']?.toString() ?? '0') ??
+                                 double.tryParse(f['notional']?.toString() ?? '0') ?? 0.0;
         }
       }
       return result;
     } catch (_) {
       return null;
     }
+  }
+
+  /// التحقق من وجود زوج تداول في MEXC
+  Future<bool> isValidSymbol(String symbol) async {
+    try {
+      final info = await getExchangeInfo(symbol: symbol);
+      return info.isNotEmpty && info.first['status'] == 'TRADING';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// قائمة الأزواج الصالحة من القائمة الثابتة
+  Future<List<Map<String, String>>> getValidEventPairs() async {
+    final valid = <Map<String, String>>[];
+    for (final pair in eventPairs) {
+      if (await isValidSymbol(pair['symbol']!)) {
+        valid.add(pair);
+      }
+    }
+    return valid;
   }
 
   double _roundQuantity(double qty, double stepSize) {
@@ -144,12 +217,7 @@ class MexcApiService {
         'limit': limit.toString(),
       });
 
-      List list = [];
-      if (res is List) {
-        list = res;
-      } else if (res is Map<String, dynamic> && res['data'] is List) {
-        list = res['data'] as List;
-      }
+      final list = _extractList(res);
 
       return list.map((e) {
         final arr = e as List;
@@ -164,29 +232,46 @@ class MexcApiService {
         };
       }).toList();
     } catch (e) {
-      throw Exception('فشل تحميل الشموع: $e');
+      throw Exception('فشل تحميل الشموع لـ $symbol: $e');
     }
   }
 
   // 3) التنفيذ الحقيقي للأوامر
+  /// لأوامر السوق: استخدم [quoteOrderQty] للشراء (BUY) و [quantity] للبيع (SELL)
   Future<Map<String, dynamic>> placeMarketOrder({
     required String symbol,
     required String side,
-    required double quantity,
+    double? quantity,
+    double? quoteOrderQty,
   }) async {
-    final filters = await getSymbolFilters(symbol);
-    double qty = quantity;
-    if (filters != null && filters['stepSize'] != null) {
-      qty = _roundQuantity(quantity, filters['stepSize'] as double);
-    }
+    assert(
+      quantity != null || quoteOrderQty != null,
+      'يجب تحديد quantity أو quoteOrderQty',
+    );
 
-    final dynamic res = await _api.signedPost('/api/v3/order', body: {
+    final body = <String, String>{
       'symbol': symbol,
       'side': side.toUpperCase(),
       'type': 'MARKET',
-      'quantity': qty.toStringAsFixed(6),
-    });
-    return Map<String, dynamic>.from(res as Map);
+    };
+
+    if (quoteOrderQty != null) {
+      body['quoteOrderQty'] = quoteOrderQty.toStringAsFixed(6);
+    } else if (quantity != null) {
+      final filters = await getSymbolFilters(symbol);
+      double qty = quantity;
+      if (filters != null && filters['stepSize'] != null) {
+        qty = _roundQuantity(quantity, filters['stepSize'] as double);
+      }
+      body['quantity'] = qty.toStringAsFixed(6);
+    }
+
+    final dynamic raw = await _api.signedPost('/api/v3/order', body: body);
+    final res = _extractMap(raw);
+    if (res.isEmpty) {
+      throw Exception('رد غير متوقع من MEXC عند تنفيذ أمر السوق: $raw');
+    }
+    return res;
   }
 
   Future<Map<String, dynamic>> placeLimitOrder({
@@ -209,7 +294,7 @@ class MexcApiService {
       }
     }
 
-    final dynamic res = await _api.signedPost('/api/v3/order', body: {
+    final dynamic raw = await _api.signedPost('/api/v3/order', body: {
       'symbol': symbol,
       'side': side.toUpperCase(),
       'type': 'LIMIT',
@@ -217,7 +302,11 @@ class MexcApiService {
       'price': prc.toStringAsFixed(4),
       'timeInForce': timeInForce,
     });
-    return Map<String, dynamic>.from(res as Map);
+    final res = _extractMap(raw);
+    if (res.isEmpty) {
+      throw Exception('رد غير متوقع من MEXC عند تنفيذ أمر الحد: $raw');
+    }
+    return res;
   }
 
   // 4) الأوامر والصفقات
@@ -225,7 +314,7 @@ class MexcApiService {
     if (symbol != null) {
       try {
         final dynamic data = await _api.signedGet('/api/v3/openOrders', params: {'symbol': symbol});
-        List list = data is List ? data : ((data is Map && data['data'] is List) ? data['data'] : []);
+        final list = _extractList(data);
         return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
       } catch (_) {
         return [];
@@ -237,7 +326,7 @@ class MexcApiService {
       final sym = pair['symbol']!;
       try {
         final dynamic data = await _api.signedGet('/api/v3/openOrders', params: {'symbol': sym});
-        List list = data is List ? data : ((data is Map && data['data'] is List) ? data['data'] : []);
+        final list = _extractList(data);
         allOrders.addAll(list.map((e) => {
           ...Map<String, dynamic>.from(e as Map),
           'symbol': sym,
@@ -254,7 +343,7 @@ class MexcApiService {
         'symbol': symbol,
         'limit': limit.toString(),
       });
-      List list = data is List ? data : ((data is Map && data['data'] is List) ? data['data'] : []);
+      final list = _extractList(data);
       return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     } catch (_) {
       return [];
@@ -351,13 +440,13 @@ class MexcApiService {
   }
 
   static const List<Map<String, String>> eventPairs = [
-    {'symbol': 'BTCUSDT', 'name': 'Bitcoin UP/Down', 'category': 'crypto'},
-    {'symbol': 'ETHUSDT', 'name': 'Ethereum UP/Down', 'category': 'crypto'},
-    {'symbol': 'SOLUSDT', 'name': 'Solana UP/Down', 'category': 'crypto'},
-    {'symbol': 'XRPUSDT', 'name': 'XRP UP/Down', 'category': 'crypto'},
-    {'symbol': 'DOGEUSDT', 'name': 'Doge UP/Down', 'category': 'crypto'},
-    {'symbol': 'ADAUSDT', 'name': 'Cardano UP/Down', 'category': 'crypto'},
-    {'symbol': 'LINKUSDT', 'name': 'Chainlink UP/Down', 'category': 'crypto'},
-    {'symbol': 'MATICUSDT', 'name': 'Polygon UP/Down', 'category': 'crypto'},
+    {'symbol': 'BTCUSDT', 'name': 'Bitcoin', 'category': 'crypto'},
+    {'symbol': 'ETHUSDT', 'name': 'Ethereum', 'category': 'crypto'},
+    {'symbol': 'SOLUSDT', 'name': 'Solana', 'category': 'crypto'},
+    {'symbol': 'XRPUSDT', 'name': 'XRP', 'category': 'crypto'},
+    {'symbol': 'DOGEUSDT', 'name': 'Doge', 'category': 'crypto'},
+    {'symbol': 'ADAUSDT', 'name': 'Cardano', 'category': 'crypto'},
+    {'symbol': 'LINKUSDT', 'name': 'Chainlink', 'category': 'crypto'},
+    {'symbol': 'POLUSDT', 'name': 'Polygon (POL)', 'category': 'crypto'},
   ];
 }

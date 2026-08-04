@@ -76,6 +76,13 @@ class MexcApiManager {
       _secretKey = await _storage.read(key: 'mexc_secret_key') ?? '';
     }
 
+    if (_apiKey.isEmpty || _secretKey.isEmpty) {
+      // 3. Hardcoded fallback (fill in your MEXC keys here for production)
+      // Replace the placeholders below with real keys and rebuild
+      // _apiKey = 'YOUR_MEXC_API_KEY_HERE';
+      // _secretKey = 'YOUR_MEXC_SECRET_KEY_HERE';
+    }
+
     ApiLogger.i('loadKeys', 'API Key loaded: ${_apiKey.isNotEmpty} (len=${_apiKey.length})');
     ApiLogger.i('loadKeys', 'Secret loaded: ${_secretKey.isNotEmpty} (len=${_secretKey.length})');
   }
@@ -253,6 +260,8 @@ class MexcApiManager {
       if (body is Map<String, dynamic>) return body;
       if (body is List) return {'data': body};
       throw MexcApiException('Unexpected response type: ${body.runtimeType}', 500);
+    } on MexcApiException {
+      rethrow;
     } catch (e) {
       throw MexcApiException('Invalid JSON response: ${response.body}', 500);
     }

@@ -156,12 +156,9 @@ class WalletProvider with ChangeNotifier {
     _availableUsdt = _balances['USDT']?['free'] ?? 0.0;
     _lockedUsdt = _balances['USDT']?['locked'] ?? 0.0;
     _totalUsdtValue = _availableUsdt + _lockedUsdt;
-    _balances.forEach((asset, data) {
-      if (asset != 'USDT') {
-        final total = (data['free'] ?? 0.0) + (data['locked'] ?? 0.0);
-        _totalUsdtValue += total;
-      }
-    });
+    // NOTE: الأصول غير USDT تُعرض بكمياتها ولكن لا نضيفها للقيمة الإجمالية
+    // لأننا لا نملك أسعارها الحالية هنا. إذا أردت قيمة إجمالية صحيحة
+    // يجب جلب الأسعار وتحويل كل أصل إلى USDT.
   }
 
   /// مزامنة الأوامر المفتوحة

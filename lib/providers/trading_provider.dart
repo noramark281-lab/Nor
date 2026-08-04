@@ -144,11 +144,9 @@ class TradingProvider with ChangeNotifier {
         return false;
       }
 
-      // تحويل المبلغ إلى كمية بالعملة الأساسية
-      final quantity = amount / price;
-
       Map<String, dynamic> order;
       if (isLimit && limitPrice != null) {
+        final quantity = amount / price;
         order = await _api.placeLimitOrder(
           symbol: symbol,
           side: side,
@@ -156,11 +154,23 @@ class TradingProvider with ChangeNotifier {
           price: limitPrice,
         );
       } else {
-        order = await _api.placeMarketOrder(
-          symbol: symbol,
-          side: side,
-          quantity: quantity,
-        );
+        // Market Order
+        if (side.toUpperCase() == 'BUY') {
+          // للشراء: نستخدم quoteOrderQty لتحديد مبلغ USDT المطلوب إنفاقه
+          order = await _api.placeMarketOrder(
+            symbol: symbol,
+            side: side,
+            quoteOrderQty: amount,
+          );
+        } else {
+          // للبيع: نستخدم quantity (كمية العملة الأساسية)
+          final quantity = amount / price;
+          order = await _api.placeMarketOrder(
+            symbol: symbol,
+            side: side,
+            quantity: quantity,
+          );
+        }
       }
 
       final orderId = order['orderId']?.toString() ?? '';
@@ -215,11 +225,21 @@ class TradingProvider with ChangeNotifier {
       final closeSide = trade.side == 'BUY' ? 'SELL' : 'BUY';
       final quantity = trade.amount / trade.entryPrice;
 
-      await _api.placeMarketOrder(
-        symbol: trade.symbol,
-        side: closeSide,
-        quantity: quantity,
-      );
+      if (closeSide.toUpperCase() == 'BUY') {
+        // لإغلاق صفقة بيع (شراء العملة الأساسية): نستخدم quoteOrderQty
+        await _api.placeMarketOrder(
+          symbol: trade.symbol,
+          side: closeSide,
+          quoteOrderQty: trade.amount,
+        );
+      } else {
+        // لإغلاق صفقة شراء (بيع العملة الأساسية): نستخدم quantity
+        await _api.placeMarketOrder(
+          symbol: trade.symbol,
+          side: closeSide,
+          quantity: quantity,
+        );
+      }
 
       final profit = trade.side == 'BUY'
           ? (exitPrice - trade.entryPrice) * trade.amount
@@ -296,6 +316,11 @@ class TradingProvider with ChangeNotifier {
         if (!_isTrading) break;
 
         final symbol = pair['symbol']!;
+
+        // تحقق سريع من صلاحية الرمز لتجنب أخطاء غير ضرورية
+        final isValid = await _api.isValidSymbol(symbol);
+        if (!isValid) continue;
+
         final analysis = await analyzeReal(symbol);
         if (analysis == null) continue;
 
@@ -304,7 +329,7 @@ class TradingProvider with ChangeNotifier {
 
         // جلب السعر الحالي
         final currentPrice = await _api.getCurrentPrice(symbol);
-        if (currentPrice == null || currentPrice <= 0) continue;
+        if (currentPrice <= 0) continue;
 
         await syncBalance();
 
@@ -319,9 +344,6 @@ class TradingProvider with ChangeNotifier {
           price: currentPrice,
           strategy: _selectedStrategy,
         );
-
-        // مزامنة المحفظة بعد الصفقة التلقائية
-        // يتم استدعاء syncAll عبر listener في BotScreen أو HomeScreen
       }
     } catch (e) {
       _error = 'خطأ في دورة البوت: $e';

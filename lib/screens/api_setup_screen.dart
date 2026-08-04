@@ -24,8 +24,6 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
       localizedReason: 'الرجاء التحقق من هويتك لحفظ مفاتيح API',
       // ignore: deprecated_member_use
       biometricOnly: true,
-      // ignore: deprecated_member_use
-      stickyAuth: true,
     );
     if (!didAuth) {
       if (!mounted) return;

@@ -1,18 +1,18 @@
-/// الثوابت والإعدادات العامة
+/// الثوابت والإعدادات العامة المحدثة للعقود الآجلة
 class AppConstants {
   static const String appName = 'MEXC Event Trader';
   static const String appVersion = '1.6.0';
 
-  /// روابط MEXC API الإنتاجية الحقيقية
-  static const String mexcBaseUrl = 'https://api.mexc.com';
-  static const String mexcWssUrl = 'wss://wss.mexc.com/ws';
+  /// روابط MEXC API الإنتاجية الحقيقية للحسابات الآجلة (Futures)
+  static const String mexcBaseUrl = 'https://mexc.com';
+  static const String mexcWssUrl = 'wss://://mexc.com';
 
   /// مفاتيح API المُضمَّنة في وقت البناء (Build-time) عبر --dart-define
   static const String buildTimeApiKey = String.fromEnvironment('MEXC_API_KEY');
   static const String buildTimeApiSecret = String.fromEnvironment('MEXC_SECRET_KEY');
 
-  /// إعدادات التداول الافتراضية
-  static const double defaultTradeAmount = 5.0;
+  /// إعدادات التداول الافتراضية للعقود الآجلة
+  static const double defaultTradeAmount = 1.0; // البداية بـ عقد واحد كحد أدنى
   static const double maxRiskPerTrade = 0.02; // 2% من الرصيد
   static const int maxConsecutiveLosses = 3;
 

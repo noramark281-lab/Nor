@@ -100,6 +100,7 @@ class _TradeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isUp = trade.side == 'BUY';
     final isOpen = trade.status == 'OPEN';
+    final profit = trade.profit ?? 0.0;
     return Card(
       color: const Color(0xFF1A1D2D),
       margin: const EdgeInsets.only(bottom: 8),
@@ -128,9 +129,9 @@ class _TradeTile extends StatelessWidget {
                 backgroundColor: Color(0xFF2D5AF5),
               )
             : Text(
-                '${trade.profit >= 0 ? '+' : ''}${trade.profit.toStringAsFixed(2)} USDT',
+                '${profit >= 0 ? '+' : ''}${profit.toStringAsFixed(2)} USDT',
                 style: TextStyle(
-                  color: trade.profit >= 0 ? const Color(0xFF00C087) : const Color(0xFFFF3B30),
+                  color: profit >= 0 ? const Color(0xFF00C087) : const Color(0xFFFF3B30),
                   fontWeight: FontWeight.bold,
                 ),
               ),

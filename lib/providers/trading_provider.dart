@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/auto_trading_strategies.dart';
-import '../services/api_manager.dart'; // الارتباط المباشر بمحرك الاتصال الحقيقي المركزي
+import '../services/api_manager.dart';
 import '../models/event_contract.dart';
 
 class TradingProvider with ChangeNotifier {
@@ -16,11 +16,9 @@ class TradingProvider with ChangeNotifier {
   String? _error;
   bool _loading = false;
 
-  // إعدادات افتراضية لإدارة مخاطر العقود الآجلة
-  final int _defaultLeverage = 10; // رافعة مالية 10x
-  final String _targetSymbol = "BTC_USDT"; // رمز عقد البيتكوين الآجل الأساسي
+  final int _defaultLeverage = 10;
+  final String _targetSymbol = "BTC_USDT";
 
-  // Bot state
   Timer? _botTimer;
   int _consecutiveLosses = 0;
 
@@ -33,30 +31,37 @@ class TradingProvider with ChangeNotifier {
   bool get loading => _loading;
   int get consecutiveLosses => _consecutiveLosses;
 
+  List<TradeRecord> get openTrades => _trades.where((t) => t.isOpen).toList();
+  List<TradeRecord> get closedTrades => _trades.where((t) => !t.isOpen).toList();
+
+  double get totalProfit {
+    return closedTrades.fold(0.0, (sum, t) => sum + (t.profit ?? 0.0));
+  }
+
   List<String> get availableStrategies => [
-    'Hybrid',
-    'Momentum',
-    'MeanReversion',
-    'Breakout',
-    'Sentiment',
-    'SMA Crossover',
-    'Heikin Ashi',
-  ];
+        'Hybrid',
+        'Momentum',
+        'MeanReversion',
+        'Breakout',
+        'Sentiment',
+        'SMA Crossover',
+        'Heikin Ashi',
+      ];
 
   void selectStrategy(String name) {
     _selectedStrategy = name;
     notifyListeners();
   }
 
-  /// تحديث الرصيد الحقيقي للمحفظة من خادم العقود الآجلة (Futures)
   Future<void> syncBalance() async {
     try {
       final response = await _apiManager.signedGet('/api/v1/private/account/assets');
       if (response != null && response['code'] == 200) {
-        // فحص هيكل رد السيرفر واستخراج رصيد العملة المتاح للتداول العقد الآجل
         final List<dynamic> assets = response['data'] ?? [];
-        final usdtAsset = assets.firstWhere((element) => element['currency'] == 'USDT', orElse: () => null);
-        
+        final usdtAsset = assets.firstWhere(
+          (element) => element['currency'] == 'USDT',
+          orElse: () => null,
+        );
         if (usdtAsset != null) {
           _balance = double.tryParse(usdtAsset['availableBalance'].toString()) ?? 0.0;
         }
@@ -68,61 +73,53 @@ class TradingProvider with ChangeNotifier {
     }
   }
 
-  /// تحليل السوق باستخدام بيانات شمعات العقود الآجلة الحقيقية (Klines)
   Future<Map<String, dynamic>?> analyzeReal(String symbol) async {
     try {
-      // جلب بيانات الشمعات التاريخية للعقود الآجلة عبر دالة الـ Public GET
-      final response = await _apiManager.publicGet('/api/v1/contract/kline/$symbol', params: {
-        'interval': '60', // شمعة ساعة واحدة (60 دقيقة)
-        'limit': '50'
+      final klines = await _apiManager.publicGet('/api/v1/contract/kline/$symbol', params: {
+        'interval': '60',
+        'limit': '50',
       });
+      if (klines == null || klines['code'] != 200) return null;
 
-      if (response == null || response['code'] != 200) return null;
+      final List<dynamic> list = klines['data'] ?? [];
+      if (list.length < 20) return null;
 
-      final List<dynamic> data = response['data'] ?? [];
-      if (data.length < 20) return null;
+      final closes = list.map((e) => double.tryParse(e['close'].toString()) ?? 0.0).toList();
+      final volumes = list.map((e) => double.tryParse(e['vol'].toString()) ?? 0.0).toList();
 
-      // استخراج مصفوفات الأسعار والأحجام من الشمعات الحقيقية
-      final List<double> prices = data.map((k) => double.tryParse(k['close'].toString()) ?? 0.0).toList();
-      final List<double> volumes = data.map((k) => double.tryParse(k['vol'].toString()) ?? 0.0).toList();
+      final short = _strategies.calculateSMA(closes, 5);
+      final long = _strategies.calculateSMA(closes, 20);
+      final rsi = _strategies.calculateRSI(closes, 14);
+      final boll = _strategies.calculateBollinger(closes, 20, 2);
+      final lastPrice = closes.last;
+      final prevPrice = closes[closes.length - 2];
+      final volAvg = _strategies.calculateSMA(volumes, 20);
+      final volSpike = volumes.last > volAvg * 1.5;
 
-      Map<String, dynamic> result;
-      switch (_selectedStrategy) {
-        case 'Momentum':
-          result = _strategies.momentumStrategy(prices);
-          break;
-        case 'MeanReversion':
-          result = _strategies.meanReversion(prices);
-          break;
-        case 'Breakout':
-          result = _strategies.breakoutStrategy(prices);
-          break;
-        case 'Sentiment':
-          result = _strategies.sentimentStrategy(prices, volumes);
-          break;
-        case 'SMA Crossover':
-          result = _strategies.smaCrossover(prices);
-          break;
-        default:
-          result = _strategies.hybridStrategy(prices, volumes);
-          break;
-      }
-
-      _lastSignal = result['signal'];
-      notifyListeners();
-      return result;
+      return {
+        'price': lastPrice,
+        'trend': short > long ? 'Bullish' : 'Bearish',
+        'rsi': rsi,
+        'bollinger': boll,
+        'momentum': ((lastPrice - prevPrice) / prevPrice) * 100,
+        'volSpike': volSpike,
+        'shortSMA': short,
+        'longSMA': long,
+      };
     } catch (e) {
-      _error = 'خطأ في تحليل العقود: $e';
+      _error = 'فشل تحليل السوق الحقيقي: $e';
       notifyListeners();
       return null;
     }
   }
 
-  /// تنفيذ صفقة عقود آجلة حقيقية (Futures Market Order) بالتوقيع الرقمي
   Future<bool> placeTrade({
     required String symbol,
-    required String side,      // يستقبل 'BUY' لفتح Long أو 'SELL' لفتح Short
-    required double contractVolume, // حجم التداول بعدد العقود الآجلة الحقيقية
+    required String side,
+    required double amount,
+    required double price,
+    bool isLimit = false,
+    double? limitPrice,
     String strategy = 'Manual',
   }) async {
     _loading = true;
@@ -138,29 +135,27 @@ class TradingProvider with ChangeNotifier {
         return false;
       }
 
-      // 1. تهيئة وضبط الرافعة المالية على خوادم MEXC قبل إرسال العقد الحقيقي
+      // Set leverage before trading
       await _apiManager.signedPost('/api/v1/private/position/leverage', body: {
         "symbol": symbol,
         "leverage": _defaultLeverage,
-        "openType": 1 // الحساب المعزول Isolated
+        "openType": 1
       });
 
-      // 2. تحديد اتجاه عقد الصفقة الحقيقي للفيوترز
-      // 1 لفتح شراء (Long)، 3 لفتح بيع (Short)
       final int orderSide = (side.toUpperCase() == 'BUY') ? 1 : 3;
+      final int orderType = isLimit ? 1 : 5;
+      final double orderPrice = (isLimit && limitPrice != null && limitPrice > 0) ? limitPrice : 0;
 
-      // 3. صياغة البارامترات المطلوبة من خوادم العقود الآجلة
       final Map<String, dynamic> orderPayload = {
         "symbol": symbol,
-        "price": 0, // 0 تعني تنفيذ لحظي فوري بسعر السوق الحالي (Market Order)
-        "vol": contractVolume.toInt(), // عدد العقود الصحيح
+        "price": orderPrice,
+        "vol": amount.toInt(),
         "leverage": _defaultLeverage,
         "side": orderSide,
-        "type": 5, // 5 تعني طلب بسعر السوق Market
+        "type": orderType,
         "openType": 1
       };
 
-      // إرسال العقد الموثق والموقع بخوارزمية التشفير
       final response = await _apiManager.signedPost('/api/v1/private/order/create', body: orderPayload);
 
       if (response != null && response['code'] == 200) {
@@ -170,8 +165,8 @@ class TradingProvider with ChangeNotifier {
           id: orderId,
           symbol: symbol,
           side: side,
-          amount: contractVolume,
-          entryPrice: 0.0, // سيتم تحديث السعر الفعلي تلقائياً من المنصة عند الإغلاق
+          amount: amount,
+          entryPrice: isLimit ? (limitPrice ?? 0) : price,
           entryTime: DateTime.now(),
           status: 'OPEN',
           strategy: strategy,
@@ -196,77 +191,56 @@ class TradingProvider with ChangeNotifier {
     }
   }
 
-  /// إغلاق صفقة عقود آجلة مفتوحة (تنفيذ أمر معاكس لإغلاق المركز بالكامل)
   Future<bool> closeTrade(TradeRecord trade) async {
-    _loading = true;
-    notifyListeners();
-
     try {
-      // لتصفية وإغلاق عقد فيوترز مفتوح: نرسل أمر معاكس تماماً
-      // 2 لإغلاق شراء (Close Long)، 4 لإغلاق بيع (Close Short)
       final int closeSide = (trade.side == 'BUY') ? 2 : 4;
-
-      final Map<String, dynamic> closePayload = {
+      final response = await _apiManager.signedPost('/api/v1/private/order/create', body: {
         "symbol": trade.symbol,
-        "price": 0, // إغلاق فوري ماركت بسعر السوق اللحظي
-        "vol": trade.amount.toInt(), // نفس حجم العقود المفتوحة
+        "price": 0,
+        "vol": trade.amount.toInt(),
         "leverage": _defaultLeverage,
         "side": closeSide,
         "type": 5,
         "openType": 1
-      };
-
-      final response = await _apiManager.signedPost('/api/v1/private/order/create', body: closePayload);
+      });
 
       if (response != null && response['code'] == 200) {
-        final index = _trades.indexWhere((t) => t.id == trade.id);
-        if (index != -1) {
-          _trades[index] = TradeRecord(
-            id: trade.id,
-            symbol: trade.symbol,
-            side: trade.side,
-            amount: trade.amount,
-            entryPrice: trade.entryPrice,
-            exitPrice: 0.0,
-            entryTime: trade.entryTime,
+        final exitPrice = trade.amount > 0 ? trade.amount * trade.entryPrice : 0;
+        final profit = exitPrice - (trade.amount * trade.entryPrice);
+        final tradeIndex = _trades.indexOf(trade);
+        if (tradeIndex != -1) {
+          _trades[tradeIndex] = trade.copyWith(
+            exitPrice: exitPrice,
+            profit: profit,
             exitTime: DateTime.now(),
             status: 'CLOSED',
-            profit: 0.0, // يتم حسابه تصفية المحفظة الحقيقية تلقائياً
-            strategy: trade.strategy,
           );
         }
-
+        if (profit < 0) {
+          _consecutiveLosses++;
+        } else {
+          _consecutiveLosses = 0;
+        }
         await syncBalance();
-        _loading = false;
         notifyListeners();
         return true;
-      } else {
-        _error = 'فشل الخادم في إغلاق العقد الآجل: ${response?['message']}';
-        _loading = false;
-        notifyListeners();
-        return false;
       }
+      return false;
     } catch (e) {
-      _error = 'خطأ شبكة أثناء إغلاق المركز المفتوح: $e';
-      _loading = false;
+      _error = 'فشل إغلاق الصفقة: $e';
       notifyListeners();
       return false;
     }
   }
 
-  /// تشغيل روبوت التداول الآلي الحقيقي للعقود الآجلة
   void startAutoTrading() {
     if (_isTrading) return;
     _isTrading = true;
-    _consecutiveLosses = 0;
+    _error = null;
     notifyListeners();
-
-    // تشغيل دورة البوت الفورية اللحظية ثم تكرارها بانتظام كل 30 ثانية
-    _botCycle();
-    _botTimer = Timer.periodic(const Duration(seconds: 30), (_) => _botCycle());
+    _botTimer = Timer.periodic(const Duration(minutes: 2), (_) => _botCycle());
   }
 
-  /// إيقاف البوت
   void stopAutoTrading() {
     _isTrading = false;
     _botTimer?.cancel();
@@ -274,36 +248,106 @@ class TradingProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// دورة البوت التلقائي لمسح السوق وتنفيذ صفقات العقود الآجلة
   Future<void> _botCycle() async {
     if (!_isTrading) return;
 
-    if (_consecutiveLosses >= 3) {
-      _error = '⚠️ تم إيقاف البوت آلياً لحماية رأس المال بعد 3 خسائر متتالية';
-      stopAutoTrading();
-      return;
-    }
-
     try {
-      // تفحص المؤشرات الحية لزوج البيتكوين الآجل المستهدف
-      final analysis = await analyzeReal(_targetSymbol);
-      if (analysis == null || !_isTrading) return;
-
-      final String signal = analysis['signal']?.toString() ?? 'HOLD';
-      if (signal == 'HOLD') return;
-
       await syncBalance();
+      if (_balance < 5) {
+        _error = 'رصيد غير كافٍ للبوت (الحد الأدنى 5 USDT)';
+        _isTrading = false;
+        notifyListeners();
+        return;
+      }
+      if (_consecutiveLosses >= 3) {
+        _error = 'تم إيقاف البوت بعد 3 خسائر متتالية';
+        _isTrading = false;
+        notifyListeners();
+        return;
+      }
 
-      // خوارزمية إدارة المخاطر: دخول الصفقة بحد أدنى 1 عقد آجل
-      final double targetContracts = 1.0; 
+      final analysis = await analyzeReal(_targetSymbol);
+      if (analysis == null) return;
 
-      // تنفيذ الصفقة الحقيقية الفورية بناءً على إشارة البوت
-      await placeTrade(
-        symbol: _targetSymbol,
-        side: signal == 'BUY' ? 'BUY' : 'SELL',
-        contractVolume: targetContracts,
+      final signal = _strategies.generateSignal(
+        analysis,
         strategy: _selectedStrategy,
       );
-      
+
+      _lastSignal = signal;
+      notifyListeners();
+
+      if (signal == 'BUY' || signal == 'SELL') {
+        final tradeAmount = _balance * 0.05;
+        if (tradeAmount < 1) return;
+
+        await placeTrade(
+          symbol: _targetSymbol,
+          side: signal,
+          amount: tradeAmount,
+          price: analysis['price'] as double,
+          strategy: 'Auto_$_selectedStrategy',
+        );
+      }
     } catch (e) {
-      _error = 'خطأ دوري محرك البوت: $e';
+      _error = 'خطأ دورة البوت: $e';
+      notifyListeners();
+    }
+  }
+
+  void clearError() {
+    _error = null;
+    notifyListeners();
+  }
+}
+
+class TradeRecord {
+  final String id;
+  final String symbol;
+  final String side;
+  final double amount;
+  final double entryPrice;
+  final DateTime entryTime;
+  final String status;
+  final String strategy;
+  final double? exitPrice;
+  final double? profit;
+  final DateTime? exitTime;
+
+  bool get isOpen => status == 'OPEN';
+
+  TradeRecord({
+    required this.id,
+    required this.symbol,
+    required this.side,
+    required this.amount,
+    required this.entryPrice,
+    required this.entryTime,
+    this.status = 'OPEN',
+    this.strategy = 'Manual',
+    this.exitPrice,
+    this.profit,
+    this.exitTime,
+  });
+
+  TradeRecord copyWith({
+    double? exitPrice,
+    double? profit,
+    DateTime? exitTime,
+    String? status,
+  }) {
+    return TradeRecord(
+      id: id,
+      symbol: symbol,
+      side: side,
+      amount: amount,
+      entryPrice: entryPrice,
+      entryTime: entryTime,
+      status: status ?? this.status,
+      strategy: strategy,
+      exitPrice: exitPrice ?? this.exitPrice,
+      profit: profit ?? this.profit,
+      exitTime: exitTime ?? this.exitTime,
+    );
+  }
+}

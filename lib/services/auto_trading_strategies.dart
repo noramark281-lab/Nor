@@ -185,4 +185,76 @@ class AutoTradingStrategies {
     final variances = data.map((v) => pow(v - mean, 2)).toList();
     return sqrt(variances.reduce((a, b) => a + b) / data.length);
   }
+
+  // ── public helpers consumed by TradingProvider ──
+
+  double calculateSMA(List<double> data, int period) {
+    if (data.length < period) period = data.length;
+    if (period <= 0) return 0.0;
+    final slice = data.sublist(data.length - period);
+    return slice.reduce((a, b) => a + b) / slice.length;
+  }
+
+  double calculateRSI(List<double> prices, int period) {
+    if (prices.length < period + 1) return 50.0;
+    double gain = 0, loss = 0;
+    for (int i = prices.length - period; i < prices.length; i++) {
+      final change = prices[i] - prices[i - 1];
+      if (change > 0) {
+        gain += change;
+      } else {
+        loss += -change;
+      }
+    }
+    if (gain == 0 && loss == 0) return 50.0;
+    final rs = gain / (loss + 1e-9);
+    return 100 - (100 / (1 + rs));
+  }
+
+  Map<String, dynamic> calculateBollinger(List<double> prices, int period, int stdDevMul) {
+    final sma = calculateSMA(prices, period);
+    final std = _stdDev(prices.sublist(max(0, prices.length - period)), sma);
+    return {
+      'upper': sma + stdDevMul * std,
+      'middle': sma,
+      'lower': sma - stdDevMul * std,
+    };
+  }
+
+  String generateSignal(Map<String, dynamic> analysis, {required String strategy}) {
+    switch (strategy) {
+      case 'Momentum':
+        if ((analysis['momentum'] ?? 0) > 1.5) return 'BUY';
+        if ((analysis['momentum'] ?? 0) < -1.5) return 'SELL';
+        return 'HOLD';
+      case 'MeanReversion':
+        if ((analysis['rsi'] ?? 50) < 30) return 'BUY';
+        if ((analysis['rsi'] ?? 50) > 70) return 'SELL';
+        return 'HOLD';
+      case 'Breakout':
+        if (analysis['volSpike'] == true && (analysis['momentum'] ?? 0) > 2) return 'BUY';
+        if (analysis['volSpike'] == true && (analysis['momentum'] ?? 0) < -2) return 'SELL';
+        return 'HOLD';
+      case 'Sentiment':
+        return 'HOLD';
+      case 'SMA Crossover':
+        if ((analysis['shortSMA'] ?? 0) > (analysis['longSMA'] ?? 0)) return 'BUY';
+        if ((analysis['shortSMA'] ?? 0) < (analysis['longSMA'] ?? 0)) return 'SELL';
+        return 'HOLD';
+      case 'Heikin Ashi':
+        return 'HOLD';
+      case 'Hybrid':
+      default:
+        int buy = 0, sell = 0;
+        if ((analysis['momentum'] ?? 0) > 1) buy++;
+        if ((analysis['momentum'] ?? 0) < -1) sell++;
+        if ((analysis['rsi'] ?? 50) < 35) buy++;
+        if ((analysis['rsi'] ?? 50) > 65) sell++;
+        if ((analysis['shortSMA'] ?? 0) > (analysis['longSMA'] ?? 0)) buy++;
+        if ((analysis['shortSMA'] ?? 0) < (analysis['longSMA'] ?? 0)) sell++;
+        if (buy >= 2) return 'BUY';
+        if (sell >= 2) return 'SELL';
+        return 'HOLD';
+    }
+  }
 }

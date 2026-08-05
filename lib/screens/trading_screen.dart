@@ -1,9 +1,7 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/trading_provider.dart';
 import '../models/event_contract.dart';
-import '../widgets/animated_logo.dart';
 
 class TradingScreen extends StatefulWidget {
   final EventContract? contract;
@@ -22,7 +20,6 @@ class _TradingScreenState extends State<TradingScreen> with SingleTickerProvider
   String _side = 'BUY';
   String _selectedStrategy = 'Hybrid';
   String? _lastSignal;
-  bool _showBuy = true;
 
   @override
   void initState() {

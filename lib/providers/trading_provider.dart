@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/auto_trading_strategies.dart';
 import '../services/api_manager.dart';
-import '../models/event_contract.dart';
+
 
 class TradingProvider with ChangeNotifier {
   final MexcApiManager _apiManager = MexcApiManager();
@@ -205,7 +205,7 @@ class TradingProvider with ChangeNotifier {
       });
 
       if (response != null && response['code'] == 200) {
-        final exitPrice = trade.amount > 0 ? trade.amount * trade.entryPrice : 0;
+        final exitPrice = trade.amount > 0 ? trade.amount * trade.entryPrice : 0.0;
         final profit = exitPrice - (trade.amount * trade.entryPrice);
         final tradeIndex = _trades.indexOf(trade);
         if (tradeIndex != -1) {

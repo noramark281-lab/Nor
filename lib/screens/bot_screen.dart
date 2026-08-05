@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/trading_provider.dart';
 import '../providers/wallet_provider.dart';
-import '../models/event_contract.dart';
+
 
 class BotScreen extends StatefulWidget {
   const BotScreen({super.key});

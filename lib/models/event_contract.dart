@@ -6,6 +6,8 @@ class EventContract {
   final double currentPrice;
   final double priceChangePercent;
   final double volume24h;
+  final double? highPrice;
+  final double? lowPrice;
   final DateTime expiryDate;
   final bool isActive;
   final String side; // UP / DOWN
@@ -18,6 +20,8 @@ class EventContract {
     required this.currentPrice,
     required this.priceChangePercent,
     required this.volume24h,
+    this.highPrice,
+    this.lowPrice,
     required this.expiryDate,
     this.isActive = true,
     this.side = 'UP',
@@ -32,6 +36,8 @@ class EventContract {
       currentPrice: double.tryParse(json['currentPrice']?.toString() ?? '0') ?? 0.0,
       priceChangePercent: double.tryParse(json['priceChangePercent']?.toString() ?? '0') ?? 0.0,
       volume24h: double.tryParse(json['volume24h']?.toString() ?? '0') ?? 0.0,
+      highPrice: double.tryParse(json['highPrice']?.toString() ?? ''),
+      lowPrice: double.tryParse(json['lowPrice']?.toString() ?? ''),
       expiryDate: DateTime.tryParse(json['expiryDate'] ?? '') ?? DateTime.now().add(const Duration(days: 1)),
       isActive: json['isActive'] ?? true,
       side: json['side'] ?? 'UP',
@@ -46,39 +52,12 @@ class EventContract {
     'currentPrice': currentPrice,
     'priceChangePercent': priceChangePercent,
     'volume24h': volume24h,
+    'highPrice': highPrice,
+    'lowPrice': lowPrice,
     'expiryDate': expiryDate.toIso8601String(),
     'isActive': isActive,
     'side': side,
   };
 }
 
-class TradeRecord {
-  final String id;
-  final String symbol;
-  final String side;
-  final double amount;
-  final double entryPrice;
-  final double? exitPrice;
-  final DateTime entryTime;
-  final DateTime? exitTime;
-  final String status; // OPEN / CLOSED / CANCELLED
-  final double? profit;
-  final String strategy;
 
-  TradeRecord({
-    required this.id,
-    required this.symbol,
-    required this.side,
-    required this.amount,
-    required this.entryPrice,
-    this.exitPrice,
-    required this.entryTime,
-    this.exitTime,
-    this.status = 'OPEN',
-    this.profit,
-    this.strategy = 'Manual',
-  });
-
-  bool get isProfit => (profit ?? 0) > 0;
-  bool get isOpen => status == 'OPEN';
-}

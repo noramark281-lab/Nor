@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 class AppConstants {
   static const String appName = 'MEXC Event Trader';
   static const String appVersion = '1.6.1';

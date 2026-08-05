@@ -1,7 +1,6 @@
 // This is a generated file; do not edit or check into version control.
-FLUTTER_ROOT=/home/codespace/development/flutter
-FLUTTER_APPLICATION_PATH=/workspaces/Nor
-FLUTTER_FRAMEWORK_SWIFT_PACKAGE_PATH=/workspaces/Nor/ios/Flutter/ephemeral/Packages/.packages/FlutterFramework
+FLUTTER_ROOT=/tmp/flutter
+FLUTTER_APPLICATION_PATH=/nfs/102156981/temp/nor_clone
 COCOAPODS_PARALLEL_CODE_SIGN=true
 FLUTTER_TARGET=lib/main.dart
 FLUTTER_BUILD_DIR=build

@@ -30,9 +30,35 @@ class WalletProvider with ChangeNotifier {
 
   double get usdtBalance => _balances['USDT']?['free'] ?? 0.0;
 
+  // ── getters for UI screens ──
+  double get totalUsdtValue => _balances['USDT']?['free'] ?? 0.0;
+  double get availableUsdt => _balances['USDT']?['free'] ?? 0.0;
+  double get lockedUsdt => _balances['USDT']?['locked'] ?? 0.0;
+
+  List<Map<String, dynamic>> get assetList {
+    return _balances.entries.map((e) {
+      final free = e.value['free'] ?? 0.0;
+      final locked = e.value['locked'] ?? 0.0;
+      return {
+        'asset': e.key,
+        'free': free,
+        'locked': locked,
+        'total': free + locked,
+      };
+    }).toList();
+  }
+
+  String formatAssetValue(double value) {
+    if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(2)}M';
+    if (value >= 1000) return '${(value / 1000).toStringAsFixed(2)}K';
+    return value.toStringAsFixed(4);
+  }
+
   Future<void> initialize() async {
     await refreshAll();
   }
+
+  Future<void> syncAll() async => refreshAll();
 
   Future<void> refreshAll() async {
     _loading = true;

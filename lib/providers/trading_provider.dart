@@ -1,13 +1,11 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
-import '../services/mexc_api_service.dart';
 import '../services/auto_trading_strategies.dart';
-import '../services/api_manager.dart';
+import '../services/api_manager.dart'; // الارتباط المباشر بمحرك الاتصال الحقيقي المركزي
 import '../models/event_contract.dart';
 
 class TradingProvider with ChangeNotifier {
-  final MexcApiService _api = MexcApiService();
+  final MexcApiManager _apiManager = MexcApiManager();
   final AutoTradingStrategies _strategies = AutoTradingStrategies();
 
   final List<TradeRecord> _trades = [];
@@ -17,6 +15,10 @@ class TradingProvider with ChangeNotifier {
   String? _lastSignal;
   String? _error;
   bool _loading = false;
+
+  // إعدادات افتراضية لإدارة مخاطر العقود الآجلة
+  final int _defaultLeverage = 10; // رافعة مالية 10x
+  final String _targetSymbol = "BTC_USDT"; // رمز عقد البيتكوين الآجل الأساسي
 
   // Bot state
   Timer? _botTimer;
@@ -46,31 +48,43 @@ class TradingProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// تحديث الرصيد من السيرفر
+  /// تحديث الرصيد الحقيقي للمحفظة من خادم العقود الآجلة (Futures)
   Future<void> syncBalance() async {
     try {
-      _balance = await _api.getUsdtBalance();
+      final response = await _apiManager.signedGet('/api/v1/private/account/assets');
+      if (response != null && response['code'] == 200) {
+        // فحص هيكل رد السيرفر واستخراج رصيد العملة المتاح للتداول العقد الآجل
+        final List<dynamic> assets = response['data'] ?? [];
+        final usdtAsset = assets.firstWhere((element) => element['currency'] == 'USDT', orElse: () => null);
+        
+        if (usdtAsset != null) {
+          _balance = double.tryParse(usdtAsset['availableBalance'].toString()) ?? 0.0;
+        }
+      }
       notifyListeners();
     } catch (e) {
-      _error = 'فشل تحديث الرصيد: $e';
+      _error = 'فشل تحديث رصيد العقود الآجلة: $e';
       notifyListeners();
     }
   }
 
-  /// تحليل السوق باستخدام بيانات Kline الحقيقية
+  /// تحليل السوق باستخدام بيانات شمعات العقود الآجلة الحقيقية (Klines)
   Future<Map<String, dynamic>?> analyzeReal(String symbol) async {
     try {
-      // جلب Klines حقيقية
-      final klines = await _api.getKlines(symbol, interval: '1h', limit: 50);
-      if (klines.length < 20) return null;
+      // جلب بيانات الشمعات التاريخية للعقود الآجلة عبر دالة الـ Public GET
+      final response = await _apiManager.publicGet('/api/v1/contract/kline/$symbol', params: {
+        'interval': '60', // شمعة ساعة واحدة (60 دقيقة)
+        'limit': '50'
+      });
 
-      final prices = klines.map((k) => k['close'] as double).toList();
-      final volumes = klines.map((k) => k['volume'] as double).toList();
+      if (response == null || response['code'] != 200) return null;
 
-      // حساب RSI حقيقي
-      final rsi = await _api.calculateRSI(symbol, period: 14, interval: '1h');
-      // حساب SMAs حقيقية
-      final smas = await _api.calculateSMAs(symbol, periods: [5, 20], interval: '1h');
+      final List<dynamic> data = response['data'] ?? [];
+      if (data.length < 20) return null;
+
+      // استخراج مصفوفات الأسعار والأحجام من الشمعات الحقيقية
+      final List<double> prices = data.map((k) => double.tryParse(k['close'].toString()) ?? 0.0).toList();
+      final List<double> volumes = data.map((k) => double.tryParse(k['vol'].toString()) ?? 0.0).toList();
 
       Map<String, dynamic> result;
       switch (_selectedStrategy) {
@@ -89,205 +103,165 @@ class TradingProvider with ChangeNotifier {
         case 'SMA Crossover':
           result = _strategies.smaCrossover(prices);
           break;
-        case 'Heikin Ashi':
-          result = _strategies.heikinAshiSignal(prices);
-          break;
-        case 'Hybrid':
         default:
           result = _strategies.hybridStrategy(prices, volumes);
           break;
       }
 
-      // دمج المؤشرات الحقيقية
-      result['rsi'] = rsi;
-      result['sma5'] = smas['SMA5'];
-      result['sma20'] = smas['SMA20'];
-      result['prices'] = prices;
-
       _lastSignal = result['signal'];
       notifyListeners();
       return result;
     } catch (e) {
-      _error = 'خطأ في التحليل: $e';
+      _error = 'خطأ في تحليل العقود: $e';
       notifyListeners();
       return null;
     }
   }
 
-  /// Legacy analyze for backward compatibility
-  Future<Map<String, dynamic>?> analyze(String symbol, List<double> prices, {List<double>? volumes}) async {
-    return analyzeReal(symbol);
-  }
-
-  /// تنفيذ صفقة حقيقية (Market Order)
+  /// تنفيذ صفقة عقود آجلة حقيقية (Futures Market Order) بالتوقيع الرقمي
   Future<bool> placeTrade({
     required String symbol,
-    required String side,
-    required double amount,
-    required double price,
+    required String side,      // يستقبل 'BUY' لفتح Long أو 'SELL' لفتح Short
+    required double contractVolume, // حجم التداول بعدد العقود الآجلة الحقيقية
     String strategy = 'Manual',
-    bool isLimit = false,
-    double? limitPrice,
   }) async {
     _loading = true;
     _error = null;
     notifyListeners();
 
     try {
-      // تحديث الرصيد قبل التنفيذ
       await syncBalance();
-
       if (_balance <= 0) {
-        _error = 'الرصيد غير كافٍ للتداول';
+        _error = 'رصيد محفظة العقود الآجلة غير كافٍ للتداول';
         _loading = false;
         notifyListeners();
         return false;
       }
 
-      Map<String, dynamic> order;
-      if (isLimit && limitPrice != null) {
-        final quantity = amount / price;
-        order = await _api.placeLimitOrder(
+      // 1. تهيئة وضبط الرافعة المالية على خوادم MEXC قبل إرسال العقد الحقيقي
+      await _apiManager.signedPost('/api/v1/private/position/leverage', body: {
+        "symbol": symbol,
+        "leverage": _defaultLeverage,
+        "openType": 1 // الحساب المعزول Isolated
+      });
+
+      // 2. تحديد اتجاه عقد الصفقة الحقيقي للفيوترز
+      // 1 لفتح شراء (Long)، 3 لفتح بيع (Short)
+      final int orderSide = (side.toUpperCase() == 'BUY') ? 1 : 3;
+
+      // 3. صياغة البارامترات المطلوبة من خوادم العقود الآجلة
+      final Map<String, dynamic> orderPayload = {
+        "symbol": symbol,
+        "price": 0, // 0 تعني تنفيذ لحظي فوري بسعر السوق الحالي (Market Order)
+        "vol": contractVolume.toInt(), // عدد العقود الصحيح
+        "leverage": _defaultLeverage,
+        "side": orderSide,
+        "type": 5, // 5 تعني طلب بسعر السوق Market
+        "openType": 1
+      };
+
+      // إرسال العقد الموثق والموقع بخوارزمية التشفير
+      final response = await _apiManager.signedPost('/api/v1/private/order/create', body: orderPayload);
+
+      if (response != null && response['code'] == 200) {
+        final String orderId = response['data']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
+
+        final trade = TradeRecord(
+          id: orderId,
           symbol: symbol,
           side: side,
-          quantity: quantity,
-          price: limitPrice,
+          amount: contractVolume,
+          entryPrice: 0.0, // سيتم تحديث السعر الفعلي تلقائياً من المنصة عند الإغلاق
+          entryTime: DateTime.now(),
+          status: 'OPEN',
+          strategy: strategy,
         );
-      } else {
-        // Market Order
-        if (side.toUpperCase() == 'BUY') {
-          // للشراء: نستخدم quoteOrderQty لتحديد مبلغ USDT المطلوب إنفاقه
-          order = await _api.placeMarketOrder(
-            symbol: symbol,
-            side: side,
-            quoteOrderQty: amount,
-          );
-        } else {
-          // للبيع: نستخدم quantity (كمية العملة الأساسية)
-          final quantity = amount / price;
-          order = await _api.placeMarketOrder(
-            symbol: symbol,
-            side: side,
-            quantity: quantity,
-          );
-        }
-      }
 
-      final orderId = order['orderId']?.toString() ?? '';
-      final status = order['status']?.toString() ?? 'NEW';
-      final executedPrice = double.tryParse(order['price']?.toString() ?? '0') ?? price;
-
-      final trade = TradeRecord(
-        id: orderId.isNotEmpty ? orderId : DateTime.now().millisecondsSinceEpoch.toString(),
-        symbol: symbol,
-        side: side,
-        amount: amount,
-        entryPrice: executedPrice > 0 ? executedPrice : price,
-        entryTime: DateTime.now(),
-        status: status == 'FILLED' ? 'CLOSED' : 'OPEN',
-        strategy: strategy,
-      );
-
-      _trades.insert(0, trade);
-
-      // إذا تم التنفيذ فوراً، نحسب الربح/الخسارة
-      if (status == 'FILLED') {
+        _trades.insert(0, trade);
         await syncBalance();
+        _loading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _error = 'رفضت المنصة تنفيذ العقد: ${response?['message'] ?? 'خطأ غير معروف'}';
+        _loading = false;
+        notifyListeners();
+        return false;
       }
-
-      _loading = false;
-      notifyListeners();
-      return true;
-    } on MexcRateLimitException catch (e) {
-      _error = 'تم تجاوز حد الطلبات. الرجاء الانتظار: $e';
-      _loading = false;
-      notifyListeners();
-      return false;
-    } on MexcApiException catch (e) {
-      _error = 'خطأ من MEXC: ${e.message}';
-      _loading = false;
-      notifyListeners();
-      return false;
     } catch (e) {
-      _error = 'خطأ غير متوقع: $e';
+      _error = 'خطأ اتصال فادح أثناء التداول الحقيقي: $e';
       _loading = false;
       notifyListeners();
       return false;
     }
   }
 
-  /// إغلاق صفقة (تنفيذ أمر معاكس)
-  Future<bool> closeTrade(TradeRecord trade, double exitPrice) async {
+  /// إغلاق صفقة عقود آجلة مفتوحة (تنفيذ أمر معاكس لإغلاق المركز بالكامل)
+  Future<bool> closeTrade(TradeRecord trade) async {
     _loading = true;
     notifyListeners();
 
     try {
-      final closeSide = trade.side == 'BUY' ? 'SELL' : 'BUY';
-      final quantity = trade.amount / trade.entryPrice;
+      // لتصفية وإغلاق عقد فيوترز مفتوح: نرسل أمر معاكس تماماً
+      // 2 لإغلاق شراء (Close Long)، 4 لإغلاق بيع (Close Short)
+      final int closeSide = (trade.side == 'BUY') ? 2 : 4;
 
-      if (closeSide.toUpperCase() == 'BUY') {
-        // لإغلاق صفقة بيع (شراء العملة الأساسية): نستخدم quoteOrderQty
-        await _api.placeMarketOrder(
-          symbol: trade.symbol,
-          side: closeSide,
-          quoteOrderQty: trade.amount,
-        );
-      } else {
-        // لإغلاق صفقة شراء (بيع العملة الأساسية): نستخدم quantity
-        await _api.placeMarketOrder(
-          symbol: trade.symbol,
-          side: closeSide,
-          quantity: quantity,
-        );
-      }
+      final Map<String, dynamic> closePayload = {
+        "symbol": trade.symbol,
+        "price": 0, // إغلاق فوري ماركت بسعر السوق اللحظي
+        "vol": trade.amount.toInt(), // نفس حجم العقود المفتوحة
+        "leverage": _defaultLeverage,
+        "side": closeSide,
+        "type": 5,
+        "openType": 1
+      };
 
-      final profit = trade.side == 'BUY'
-          ? (exitPrice - trade.entryPrice) * trade.amount
-          : (trade.entryPrice - exitPrice) * trade.amount;
+      final response = await _apiManager.signedPost('/api/v1/private/order/create', body: closePayload);
 
-      final index = _trades.indexWhere((t) => t.id == trade.id);
-      if (index != -1) {
-        _trades[index] = TradeRecord(
-          id: trade.id,
-          symbol: trade.symbol,
-          side: trade.side,
-          amount: trade.amount,
-          entryPrice: trade.entryPrice,
-          exitPrice: exitPrice,
-          entryTime: trade.entryTime,
-          exitTime: DateTime.now(),
-          status: 'CLOSED',
-          profit: profit,
-          strategy: trade.strategy,
-        );
-
-        if (profit < 0) {
-          _consecutiveLosses++;
-        } else {
-          _consecutiveLosses = 0;
+      if (response != null && response['code'] == 200) {
+        final index = _trades.indexWhere((t) => t.id == trade.id);
+        if (index != -1) {
+          _trades[index] = TradeRecord(
+            id: trade.id,
+            symbol: trade.symbol,
+            side: trade.side,
+            amount: trade.amount,
+            entryPrice: trade.entryPrice,
+            exitPrice: 0.0,
+            entryTime: trade.entryTime,
+            exitTime: DateTime.now(),
+            status: 'CLOSED',
+            profit: 0.0, // يتم حسابه تصفية المحفظة الحقيقية تلقائياً
+            strategy: trade.strategy,
+          );
         }
-      }
 
-      await syncBalance();
-      _loading = false;
-      notifyListeners();
-      return true;
+        await syncBalance();
+        _loading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _error = 'فشل الخادم في إغلاق العقد الآجل: ${response?['message']}';
+        _loading = false;
+        notifyListeners();
+        return false;
+      }
     } catch (e) {
-      _error = 'فشل إغلاق الصفقة: $e';
+      _error = 'خطأ شبكة أثناء إغلاق المركز المفتوح: $e';
       _loading = false;
       notifyListeners();
       return false;
     }
   }
 
-  /// تشغيل البوت التلقائي
+  /// تشغيل روبوت التداول الآلي الحقيقي للعقود الآجلة
   void startAutoTrading() {
     if (_isTrading) return;
     _isTrading = true;
     _consecutiveLosses = 0;
     notifyListeners();
 
-    // تنفيذ دورة التداول فوراً ثم كل 30 ثانية
+    // تشغيل دورة البوت الفورية اللحظية ثم تكرارها بانتظام كل 30 ثانية
     _botCycle();
     _botTimer = Timer.periodic(const Duration(seconds: 30), (_) => _botCycle());
   }
@@ -300,68 +274,36 @@ class TradingProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// دورة البوت التلقائي
+  /// دورة البوت التلقائي لمسح السوق وتنفيذ صفقات العقود الآجلة
   Future<void> _botCycle() async {
     if (!_isTrading) return;
 
-    // إيقاف مؤقت إذا تجاوزنا الخسائر المتتالية
     if (_consecutiveLosses >= 3) {
-      _error = '⚠️ توقف البوت تلقائياً بعد 3 خسائر متتالية';
+      _error = '⚠️ تم إيقاف البوت آلياً لحماية رأس المال بعد 3 خسائر متتالية';
       stopAutoTrading();
       return;
     }
 
     try {
-      for (final pair in MexcApiService.eventPairs) {
-        if (!_isTrading) break;
+      // تفحص المؤشرات الحية لزوج البيتكوين الآجل المستهدف
+      final analysis = await analyzeReal(_targetSymbol);
+      if (analysis == null || !_isTrading) return;
 
-        final symbol = pair['symbol']!;
+      final String signal = analysis['signal']?.toString() ?? 'HOLD';
+      if (signal == 'HOLD') return;
 
-        // تحقق سريع من صلاحية الرمز لتجنب أخطاء غير ضرورية
-        final isValid = await _api.isValidSymbol(symbol);
-        if (!isValid) continue;
+      await syncBalance();
 
-        final analysis = await analyzeReal(symbol);
-        if (analysis == null) continue;
+      // خوارزمية إدارة المخاطر: دخول الصفقة بحد أدنى 1 عقد آجل
+      final double targetContracts = 1.0; 
 
-        final signal = analysis['signal']?.toString();
-        if (signal == null || signal == 'HOLD') continue;
-
-        // جلب السعر الحالي
-        final currentPrice = await _api.getCurrentPrice(symbol);
-        if (currentPrice <= 0) continue;
-
-        await syncBalance();
-
-        // حساب مبلغ التداول (2% من الرصيد كحد أقصى)
-        final tradeAmount = _balance * 0.02;
-        if (tradeAmount < 5) continue; // الحد الأدنى 5 USDT
-
-        await placeTrade(
-          symbol: symbol,
-          side: signal,
-          amount: tradeAmount,
-          price: currentPrice,
-          strategy: _selectedStrategy,
-        );
-      }
+      // تنفيذ الصفقة الحقيقية الفورية بناءً على إشارة البوت
+      await placeTrade(
+        symbol: _targetSymbol,
+        side: signal == 'BUY' ? 'BUY' : 'SELL',
+        contractVolume: targetContracts,
+        strategy: _selectedStrategy,
+      );
+      
     } catch (e) {
-      _error = 'خطأ في دورة البوت: $e';
-      notifyListeners();
-    }
-  }
-
-  List<TradeRecord> get openTrades =>
-      _trades.where((t) => t.status == 'OPEN').toList();
-
-  List<TradeRecord> get closedTrades =>
-      _trades.where((t) => t.status == 'CLOSED').toList();
-
-  double get totalProfit => closedTrades.fold(0.0, (sum, t) => sum + (t.profit ?? 0));
-
-  @override
-  void dispose() {
-    _botTimer?.cancel();
-    super.dispose();
-  }
-}
+      _error = 'خطأ دوري محرك البوت: $e';

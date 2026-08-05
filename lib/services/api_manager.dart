@@ -7,65 +7,75 @@ class MexcApiManager {
   factory MexcApiManager() => _instance;
   MexcApiManager._internal();
 
-  static const String baseUrl = 'https://api.mexc.com';
+  // 1. تعديل الرابط ليتجه مباشرة لسيرفر العقود الآجلة (Futures)
+  static const String baseUrl = 'https://contract.mexc.com'; 
 
   // قراءة المفاتيح المُمَرّرة أثناء البناء (--dart-define)
   final String apiKey = const String.fromEnvironment('MEXC_API_KEY');
   final String secretKey = const String.fromEnvironment('MEXC_SECRET_KEY');
 
-  /// إنشاء توقيع HMAC SHA256 للطلبات الموقعة
-  String _generateSignature(String queryString) {
+  /// دالة تهيئة مستدعاة عند التشغيل (main.dart)
+  Future<void> initialize() async {
+    print("تم تهيئة مدير اتصال العقود الآجلة بنجاح حقيقي.");
+  }
+
+  /// خوارزمية توليد توقيع العقود الآجلة الحصرية لمنصة MEXC
+  /// الصيغة المطلوبة بالسيرفر: ApiKey + Request-Time + BodyData
+  String _generateFuturesSignature(String reqTime, String bodyStr) {
+    final String textToSign = "$apiKey$reqTime$bodyStr";
     final hmac = Hmac(sha256, utf8.encode(secretKey));
-    final digest = hmac.convert(utf8.encode(queryString));
+    final digest = hmac.convert(utf8.encode(textToSign));
     return digest.toString();
   }
 
-  /// طلب GET عام (Public)
+  /// طلب GET عام (Public) لجلب أسعار العقود اللحظية من السوق
   Future<dynamic> publicGet(String endpoint, {Map<String, String>? params}) async {
     final uri = Uri.parse('$baseUrl$endpoint').replace(queryParameters: params);
     final response = await http.get(uri);
     return jsonDecode(response.body);
   }
 
-  /// طلب GET موثّق وموقّع (Signed GET)
-  Future<dynamic> signedGet(String endpoint, {Map<String, String>? params}) async {
-    final queryParams = Map<String, String>.from(params ?? {});
-    queryParams['timestamp'] = DateTime.now().millisecondsSinceEpoch.toString();
-    queryParams['recvWindow'] = '5000';
-
-    final queryString = Uri(queryParameters: queryParams).query;
-    final signature = _generateSignature(queryString);
-    final fullUrl = '$baseUrl$endpoint?$queryString&signature=$signature';
+  /// طلب GET موثّق وموقّع خاص بالعقود الآجلة (مثل جلب رصيد محفظة الفيوترز والمراكز المفتوحة)
+  Future<dynamic> signedGet(String endpoint) async {
+    final String url = "$baseUrl$endpoint";
+    final String reqTime = DateTime.now().millisecondsSinceEpoch.toString();
+    
+    // طلبات الـ GET للعقود الآجلة لا تمتلك Body، لذا نمرر نصاً فارغاً للتوقيع
+    final String signature = _generateFuturesSignature(reqTime, "");
 
     final response = await http.get(
-      Uri.parse(fullUrl),
+      Uri.parse(url),
       headers: {
-        'X-MEXC-APIKEY': apiKey,
-        'Content-Type': 'application/json',
+        "ApiKey": apiKey,
+        "Request-Time": reqTime,
+        "Signature": signature,
+        "Content-Type": "application/json",
       },
     );
-
     return jsonDecode(response.body);
   }
 
-  /// طلب POST موثّق وموقّع (Signed POST)
-  Future<dynamic> signedPost(String endpoint, {Map<String, String>? body}) async {
-    final queryParams = Map<String, String>.from(body ?? {});
-    queryParams['timestamp'] = DateTime.now().millisecondsSinceEpoch.toString();
-    queryParams['recvWindow'] = '5000';
-
-    final queryString = Uri(queryParameters: queryParams).query;
-    final signature = _generateSignature(queryString);
-    final fullUrl = '$baseUrl$endpoint?$queryString&signature=$signature';
+  /// طلب POST موثّق وموقّع لتنفيذ تداول حقيقي (فتح/إغلاق صفقات العقود الآجلة والرافعة المالية)
+  Future<dynamic> signedPost(String endpoint, {Map<String, dynamic>? body}) async {
+    final String url = "$baseUrl$endpoint";
+    final String reqTime = DateTime.now().millisecondsSinceEpoch.toString();
+    
+    // تحويل البيانات لنص JSON خام مضغوط (بدون مسافات متفرقة) لضمان مطابقة التوقيع الرقمي
+    final String bodyStr = body != null ? jsonEncode(body) : "";
+    
+    // توليد التوقيع بدمج الوقت وجسم الطلب
+    final String signature = _generateFuturesSignature(reqTime, bodyStr);
 
     final response = await http.post(
-      Uri.parse(fullUrl),
+      Uri.parse(url),
       headers: {
-        'X-MEXC-APIKEY': apiKey,
-        'Content-Type': 'application/json',
+        "ApiKey": apiKey,
+        "Request-Time": reqTime,
+        "Signature": signature,
+        "Content-Type": "application/json; charset=utf-8",
       },
+      body: bodyStr,
     );
-
     return jsonDecode(response.body);
   }
 }

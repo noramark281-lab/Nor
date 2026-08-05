@@ -42,7 +42,7 @@ android {
 
     defaultConfig {
         applicationId = "com.nor.mexc_event_trader"
-        minSdkVersion = flutter.minSdkVersion
+        minSdk = 15
         targetSdk = 36
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName

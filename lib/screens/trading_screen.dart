@@ -11,7 +11,8 @@ class TradingScreen extends StatefulWidget {
   State<TradingScreen> createState() => _TradingScreenState();
 }
 
-class _TradingScreenState extends State<TradingScreen> with SingleTickerProviderStateMixin {
+class _TradingScreenState extends State<TradingScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _isLimit = false;
   final TextEditingController _amountCtrl = TextEditingController(text: '10');
@@ -71,16 +72,22 @@ class _TradingScreenState extends State<TradingScreen> with SingleTickerProvider
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: const TextStyle(fontFamily: 'Cairo')),
-        backgroundColor: msg.contains('نجاح') ? const Color(0xFF00C087) : Colors.red,
+        backgroundColor: msg.contains('نجاح')
+            ? const Color(0xFF00C087)
+            : Colors.red,
       ),
     );
   }
 
   void _analyzeMarket() async {
-    final analysis = await context.read<TradingProvider>().analyzeReal(widget.contract!.symbol);
+    final analysis = await context.read<TradingProvider>().analyzeReal(
+      widget.contract!.symbol,
+    );
     if (analysis != null) {
       setState(() => _lastSignal = analysis['trend'] ?? 'محايد');
-      _showSnack('إشارة: ${_lastSignal!} | RSI: ${analysis['rsi']?.toStringAsFixed(1)} | Momentum: ${analysis['momentum']?.toStringAsFixed(2)}%');
+      _showSnack(
+        'إشارة: ${_lastSignal!} | RSI: ${analysis['rsi']?.toStringAsFixed(1)} | Momentum: ${analysis['momentum']?.toStringAsFixed(2)}%',
+      );
     } else {
       _showSnack('فشل تحليل السوق');
     }
@@ -107,7 +114,10 @@ class _TradingScreenState extends State<TradingScreen> with SingleTickerProvider
           if (contract != null) _buildPriceHeader(contract),
           TabBar(
             controller: _tabController,
-            labelStyle: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold),
+            labelStyle: const TextStyle(
+              fontFamily: 'Cairo',
+              fontWeight: FontWeight.bold,
+            ),
             unselectedLabelStyle: const TextStyle(fontFamily: 'Cairo'),
             tabs: const [
               Tab(text: 'التداول'),
@@ -172,9 +182,18 @@ class _TradingScreenState extends State<TradingScreen> with SingleTickerProvider
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _priceStat('الحجم', '${(contract.volume24h / 1000).toStringAsFixed(1)}K'),
-              _priceStat('الحد الأعلى', '\$${contract.highPrice?.toStringAsFixed(2) ?? '-'}'),
-              _priceStat('الحد الأدنى', '\$${contract.lowPrice?.toStringAsFixed(2) ?? '-'}'),
+              _priceStat(
+                'الحجم',
+                '${(contract.volume24h / 1000).toStringAsFixed(1)}K',
+              ),
+              _priceStat(
+                'الحد الأعلى',
+                '\$${contract.highPrice?.toStringAsFixed(2) ?? '-'}',
+              ),
+              _priceStat(
+                'الحد الأدنى',
+                '\$${contract.lowPrice?.toStringAsFixed(2) ?? '-'}',
+              ),
             ],
           ),
         ],
@@ -185,14 +204,33 @@ class _TradingScreenState extends State<TradingScreen> with SingleTickerProvider
   Widget _priceStat(String label, String value) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12, fontFamily: 'Cairo')),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.grey,
+            fontSize: 12,
+            fontFamily: 'Cairo',
+          ),
+        ),
       ],
     );
   }
 
   Widget _buildTradeTab(TradingProvider trade, EventContract? contract) {
-    if (contract == null) return const Center(child: Text('لا يوجد عقد محدد', style: TextStyle(color: Colors.grey, fontFamily: 'Cairo')));
+    if (contract == null)
+      return const Center(
+        child: Text(
+          'لا يوجد عقد محدد',
+          style: TextStyle(color: Colors.grey, fontFamily: 'Cairo'),
+        ),
+      );
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -202,13 +240,27 @@ class _TradingScreenState extends State<TradingScreen> with SingleTickerProvider
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('الرصيد: ${trade.balance.toStringAsFixed(2)} USDT', style: const TextStyle(color: Colors.white, fontFamily: 'Cairo')),
-              if (trade.loading) const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+              Text(
+                'الرصيد: ${trade.balance.toStringAsFixed(2)} USDT',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Cairo',
+                ),
+              ),
+              if (trade.loading)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
             ],
           ),
           const SizedBox(height: 16),
           SwitchListTile(
-            title: const Text('أمر محدد (Limit)', style: TextStyle(color: Colors.white, fontFamily: 'Cairo')),
+            title: const Text(
+              'أمر محدد (Limit)',
+              style: TextStyle(color: Colors.white, fontFamily: 'Cairo'),
+            ),
             value: _isLimit,
             onChanged: (v) => setState(() => _isLimit = v),
             activeColor: const Color(0xFF2D5AF5),
@@ -216,12 +268,19 @@ class _TradingScreenState extends State<TradingScreen> with SingleTickerProvider
           if (_isLimit)
             TextField(
               controller: _limitPriceCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 labelText: 'سعر الحد',
-                labelStyle: const TextStyle(color: Colors.grey, fontFamily: 'Cairo'),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                labelStyle: const TextStyle(
+                  color: Colors.grey,
+                  fontFamily: 'Cairo',
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 filled: true,
                 fillColor: const Color(0xFF1A1D2D),
               ),
@@ -233,8 +292,13 @@ class _TradingScreenState extends State<TradingScreen> with SingleTickerProvider
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
               labelText: 'حجم العقود',
-              labelStyle: const TextStyle(color: Colors.grey, fontFamily: 'Cairo'),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              labelStyle: const TextStyle(
+                color: Colors.grey,
+                fontFamily: 'Cairo',
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               filled: true,
               fillColor: const Color(0xFF1A1D2D),
             ),
@@ -244,9 +308,17 @@ class _TradingScreenState extends State<TradingScreen> with SingleTickerProvider
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: trade.loading ? null : () { setState(() => _side = 'BUY'); _placeOrder(); },
+                  onPressed: trade.loading
+                      ? null
+                      : () {
+                          setState(() => _side = 'BUY');
+                          _placeOrder();
+                        },
                   icon: const Icon(Icons.arrow_upward),
-                  label: const Text('شراء / طويل', style: TextStyle(fontFamily: 'Cairo')),
+                  label: const Text(
+                    'شراء / طويل',
+                    style: TextStyle(fontFamily: 'Cairo'),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00C087),
                     foregroundColor: Colors.white,
@@ -257,9 +329,17 @@ class _TradingScreenState extends State<TradingScreen> with SingleTickerProvider
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: trade.loading ? null : () { setState(() => _side = 'SELL'); _placeOrder(); },
+                  onPressed: trade.loading
+                      ? null
+                      : () {
+                          setState(() => _side = 'SELL');
+                          _placeOrder();
+                        },
                   icon: const Icon(Icons.arrow_downward),
-                  label: const Text('بيع / قصير', style: TextStyle(fontFamily: 'Cairo')),
+                  label: const Text(
+                    'بيع / قصير',
+                    style: TextStyle(fontFamily: 'Cairo'),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFF3B30),
                     foregroundColor: Colors.white,
@@ -270,14 +350,27 @@ class _TradingScreenState extends State<TradingScreen> with SingleTickerProvider
             ],
           ),
           const SizedBox(height: 24),
-          const Text('الصفقات المفتوحة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+          const Text(
+            'الصفقات المفتوحة',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Cairo',
+            ),
+          ),
           const SizedBox(height: 12),
           Expanded(
             child: trade.openTrades.isEmpty
-                ? const Center(child: Text('لا توجد صفقات مفتوحة', style: TextStyle(color: Colors.grey, fontFamily: 'Cairo')))
+                ? const Center(
+                    child: Text(
+                      'لا توجد صفقات مفتوحة',
+                      style: TextStyle(color: Colors.grey, fontFamily: 'Cairo'),
+                    ),
+                  )
                 : ListView.builder(
                     itemCount: trade.openTrades.length,
-                    itemBuilder: (_, i) => _TradeItem(trade: trade.openTrades[i]),
+                    itemBuilder: (_, i) =>
+                        _TradeItem(trade: trade.openTrades[i]),
                   ),
           ),
         ],
@@ -294,7 +387,10 @@ class _TradingScreenState extends State<TradingScreen> with SingleTickerProvider
           ElevatedButton.icon(
             onPressed: _analyzeMarket,
             icon: const Icon(Icons.analytics),
-            label: const Text('تحليل السوق الحقيقي', style: TextStyle(fontFamily: 'Cairo')),
+            label: const Text(
+              'تحليل السوق الحقيقي',
+              style: TextStyle(fontFamily: 'Cairo'),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF2D5AF5),
               foregroundColor: Colors.white,
@@ -312,27 +408,58 @@ class _TradingScreenState extends State<TradingScreen> with SingleTickerProvider
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('الإشارة: $_lastSignal', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                  Text(
+                    'الإشارة: $_lastSignal',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Cairo',
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  Text('الاستراتيجية: $_selectedStrategy', style: const TextStyle(color: Colors.grey, fontFamily: 'Cairo')),
+                  Text(
+                    'الاستراتيجية: $_selectedStrategy',
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      fontFamily: 'Cairo',
+                    ),
+                  ),
                 ],
               ),
             ),
           const SizedBox(height: 24),
-          const Text('الاستراتيجيات', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+          const Text(
+            'الاستراتيجيات',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Cairo',
+            ),
+          ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: trade.availableStrategies.map((s) => ChoiceChip(
-              label: Text(s, style: const TextStyle(fontFamily: 'Cairo')),
-              selected: _selectedStrategy == s,
-              onSelected: (_) => setState(() => _selectedStrategy = s),
-              selectedColor: const Color(0xFF2D5AF5),
-            )).toList(),
+            children: trade.availableStrategies
+                .map(
+                  (s) => ChoiceChip(
+                    label: Text(s, style: const TextStyle(fontFamily: 'Cairo')),
+                    selected: _selectedStrategy == s,
+                    onSelected: (_) => setState(() => _selectedStrategy = s),
+                    selectedColor: const Color(0xFF2D5AF5),
+                  ),
+                )
+                .toList(),
           ),
           const SizedBox(height: 24),
-          const Text('إشارة البوت', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+          const Text(
+            'إشارة البوت',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Cairo',
+            ),
+          ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(16),
@@ -343,7 +470,11 @@ class _TradingScreenState extends State<TradingScreen> with SingleTickerProvider
             child: Text(
               trade.lastSignal ?? 'لا توجد إشارة حالياً',
               style: TextStyle(
-                color: trade.lastSignal == 'BUY' ? const Color(0xFF00C087) : trade.lastSignal == 'SELL' ? const Color(0xFFFF3B30) : Colors.grey,
+                color: trade.lastSignal == 'BUY'
+                    ? const Color(0xFF00C087)
+                    : trade.lastSignal == 'SELL'
+                    ? const Color(0xFFFF3B30)
+                    : Colors.grey,
                 fontWeight: FontWeight.bold,
                 fontFamily: 'Cairo',
               ),
@@ -374,18 +505,31 @@ class _TradeItem extends StatelessWidget {
         ),
         title: Text(
           '${trade.symbol} - ${trade.strategy}',
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'Cairo',
+          ),
         ),
         subtitle: Text(
           '${trade.side} | حجم: ${trade.amount} @ \$${trade.entryPrice.toStringAsFixed(2)}',
-          style: const TextStyle(color: Colors.grey, fontSize: 12, fontFamily: 'Cairo'),
+          style: const TextStyle(
+            color: Colors.grey,
+            fontSize: 12,
+            fontFamily: 'Cairo',
+          ),
         ),
         trailing: ElevatedButton(
           onPressed: () async {
             final ok = await context.read<TradingProvider>().closeTrade(trade);
             if (!ok) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('فشل إغلاق الصفقة', style: TextStyle(fontFamily: 'Cairo'))),
+                const SnackBar(
+                  content: Text(
+                    'فشل إغلاق الصفقة',
+                    style: TextStyle(fontFamily: 'Cairo'),
+                  ),
+                ),
               );
             }
           },

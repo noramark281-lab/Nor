@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../providers/trading_provider.dart';
 import '../providers/wallet_provider.dart';
 
-
 class BotScreen extends StatefulWidget {
   const BotScreen({super.key});
 
@@ -43,7 +42,10 @@ class _BotScreenState extends State<BotScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('البوت التلقائي', style: TextStyle(fontFamily: 'Cairo')),
+        title: const Text(
+          'البوت التلقائي',
+          style: TextStyle(fontFamily: 'Cairo'),
+        ),
         centerTitle: true,
         actions: [
           IconButton(
@@ -81,37 +83,63 @@ class _BotScreenState extends State<BotScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    bot.isTrading ? 'البوت يعمل حالياً (تداول حقيقي)' : 'البوت متوقف',
-                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                    bot.isTrading
+                        ? 'البوت يعمل حالياً (تداول حقيقي)'
+                        : 'البوت متوقف',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Cairo',
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'الاستراتيجية: ${bot.selectedStrategy}',
-                    style: TextStyle(color: Colors.white.withOpacity(0.8), fontFamily: 'Cairo'),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontFamily: 'Cairo',
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.currency_bitcoin, color: Colors.amber, size: 20),
+                      const Icon(
+                        Icons.currency_bitcoin,
+                        color: Colors.amber,
+                        size: 20,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         '${bot.balance.toStringAsFixed(2)} USDT',
-                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Cairo',
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'محفظة: ${wallet.totalUsdtValue.toStringAsFixed(2)} USDT',
-                    style: TextStyle(color: Colors.white.withOpacity(0.7), fontFamily: 'Cairo', fontSize: 13),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontFamily: 'Cairo',
+                      fontSize: 13,
+                    ),
                   ),
                   if (bot.consecutiveLosses > 0)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
                         '⚠️ خسائر متتالية: ${bot.consecutiveLosses}',
-                        style: const TextStyle(color: Colors.orangeAccent, fontFamily: 'Cairo'),
+                        style: const TextStyle(
+                          color: Colors.orangeAccent,
+                          fontFamily: 'Cairo',
+                        ),
                       ),
                     ),
                 ],
@@ -127,15 +155,15 @@ class _BotScreenState extends State<BotScreen> {
                   color: bot.lastSignal == 'BUY'
                       ? const Color(0xFF00C087).withOpacity(0.15)
                       : bot.lastSignal == 'SELL'
-                          ? const Color(0xFFFF3B30).withOpacity(0.15)
-                          : const Color(0xFF1A1D2D),
+                      ? const Color(0xFFFF3B30).withOpacity(0.15)
+                      : const Color(0xFF1A1D2D),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: bot.lastSignal == 'BUY'
                         ? const Color(0xFF00C087)
                         : bot.lastSignal == 'SELL'
-                            ? const Color(0xFFFF3B30)
-                            : Colors.transparent,
+                        ? const Color(0xFFFF3B30)
+                        : Colors.transparent,
                     width: 1,
                   ),
                 ),
@@ -146,23 +174,27 @@ class _BotScreenState extends State<BotScreen> {
                       bot.lastSignal == 'BUY'
                           ? Icons.arrow_upward
                           : bot.lastSignal == 'SELL'
-                              ? Icons.arrow_downward
-                              : Icons.horizontal_rule,
+                          ? Icons.arrow_downward
+                          : Icons.horizontal_rule,
                       color: bot.lastSignal == 'BUY'
                           ? const Color(0xFF00C087)
                           : bot.lastSignal == 'SELL'
-                              ? const Color(0xFFFF3B30)
-                              : Colors.grey,
+                          ? const Color(0xFFFF3B30)
+                          : Colors.grey,
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'آخر إشارة: ${bot.lastSignal == 'BUY' ? 'شراء' : bot.lastSignal == 'SELL' ? 'بيع' : 'انتظار'}',
+                      'آخر إشارة: ${bot.lastSignal == 'BUY'
+                          ? 'شراء'
+                          : bot.lastSignal == 'SELL'
+                          ? 'بيع'
+                          : 'انتظار'}',
                       style: TextStyle(
                         color: bot.lastSignal == 'BUY'
                             ? const Color(0xFF00C087)
                             : bot.lastSignal == 'SELL'
-                                ? const Color(0xFFFF3B30)
-                                : Colors.grey,
+                            ? const Color(0xFFFF3B30)
+                            : Colors.grey,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'Cairo',
                       ),
@@ -176,7 +208,12 @@ class _BotScreenState extends State<BotScreen> {
             if (wallet.openOrders.isNotEmpty) ...[
               const Text(
                 'أوامر مفتوحة في المحفظة',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Cairo',
+                ),
                 textAlign: TextAlign.right,
               ),
               const SizedBox(height: 12),
@@ -191,7 +228,9 @@ class _BotScreenState extends State<BotScreen> {
                     color: const Color(0xFF1A1D2D),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: isBuy ? const Color(0xFF00C087).withOpacity(0.3) : const Color(0xFFFF3B30).withOpacity(0.3),
+                      color: isBuy
+                          ? const Color(0xFF00C087).withOpacity(0.3)
+                          : const Color(0xFFFF3B30).withOpacity(0.3),
                     ),
                   ),
                   child: Row(
@@ -200,7 +239,9 @@ class _BotScreenState extends State<BotScreen> {
                       Text(
                         side,
                         style: TextStyle(
-                          color: isBuy ? const Color(0xFF00C087) : const Color(0xFFFF3B30),
+                          color: isBuy
+                              ? const Color(0xFF00C087)
+                              : const Color(0xFFFF3B30),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -214,7 +255,12 @@ class _BotScreenState extends State<BotScreen> {
 
             const Text(
               'اختر استراتيجية',
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Cairo',
+              ),
               textAlign: TextAlign.right,
             ),
             const SizedBox(height: 12),
@@ -242,9 +288,13 @@ class _BotScreenState extends State<BotScreen> {
             // زر تشغيل/إيقاف
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: bot.isTrading ? const Color(0xFFFF3B30) : const Color(0xFF00C087),
+                backgroundColor: bot.isTrading
+                    ? const Color(0xFFFF3B30)
+                    : const Color(0xFF00C087),
                 minimumSize: const Size.fromHeight(56),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               onPressed: bot.loading
                   ? null
@@ -263,15 +313,18 @@ class _BotScreenState extends State<BotScreen> {
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
                     )
                   : Icon(bot.isTrading ? Icons.stop : Icons.play_arrow),
               label: Text(
                 bot.loading
                     ? 'جاري التنفيذ...'
                     : bot.isTrading
-                        ? 'إيقاف البوت'
-                        : 'تشغيل البوت',
+                    ? 'إيقاف البوت'
+                    : 'تشغيل البوت',
                 style: const TextStyle(fontSize: 18, fontFamily: 'Cairo'),
               ),
             ),
@@ -281,7 +334,12 @@ class _BotScreenState extends State<BotScreen> {
             if (bot.openTrades.isNotEmpty) ...[
               const Text(
                 'صفقات مفتوحة',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Cairo',
+                ),
                 textAlign: TextAlign.right,
               ),
               const SizedBox(height: 12),
@@ -305,21 +363,30 @@ class _BotScreenState extends State<BotScreen> {
                       Text(
                         '${bot.totalProfit >= 0 ? '+' : ''}${bot.totalProfit.toStringAsFixed(2)} USDT',
                         style: TextStyle(
-                          color: bot.totalProfit >= 0 ? const Color(0xFF00C087) : const Color(0xFFFF3B30),
+                          color: bot.totalProfit >= 0
+                              ? const Color(0xFF00C087)
+                              : const Color(0xFFFF3B30),
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
                         ),
                       ),
                       const Text(
                         'إجمالي الأرباح/الخسائر',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Cairo',
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'عدد الصفقات المغلقة: ${bot.closedTrades.length}',
-                    style: const TextStyle(color: Colors.grey, fontFamily: 'Cairo'),
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      fontFamily: 'Cairo',
+                    ),
                     textAlign: TextAlign.right,
                   ),
                 ],
@@ -337,14 +404,33 @@ class _BotScreenState extends State<BotScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text('وصف الاستراتيجيات', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                  const Text(
+                    'وصف الاستراتيجيات',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Cairo',
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  _strategyDesc('Hybrid', 'دمج جميع الاستراتيجيات للحصول على أفضل قرار'),
+                  _strategyDesc(
+                    'Hybrid',
+                    'دمج جميع الاستراتيجيات للحصول على أفضل قرار',
+                  ),
                   _strategyDesc('Momentum', 'تتبع زخم السعر باستخدام SMA'),
                   _strategyDesc('Breakout', 'التداول عند اختراق المستويات'),
-                  _strategyDesc('SMA Crossover', 'أفضل للمبتدئين - تقاطع المتوسطات'),
-                  _strategyDesc('MeanReversion', 'الشراء عند الانخفاض والبيع عند الارتفاع'),
-                  _strategyDesc('Heikin Ashi', 'تصفية الضوضاء باستخدام شموع Heikin Ashi'),
+                  _strategyDesc(
+                    'SMA Crossover',
+                    'أفضل للمبتدئين - تقاطع المتوسطات',
+                  ),
+                  _strategyDesc(
+                    'MeanReversion',
+                    'الشراء عند الانخفاض والبيع عند الارتفاع',
+                  ),
+                  _strategyDesc(
+                    'Heikin Ashi',
+                    'تصفية الضوضاء باستخدام شموع Heikin Ashi',
+                  ),
                   _strategyDesc('Sentiment', 'تحليل الحجم والزخم معاً'),
                 ],
               ),
@@ -367,7 +453,10 @@ class _BotScreenState extends State<BotScreen> {
                     Expanded(
                       child: Text(
                         bot.error!,
-                        style: const TextStyle(color: Color(0xFFFF3B30), fontFamily: 'Cairo'),
+                        style: const TextStyle(
+                          color: Color(0xFFFF3B30),
+                          fontFamily: 'Cairo',
+                        ),
                         textAlign: TextAlign.right,
                       ),
                     ),
@@ -389,7 +478,9 @@ class _BotScreenState extends State<BotScreen> {
         color: const Color(0xFF1A1D2D),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: trade.side == 'BUY' ? const Color(0xFF00C087).withOpacity(0.3) : const Color(0xFFFF3B30).withOpacity(0.3),
+          color: trade.side == 'BUY'
+              ? const Color(0xFF00C087).withOpacity(0.3)
+              : const Color(0xFFFF3B30).withOpacity(0.3),
           width: 1,
         ),
       ),
@@ -401,7 +492,10 @@ class _BotScreenState extends State<BotScreen> {
             children: [
               Text(
                 trade.entryPrice.toStringAsFixed(4),
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Text(
                 '${trade.amount.toStringAsFixed(2)} USDT',
@@ -415,21 +509,31 @@ class _BotScreenState extends State<BotScreen> {
               Row(
                 children: [
                   Icon(
-                    trade.side == 'BUY' ? Icons.arrow_upward : Icons.arrow_downward,
-                    color: trade.side == 'BUY' ? const Color(0xFF00C087) : const Color(0xFFFF3B30),
+                    trade.side == 'BUY'
+                        ? Icons.arrow_upward
+                        : Icons.arrow_downward,
+                    color: trade.side == 'BUY'
+                        ? const Color(0xFF00C087)
+                        : const Color(0xFFFF3B30),
                     size: 16,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     trade.symbol,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Cairo',
+                    ),
                   ),
                 ],
               ),
               Text(
                 trade.side == 'BUY' ? 'شراء' : 'بيع',
                 style: TextStyle(
-                  color: trade.side == 'BUY' ? const Color(0xFF00C087) : const Color(0xFFFF3B30),
+                  color: trade.side == 'BUY'
+                      ? const Color(0xFF00C087)
+                      : const Color(0xFFFF3B30),
                   fontSize: 12,
                   fontFamily: 'Cairo',
                 ),
@@ -450,14 +554,22 @@ class _BotScreenState extends State<BotScreen> {
           Expanded(
             child: Text(
               desc,
-              style: const TextStyle(color: Colors.grey, fontSize: 13, fontFamily: 'Cairo'),
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 13,
+                fontFamily: 'Cairo',
+              ),
               textAlign: TextAlign.right,
             ),
           ),
           const SizedBox(width: 8),
           Text(
             name,
-            style: const TextStyle(color: Color(0xFF2D5AF5), fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+            style: const TextStyle(
+              color: Color(0xFF2D5AF5),
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Cairo',
+            ),
           ),
         ],
       ),

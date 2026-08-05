@@ -39,7 +39,10 @@ class SecureStorageService {
     await _storage.delete(key: 'mexc_api_secret');
   }
 
-  static Future<void> saveApiCredentials(String apiKey, String apiSecret) async {
+  static Future<void> saveApiCredentials(
+    String apiKey,
+    String apiSecret,
+  ) async {
     await _storage.write(key: 'mexc_api_key', value: apiKey);
     await _storage.write(key: 'mexc_api_secret', value: apiSecret);
   }

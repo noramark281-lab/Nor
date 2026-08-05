@@ -37,7 +37,9 @@ class SettingsScreen extends StatelessWidget {
           _tile(
             icon: Icons.vpn_key,
             title: 'إدارة مفاتيح API',
-            subtitle: MexcApiManager().isInitialized ? 'مفاتيح محفوظة ✅' : 'لم يتم الإعداد',
+            subtitle: MexcApiManager().isInitialized
+                ? 'مفاتيح محفوظة ✅'
+                : 'لم يتم الإعداد',
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const ApiSetupScreen()),
@@ -52,16 +54,31 @@ class SettingsScreen extends StatelessWidget {
                 context: context,
                 builder: (_) => AlertDialog(
                   backgroundColor: const Color(0xFF1A1D2D),
-                  title: const Text('تأكيد', style: TextStyle(color: Colors.white, fontFamily: 'Cairo')),
-                  content: const Text('هل تريد حذف مفاتيح API؟', style: TextStyle(color: Colors.grey, fontFamily: 'Cairo')),
+                  title: const Text(
+                    'تأكيد',
+                    style: TextStyle(color: Colors.white, fontFamily: 'Cairo'),
+                  ),
+                  content: const Text(
+                    'هل تريد حذف مفاتيح API؟',
+                    style: TextStyle(color: Colors.grey, fontFamily: 'Cairo'),
+                  ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
-                      child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo')),
+                      child: const Text(
+                        'إلغاء',
+                        style: TextStyle(fontFamily: 'Cairo'),
+                      ),
                     ),
                     TextButton(
                       onPressed: () => Navigator.pop(context, true),
-                      child: const Text('حذف', style: TextStyle(color: Colors.red, fontFamily: 'Cairo')),
+                      child: const Text(
+                        'حذف',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontFamily: 'Cairo',
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -70,7 +87,12 @@ class SettingsScreen extends StatelessWidget {
                 await MexcApiManager().clearCredentials();
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم حذف المفاتيح', style: TextStyle(fontFamily: 'Cairo'))),
+                    const SnackBar(
+                      content: Text(
+                        'تم حذف المفاتيح',
+                        style: TextStyle(fontFamily: 'Cairo'),
+                      ),
+                    ),
                   );
                 }
               }
@@ -78,11 +100,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           const Divider(color: Color(0xFF2A2E3F)),
           _sectionTitle('عن التطبيق'),
-          _tile(
-            icon: Icons.info,
-            title: 'الإصدار',
-            subtitle: '1.6.0',
-          ),
+          _tile(icon: Icons.info, title: 'الإصدار', subtitle: '1.6.0'),
           _tile(
             icon: Icons.warning_amber,
             title: 'تحذير المخاطر',
@@ -91,7 +109,10 @@ class SettingsScreen extends StatelessWidget {
               context: context,
               builder: (_) => AlertDialog(
                 backgroundColor: const Color(0xFF1A1D2D),
-                title: const Text('تحذير', style: TextStyle(color: Colors.red, fontFamily: 'Cairo')),
+                title: const Text(
+                  'تحذير',
+                  style: TextStyle(color: Colors.red, fontFamily: 'Cairo'),
+                ),
                 content: const Text(
                   'التداول في عقود الحدث والخيارات يحمل مخاطر كبيرة بخسارة رأس المال. لا تضمن هذه الأداة الأرباح. ابدأ بمبالغ صغيرة وجرب على حساب تجريبي أولاً.',
                   style: TextStyle(color: Colors.grey, fontFamily: 'Cairo'),
@@ -99,7 +120,10 @@ class SettingsScreen extends StatelessWidget {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('فهمت', style: TextStyle(fontFamily: 'Cairo')),
+                    child: const Text(
+                      'فهمت',
+                      style: TextStyle(fontFamily: 'Cairo'),
+                    ),
                   ),
                 ],
               ),
@@ -115,7 +139,11 @@ class SettingsScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Text(
         title,
-        style: const TextStyle(color: Color(0xFF2D5AF5), fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+        style: const TextStyle(
+          color: Color(0xFF2D5AF5),
+          fontWeight: FontWeight.bold,
+          fontFamily: 'Cairo',
+        ),
       ),
     );
   }
@@ -129,9 +157,15 @@ class SettingsScreen extends StatelessWidget {
   }) {
     return ListTile(
       leading: Icon(icon, color: Colors.white70),
-      title: Text(title, style: const TextStyle(color: Colors.white, fontFamily: 'Cairo')),
+      title: Text(
+        title,
+        style: const TextStyle(color: Colors.white, fontFamily: 'Cairo'),
+      ),
       subtitle: subtitle != null
-          ? Text(subtitle, style: const TextStyle(color: Colors.grey, fontFamily: 'Cairo'))
+          ? Text(
+              subtitle,
+              style: const TextStyle(color: Colors.grey, fontFamily: 'Cairo'),
+            )
           : null,
       trailing: trailing ?? const Icon(Icons.chevron_left, color: Colors.grey),
       onTap: onTap,

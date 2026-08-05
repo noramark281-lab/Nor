@@ -13,11 +13,18 @@ class MexcApiManager {
 
   static const String baseUrl = 'https://contract.mexc.com';
 
-  String _apiKey = const String.fromEnvironment('MEXC_API_KEY', defaultValue: '');
-  String _secretKey = const String.fromEnvironment('MEXC_SECRET_KEY', defaultValue: '');
+  String _apiKey = const String.fromEnvironment(
+    'MEXC_API_KEY',
+    defaultValue: '',
+  );
+  String _secretKey = const String.fromEnvironment(
+    'MEXC_SECRET_KEY',
+    defaultValue: '',
+  );
   bool _isInitialized = false;
 
-  bool get isInitialized => _isInitialized && _apiKey.isNotEmpty && _secretKey.isNotEmpty;
+  bool get isInitialized =>
+      _isInitialized && _apiKey.isNotEmpty && _secretKey.isNotEmpty;
   String get apiKey => _apiKey;
   String get secretKey => _secretKey;
 
@@ -65,7 +72,10 @@ class MexcApiManager {
   }
 
   // ── Public (unsigned) GET ───────────────────────────
-  Future<dynamic> publicGet(String endpoint, {Map<String, String>? params}) async {
+  Future<dynamic> publicGet(
+    String endpoint, {
+    Map<String, String>? params,
+  }) async {
     final uri = Uri.parse('$baseUrl$endpoint').replace(queryParameters: params);
     final response = await http.get(uri);
     if (response.statusCode != 200) {
@@ -75,7 +85,10 @@ class MexcApiManager {
   }
 
   // ── Authenticated GET ───────────────────────────────
-  Future<dynamic> signedGet(String endpoint, {Map<String, String>? params}) async {
+  Future<dynamic> signedGet(
+    String endpoint, {
+    Map<String, String>? params,
+  }) async {
     if (!_isInitialized) throw Exception('API Manager not initialized');
     final queryString = _buildQueryString(params);
     final reqTime = DateTime.now().millisecondsSinceEpoch.toString();
@@ -98,7 +111,10 @@ class MexcApiManager {
   }
 
   // ── Authenticated POST ──────────────────────────────
-  Future<dynamic> signedPost(String endpoint, {Map<String, dynamic>? body}) async {
+  Future<dynamic> signedPost(
+    String endpoint, {
+    Map<String, dynamic>? body,
+  }) async {
     if (!_isInitialized) throw Exception('API Manager not initialized');
     final url = '$baseUrl$endpoint';
     final reqTime = DateTime.now().millisecondsSinceEpoch.toString();

@@ -3,9 +3,9 @@ import 'api_manager.dart'; // استدعاء مدير الاتصال الحقي�
 
 /// استراتيجيات التداول الآلي وربطها بالتنفيذ الحقيقي على خوادم MEXC Futures
 class AutoTradingStrategies {
-  
   // إنشاء نسخة مفردة للوصول للمحرك البرمجي من أي مكان بالتطبيق
-  static final AutoTradingStrategies _instance = AutoTradingStrategies._internal();
+  static final AutoTradingStrategies _instance =
+      AutoTradingStrategies._internal();
   factory AutoTradingStrategies() => _instance;
   AutoTradingStrategies._internal();
 
@@ -13,14 +13,13 @@ class AutoTradingStrategies {
 
   /// الدالة المحورية الكبرى: تفحص الإشارات البرمجية وتنفذ الصفقات حقيقياً فوراً
   Future<void> evaluateAndExecute({
-    required String symbol,          // مثال: "BTC_USDT"
-    required List<double> prices,    // مصفوفة الأسعار الحية الحالية
-    required List<double> volumes,   // مصفوفة الأحجام اللحظية
-    required int contractVol,        // حجم الصفقة بالعقود (مثال: 10 عقود)
-    required int leverage,           // الرافعة المالية المطلوبة (مثال: 10)
-    required String selectedStrategy // الاستراتيجية المختارة من واجهة التطبيق
+    required String symbol, // مثال: "BTC_USDT"
+    required List<double> prices, // مصفوفة الأسعار الحية الحالية
+    required List<double> volumes, // مصفوفة الأحجام اللحظية
+    required int contractVol, // حجم الصفقة بالعقود (مثال: 10 عقود)
+    required int leverage, // الرافعة المالية المطلوبة (مثال: 10)
+    required String selectedStrategy, // الاستراتيجية المختارة من واجهة التطبيق
   }) async {
-    
     Map<String, dynamic> decision = {'signal': 'HOLD', 'confidence': 0.0};
 
     // 1. فرز واختيار الاستراتيجية الفنية المطلوبة لحساب الإشارة
@@ -47,7 +46,9 @@ class AutoTradingStrategies {
         decision = {'signal': 'HOLD', 'confidence': 0.0};
     }
 
-    print("📊 تقرير البوت الحالي لزوج $symbol: الإشارة الناتجة [${decision['signal']}] بنسبة تأكيد [${decision['confidence']}]");
+    print(
+      "📊 تقرير البوت الحالي لزوج $symbol: الإشارة الناتجة [${decision['signal']}] بنسبة تأكيد [${decision['confidence']}]",
+    );
 
     // 2. إذا كانت الإشارة انتظر (HOLD)، يتم إيقاف التنفيذ والانتظار للشمعة القادمة
     if (decision['signal'] == 'HOLD') return;
@@ -55,11 +56,14 @@ class AutoTradingStrategies {
     try {
       // 3. ضبط وتعديل الرافعة المالية على خادم المنصة قبل إرسال العقد
       print("⚙️ جاري مواءمة الرافعة المالية إلى ${leverage}x لزوج $symbol...");
-      await _apiManager.signedPost('/api/v1/private/position/leverage', body: {
-        "symbol": symbol,
-        "leverage": leverage,
-        "openType": 1 // 1 تعني حساب معزول Isolated لتقليل المخاطر
-      });
+      await _apiManager.signedPost(
+        '/api/v1/private/position/leverage',
+        body: {
+          "symbol": symbol,
+          "leverage": leverage,
+          "openType": 1, // 1 تعني حساب معزول Isolated لتقليل المخاطر
+        },
+      );
 
       // 4. ترجمة الإشارة البرمجية إلى معاملات العقود الآجلة الحقيقية
       int orderSide = 1; // الافتراضي 1 وهو فتح صفقة شراء (Open Long)
@@ -68,27 +72,31 @@ class AutoTradingStrategies {
       }
 
       print("🚀 إشارة حقيقية مكشوفة! جاري إرسال الطلب فوراً إلى منصة MEXC...");
-      
+
       // صياغة الـ Payload الحقيقي للعقود الآجلة
       final Map<String, dynamic> orderPayload = {
         "symbol": symbol,
-        "price": 0,          // 0 تعني الشراء ماركت بالسعر الحالي اللحظي للسوق
-        "vol": contractVol,   // عدد العقود المطلوبة بالتداول
+        "price": 0, // 0 تعني الشراء ماركت بالسعر الحالي اللحظي للسوق
+        "vol": contractVol, // عدد العقود المطلوبة بالتداول
         "leverage": leverage,
         "side": orderSide,
-        "type": 5,           // 5 تعني Market Order للتنفيذ اللحظي الفوري
-        "openType": 1
+        "type": 5, // 5 تعني Market Order للتنفيذ اللحظي الفوري
+        "openType": 1,
       };
 
       // إرسال الطلب الموثق والموقع بالـ HMAC-SHA256
-      final response = await _apiManager.signedPost('/api/v1/private/order/create', body: orderPayload);
+      final response = await _apiManager.signedPost(
+        '/api/v1/private/order/create',
+        body: orderPayload,
+      );
 
       if (response != null && response['code'] == 200) {
-        print("✅ نجاح كامل! تم فتح صفقة حقيقية لزوج $symbol. تفاصيل العقد: ${response['data']}");
+        print(
+          "✅ نجاح كامل! تم فتح صفقة حقيقية لزوج $symbol. تفاصيل العقد: ${response['data']}",
+        );
       } else {
         print("❌ رفض الخادم تنفيذ الصفقة: $response");
       }
-
     } catch (e) {
       print("❌ حدث خطأ فادح أثناء محاولة تنفيذ التداول التلقائي: $e");
     }
@@ -136,11 +144,18 @@ class AutoTradingStrategies {
     return {'signal': 'HOLD', 'confidence': 0.5};
   }
 
-  Map<String, dynamic> sentimentStrategy(List<double> prices, List<double> volumes) {
-    if (prices.length < 5 || volumes.length < 5) return {'signal': 'HOLD', 'confidence': 0.0};
+  Map<String, dynamic> sentimentStrategy(
+    List<double> prices,
+    List<double> volumes,
+  ) {
+    if (prices.length < 5 || volumes.length < 5)
+      return {'signal': 'HOLD', 'confidence': 0.0};
     final avgVol = volumes.reduce((a, b) => a + b) / volumes.length;
     final recentVol = volumes.last;
-    final priceChange = ((prices.last - prices[prices.length - 2]) / prices[prices.length - 2]) * 100;
+    final priceChange =
+        ((prices.last - prices[prices.length - 2]) /
+            prices[prices.length - 2]) *
+        100;
     if (recentVol > avgVol * 1.5 && priceChange > 1.5) {
       return {'signal': 'BUY', 'confidence': 0.68};
     } else if (recentVol > avgVol * 1.5 && priceChange < -1.5) {
@@ -149,7 +164,10 @@ class AutoTradingStrategies {
     return {'signal': 'HOLD', 'confidence': 0.5};
   }
 
-  Map<String, dynamic> hybridStrategy(List<double> prices, List<double> volumes) {
+  Map<String, dynamic> hybridStrategy(
+    List<double> prices,
+    List<double> volumes,
+  ) {
     final mom = momentumStrategy(prices);
     final mr = meanReversion(prices);
     final br = breakoutStrategy(prices);
@@ -157,11 +175,19 @@ class AutoTradingStrategies {
     int buyCount = 0, sellCount = 0;
     double totalConf = 0;
     for (final s in [mom, mr, br, sent]) {
-      if (s['signal'] == 'BUY') { buyCount++; totalConf += (s['confidence'] as double); }
-      if (s['signal'] == 'SELL') { sellCount++; totalConf += (s['confidence'] as double); }
+      if (s['signal'] == 'BUY') {
+        buyCount++;
+        totalConf += (s['confidence'] as double);
+      }
+      if (s['signal'] == 'SELL') {
+        sellCount++;
+        totalConf += (s['confidence'] as double);
+      }
     }
-    if (buyCount >= 3) return {'signal': 'BUY', 'confidence': totalConf / buyCount};
-    if (sellCount >= 3) return {'signal': 'SELL', 'confidence': totalConf / sellCount};
+    if (buyCount >= 3)
+      return {'signal': 'BUY', 'confidence': totalConf / buyCount};
+    if (sellCount >= 3)
+      return {'signal': 'SELL', 'confidence': totalConf / sellCount};
     return {'signal': 'HOLD', 'confidence': 0.5};
   }
 
@@ -211,7 +237,11 @@ class AutoTradingStrategies {
     return 100 - (100 / (1 + rs));
   }
 
-  Map<String, dynamic> calculateBollinger(List<double> prices, int period, int stdDevMul) {
+  Map<String, dynamic> calculateBollinger(
+    List<double> prices,
+    int period,
+    int stdDevMul,
+  ) {
     final sma = calculateSMA(prices, period);
     final std = _stdDev(prices.sublist(max(0, prices.length - period)), sma);
     return {
@@ -221,7 +251,10 @@ class AutoTradingStrategies {
     };
   }
 
-  String generateSignal(Map<String, dynamic> analysis, {required String strategy}) {
+  String generateSignal(
+    Map<String, dynamic> analysis, {
+    required String strategy,
+  }) {
     switch (strategy) {
       case 'Momentum':
         if ((analysis['momentum'] ?? 0) > 1.5) return 'BUY';
@@ -232,14 +265,18 @@ class AutoTradingStrategies {
         if ((analysis['rsi'] ?? 50) > 70) return 'SELL';
         return 'HOLD';
       case 'Breakout':
-        if (analysis['volSpike'] == true && (analysis['momentum'] ?? 0) > 2) return 'BUY';
-        if (analysis['volSpike'] == true && (analysis['momentum'] ?? 0) < -2) return 'SELL';
+        if (analysis['volSpike'] == true && (analysis['momentum'] ?? 0) > 2)
+          return 'BUY';
+        if (analysis['volSpike'] == true && (analysis['momentum'] ?? 0) < -2)
+          return 'SELL';
         return 'HOLD';
       case 'Sentiment':
         return 'HOLD';
       case 'SMA Crossover':
-        if ((analysis['shortSMA'] ?? 0) > (analysis['longSMA'] ?? 0)) return 'BUY';
-        if ((analysis['shortSMA'] ?? 0) < (analysis['longSMA'] ?? 0)) return 'SELL';
+        if ((analysis['shortSMA'] ?? 0) > (analysis['longSMA'] ?? 0))
+          return 'BUY';
+        if ((analysis['shortSMA'] ?? 0) < (analysis['longSMA'] ?? 0))
+          return 'SELL';
         return 'HOLD';
       case 'Heikin Ashi':
         return 'HOLD';

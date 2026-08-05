@@ -23,12 +23,16 @@ class MexcApiService {
           orElse: () => null,
         );
         if (usdtAsset != null) {
-          return double.tryParse(usdtAsset['availableBalance'].toString()) ?? 0.0;
+          return double.tryParse(usdtAsset['availableBalance'].toString()) ??
+              0.0;
         }
       }
       return 0.0;
     } catch (e) {
-      developer.log('خطأ في جلب رصيد محفظة الفيوترز: $e', name: 'MexcApiService');
+      developer.log(
+        'خطأ في جلب رصيد محفظة الفيوترز: $e',
+        name: 'MexcApiService',
+      );
       return 0.0;
     }
   }
@@ -43,8 +47,10 @@ class MexcApiService {
           final currency = asset['currency']?.toString() ?? '';
           if (currency.isNotEmpty) {
             balances[currency] = {
-              'free': double.tryParse(asset['availableBalance'].toString()) ?? 0.0,
-              'locked': double.tryParse(asset['frozenBalance'].toString()) ?? 0.0,
+              'free':
+                  double.tryParse(asset['availableBalance'].toString()) ?? 0.0,
+              'locked':
+                  double.tryParse(asset['frozenBalance'].toString()) ?? 0.0,
             };
           }
         }
@@ -58,7 +64,9 @@ class MexcApiService {
 
   Future<List<Map<String, dynamic>>> getOpenOrders() async {
     try {
-      final response = await _api.signedGet('/api/v1/private/order/open_orders');
+      final response = await _api.signedGet(
+        '/api/v1/private/order/open_orders',
+      );
       if (response != null && response['code'] == 200) {
         final List<dynamic> orders = response['data'] ?? [];
         return orders.map((o) {
@@ -71,8 +79,10 @@ class MexcApiService {
             map['side'] = 'SELL';
           }
           // Alias fields for UI compatibility
-          if (map['orderId'] == null && map['id'] != null) map['orderId'] = map['id'];
-          if (map['origQty'] == null && map['vol'] != null) map['origQty'] = map['vol'];
+          if (map['orderId'] == null && map['id'] != null)
+            map['orderId'] = map['id'];
+          if (map['origQty'] == null && map['vol'] != null)
+            map['origQty'] = map['vol'];
           return map;
         }).toList();
       }
@@ -85,7 +95,9 @@ class MexcApiService {
 
   Future<List<Map<String, dynamic>>> getAllMyTrades() async {
     try {
-      final response = await _api.signedGet('/api/v1/private/order/history_orders');
+      final response = await _api.signedGet(
+        '/api/v1/private/order/history_orders',
+      );
       if (response != null && response['code'] == 200) {
         final List<dynamic> trades = response['data'] ?? [];
         return trades.map((t) {
@@ -100,12 +112,15 @@ class MexcApiService {
           map['isBuyer'] = (sideNum == '1' || sideNum == '2');
           // Alias fields for UI compatibility
           if (map['qty'] == null && map['vol'] != null) map['qty'] = map['vol'];
-          if (map['quoteQty'] == null && map['vol'] != null && map['price'] != null) {
+          if (map['quoteQty'] == null &&
+              map['vol'] != null &&
+              map['price'] != null) {
             final vol = double.tryParse(map['vol'].toString()) ?? 0;
             final price = double.tryParse(map['price'].toString()) ?? 0;
             map['quoteQty'] = (vol * price).toString();
           }
-          if (map['time'] == null && map['createTime'] != null) map['time'] = map['createTime'];
+          if (map['time'] == null && map['createTime'] != null)
+            map['time'] = map['createTime'];
           return map;
         }).toList();
       }
@@ -118,10 +133,10 @@ class MexcApiService {
 
   Future<bool> cancelOrder(String symbol, String orderId) async {
     try {
-      final response = await _api.signedPost('/api/v1/private/order/cancel', body: {
-        'symbol': symbol,
-        'orderId': orderId,
-      });
+      final response = await _api.signedPost(
+        '/api/v1/private/order/cancel',
+        body: {'symbol': symbol, 'orderId': orderId},
+      );
       return response != null && response['code'] == 200;
     } catch (e) {
       developer.log('خطأ في إلغاء الأمر: $e', name: 'MexcApiService');
@@ -131,9 +146,10 @@ class MexcApiService {
 
   Future<List<Map<String, dynamic>>> getPositions(String symbol) async {
     try {
-      final response = await _api.signedGet('/api/v1/private/position/open_positions', params: {
-        'symbol': symbol,
-      });
+      final response = await _api.signedGet(
+        '/api/v1/private/position/open_positions',
+        params: {'symbol': symbol},
+      );
       if (response != null && response['code'] == 200) {
         final List<dynamic> positions = response['data'] ?? [];
         return positions.map((p) => Map<String, dynamic>.from(p)).toList();
@@ -147,7 +163,9 @@ class MexcApiService {
 
   Future<Map<String, dynamic>?> getDepositAddress(String currency) async {
     try {
-      final response = await _api.signedGet('/api/v1/private/account/deposit/address/$currency');
+      final response = await _api.signedGet(
+        '/api/v1/private/account/deposit/address/$currency',
+      );
       if (response != null && response['code'] == 200) {
         return Map<String, dynamic>.from(response['data'] ?? {});
       }
@@ -182,7 +200,10 @@ class MexcApiService {
 
   Future<double> getCurrentPrice(String symbol) async {
     try {
-      final res = await _api.publicGet('/api/v1/contract/ticker', params: {'symbol': symbol});
+      final res = await _api.publicGet(
+        '/api/v1/contract/ticker',
+        params: {'symbol': symbol},
+      );
       if (res != null && res['code'] == 200) {
         final data = res['data'];
         return double.tryParse(data['lastPrice'].toString()) ?? 0.0;
@@ -203,10 +224,10 @@ class MexcApiService {
       if (interval == '15m') minutesInterval = '15';
       if (interval == '5m') minutesInterval = '5';
 
-      final dynamic res = await _api.publicGet('/api/v1/contract/kline/$symbol', params: {
-        'interval': minutesInterval,
-        'limit': limit.toString(),
-      });
+      final dynamic res = await _api.publicGet(
+        '/api/v1/contract/kline/$symbol',
+        params: {'interval': minutesInterval, 'limit': limit.toString()},
+      );
 
       if (res == null || res['code'] != 200) {
         throw Exception('استجابة خاطئة من خادم الشموع');
@@ -231,7 +252,10 @@ class MexcApiService {
 
   Future<bool> isValidSymbol(String symbol) async {
     try {
-      final res = await _api.publicGet('/api/v1/contract/detail', params: {'symbol': symbol});
+      final res = await _api.publicGet(
+        '/api/v1/contract/detail',
+        params: {'symbol': symbol},
+      );
       return res != null && res['code'] == 200;
     } catch (_) {
       return false;
@@ -246,10 +270,14 @@ class MexcApiService {
         return data.map((t) {
           final map = Map<String, dynamic>.from(t);
           // Normalize field names for UI compatibility
-          if (map['lastPrice'] == null && map['last'] != null) map['lastPrice'] = map['last'];
-          if (map['priceChangePercent'] == null && map['riseFallRate'] != null) map['priceChangePercent'] = map['riseFallRate'];
-          if (map['volume'] == null && map['volume24'] != null) map['volume'] = map['volume24'];
-          if (map['highPrice'] == null && map['high'] != null) map['highPrice'] = map['high'];
+          if (map['lastPrice'] == null && map['last'] != null)
+            map['lastPrice'] = map['last'];
+          if (map['priceChangePercent'] == null && map['riseFallRate'] != null)
+            map['priceChangePercent'] = map['riseFallRate'];
+          if (map['volume'] == null && map['volume24'] != null)
+            map['volume'] = map['volume24'];
+          if (map['highPrice'] == null && map['high'] != null)
+            map['highPrice'] = map['high'];
           return map;
         }).toList();
       }
@@ -264,9 +292,18 @@ class MexcApiService {
   // Technical Indicators
   // ═══════════════════════════════════════════
 
-  Future<double> calculateRSI(String symbol, {int period = 14, String interval = '1h'}) async {
-    final klines = await getKlines(symbol, interval: interval, limit: period + 1);
-    if (klines.length < period + 1) throw Exception('البيانات غير كافية لحساب RSI');
+  Future<double> calculateRSI(
+    String symbol, {
+    int period = 14,
+    String interval = '1h',
+  }) async {
+    final klines = await getKlines(
+      symbol,
+      interval: interval,
+      limit: period + 1,
+    );
+    if (klines.length < period + 1)
+      throw Exception('البيانات غير كافية لحساب RSI');
 
     final closes = klines.map((k) => k['close'] as double).toList();
     double gains = 0, losses = 0;
@@ -286,7 +323,8 @@ class MexcApiService {
     for (int i = period + 1; i < closes.length; i++) {
       final diff = closes[i] - closes[i - 1];
       avgGain = ((avgGain * (period - 1)) + (diff > 0 ? diff : 0)) / period;
-      avgLoss = ((avgLoss * (period - 1)) + (diff < 0 ? diff.abs() : 0)) / period;
+      avgLoss =
+          ((avgLoss * (period - 1)) + (diff < 0 ? diff.abs() : 0)) / period;
     }
 
     if (avgLoss == 0) return 100;
@@ -294,17 +332,28 @@ class MexcApiService {
     return 100 - (100 / (1 + rs));
   }
 
-  Future<Map<String, double>> calculateSMAs(String symbol, {required List<int> periods, String interval = '1h'}) async {
+  Future<Map<String, double>> calculateSMAs(
+    String symbol, {
+    required List<int> periods,
+    String interval = '1h',
+  }) async {
     final maxPeriod = periods.reduce((a, b) => a > b ? a : b);
-    final klines = await getKlines(symbol, interval: interval, limit: maxPeriod);
-    if (klines.length < maxPeriod) throw Exception('البيانات غير كافية لحساب المتوسطات');
+    final klines = await getKlines(
+      symbol,
+      interval: interval,
+      limit: maxPeriod,
+    );
+    if (klines.length < maxPeriod)
+      throw Exception('البيانات غير كافية لحساب المتوسطات');
 
     final closes = klines.map((k) => k['close'] as double).toList();
     final results = <String, double>{};
 
     for (final period in periods) {
       if (closes.length >= period) {
-        final sum = closes.sublist(closes.length - period).reduce((a, b) => a + b);
+        final sum = closes
+            .sublist(closes.length - period)
+            .reduce((a, b) => a + b);
         results['SMA$period'] = sum / period;
       }
     }

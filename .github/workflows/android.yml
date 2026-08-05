@@ -30,23 +30,23 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.24.0'
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Verify formatting (skipped)
-        run: dart format .
+      - name: Verify formatting
+        run: dart format --set-exit-if-changed .
 
-      - name: Analyze code (non-fatal)
-        run: flutter analyze || true
+      - name: Analyze code
+        run: flutter analyze --fatal-infos --fatal-warnings
 
-      - name: Run tests (non-fatal)
-        run: flutter test || true
+      - name: Run tests
+        run: flutter test
 
       - name: Build Release APK
         run: |
           flutter build apk --release \
-            --android-skip-build-dependency-validation \
             --dart-define=MEXC_API_KEY="${{ secrets.MEXC_API_KEY }}" \
             --dart-define=MEXC_SECRET_KEY="${{ secrets.MEXC_SECRET_KEY }}"
         env:

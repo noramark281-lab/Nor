@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../services/auto_trading_strategies.dart';
 import '../services/api_manager.dart';
 
-
 class TradingProvider with ChangeNotifier {
   final MexcApiManager _apiManager = MexcApiManager();
   final AutoTradingStrategies _strategies = AutoTradingStrategies();
@@ -32,21 +31,22 @@ class TradingProvider with ChangeNotifier {
   int get consecutiveLosses => _consecutiveLosses;
 
   List<TradeRecord> get openTrades => _trades.where((t) => t.isOpen).toList();
-  List<TradeRecord> get closedTrades => _trades.where((t) => !t.isOpen).toList();
+  List<TradeRecord> get closedTrades =>
+      _trades.where((t) => !t.isOpen).toList();
 
   double get totalProfit {
     return closedTrades.fold(0.0, (sum, t) => sum + (t.profit ?? 0.0));
   }
 
   List<String> get availableStrategies => [
-        'Hybrid',
-        'Momentum',
-        'MeanReversion',
-        'Breakout',
-        'Sentiment',
-        'SMA Crossover',
-        'Heikin Ashi',
-      ];
+    'Hybrid',
+    'Momentum',
+    'MeanReversion',
+    'Breakout',
+    'Sentiment',
+    'SMA Crossover',
+    'Heikin Ashi',
+  ];
 
   void selectStrategy(String name) {
     _selectedStrategy = name;
@@ -55,7 +55,9 @@ class TradingProvider with ChangeNotifier {
 
   Future<void> syncBalance() async {
     try {
-      final response = await _apiManager.signedGet('/api/v1/private/account/assets');
+      final response = await _apiManager.signedGet(
+        '/api/v1/private/account/assets',
+      );
       if (response != null && response['code'] == 200) {
         final List<dynamic> assets = response['data'] ?? [];
         final usdtAsset = assets.firstWhere(
@@ -63,7 +65,8 @@ class TradingProvider with ChangeNotifier {
           orElse: () => null,
         );
         if (usdtAsset != null) {
-          _balance = double.tryParse(usdtAsset['availableBalance'].toString()) ?? 0.0;
+          _balance =
+              double.tryParse(usdtAsset['availableBalance'].toString()) ?? 0.0;
         }
       }
       notifyListeners();
@@ -75,17 +78,21 @@ class TradingProvider with ChangeNotifier {
 
   Future<Map<String, dynamic>?> analyzeReal(String symbol) async {
     try {
-      final klines = await _apiManager.publicGet('/api/v1/contract/kline/$symbol', params: {
-        'interval': '60',
-        'limit': '50',
-      });
+      final klines = await _apiManager.publicGet(
+        '/api/v1/contract/kline/$symbol',
+        params: {'interval': '60', 'limit': '50'},
+      );
       if (klines == null || klines['code'] != 200) return null;
 
       final List<dynamic> list = klines['data'] ?? [];
       if (list.length < 20) return null;
 
-      final closes = list.map((e) => double.tryParse(e['close'].toString()) ?? 0.0).toList();
-      final volumes = list.map((e) => double.tryParse(e['vol'].toString()) ?? 0.0).toList();
+      final closes = list
+          .map((e) => double.tryParse(e['close'].toString()) ?? 0.0)
+          .toList();
+      final volumes = list
+          .map((e) => double.tryParse(e['vol'].toString()) ?? 0.0)
+          .toList();
 
       final short = _strategies.calculateSMA(closes, 5);
       final long = _strategies.calculateSMA(closes, 20);
@@ -136,15 +143,15 @@ class TradingProvider with ChangeNotifier {
       }
 
       // Set leverage before trading
-      await _apiManager.signedPost('/api/v1/private/position/leverage', body: {
-        "symbol": symbol,
-        "leverage": _defaultLeverage,
-        "openType": 1
-      });
+      await _apiManager.signedPost(
+        '/api/v1/private/position/leverage',
+        body: {"symbol": symbol, "leverage": _defaultLeverage, "openType": 1},
+      );
 
       final int orderSide = (side.toUpperCase() == 'BUY') ? 1 : 3;
       final int orderType = isLimit ? 1 : 5;
-      final double orderPrice = (isLimit && limitPrice != null && limitPrice > 0) ? limitPrice : 0;
+      final double orderPrice =
+          (isLimit && limitPrice != null && limitPrice > 0) ? limitPrice : 0;
 
       final Map<String, dynamic> orderPayload = {
         "symbol": symbol,
@@ -153,13 +160,18 @@ class TradingProvider with ChangeNotifier {
         "leverage": _defaultLeverage,
         "side": orderSide,
         "type": orderType,
-        "openType": 1
+        "openType": 1,
       };
 
-      final response = await _apiManager.signedPost('/api/v1/private/order/create', body: orderPayload);
+      final response = await _apiManager.signedPost(
+        '/api/v1/private/order/create',
+        body: orderPayload,
+      );
 
       if (response != null && response['code'] == 200) {
-        final String orderId = response['data']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
+        final String orderId =
+            response['data']?.toString() ??
+            DateTime.now().millisecondsSinceEpoch.toString();
 
         final trade = TradeRecord(
           id: orderId,
@@ -178,7 +190,8 @@ class TradingProvider with ChangeNotifier {
         notifyListeners();
         return true;
       } else {
-        _error = 'رفضت المنصة تنفيذ العقد: ${response?['message'] ?? 'خطأ غير معروف'}';
+        _error =
+            'رفضت المنصة تنفيذ العقد: ${response?['message'] ?? 'خطأ غير معروف'}';
         _loading = false;
         notifyListeners();
         return false;
@@ -194,18 +207,23 @@ class TradingProvider with ChangeNotifier {
   Future<bool> closeTrade(TradeRecord trade) async {
     try {
       final int closeSide = (trade.side == 'BUY') ? 2 : 4;
-      final response = await _apiManager.signedPost('/api/v1/private/order/create', body: {
-        "symbol": trade.symbol,
-        "price": 0,
-        "vol": trade.amount.toInt(),
-        "leverage": _defaultLeverage,
-        "side": closeSide,
-        "type": 5,
-        "openType": 1
-      });
+      final response = await _apiManager.signedPost(
+        '/api/v1/private/order/create',
+        body: {
+          "symbol": trade.symbol,
+          "price": 0,
+          "vol": trade.amount.toInt(),
+          "leverage": _defaultLeverage,
+          "side": closeSide,
+          "type": 5,
+          "openType": 1,
+        },
+      );
 
       if (response != null && response['code'] == 200) {
-        final exitPrice = trade.amount > 0 ? trade.amount * trade.entryPrice : 0.0;
+        final exitPrice = trade.amount > 0
+            ? trade.amount * trade.entryPrice
+            : 0.0;
         final profit = exitPrice - (trade.amount * trade.entryPrice);
         final tradeIndex = _trades.indexOf(trade);
         if (tradeIndex != -1) {

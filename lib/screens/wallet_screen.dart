@@ -66,7 +66,10 @@ class _WalletScreenState extends State<WalletScreen>
           indicatorColor: const Color(0xFF2D5AF5),
           labelColor: Colors.white,
           unselectedLabelColor: Colors.grey,
-          labelStyle: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold),
+          labelStyle: const TextStyle(
+            fontFamily: 'Cairo',
+            fontWeight: FontWeight.bold,
+          ),
           tabs: const [
             Tab(text: 'الرصيد'),
             Tab(text: 'الأوامر'),
@@ -152,7 +155,10 @@ class _WalletScreenState extends State<WalletScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: MexcApiManager().isInitialized
                       ? const Color(0xFF00C087).withOpacity(0.2)
@@ -325,7 +331,10 @@ class _WalletScreenState extends State<WalletScreen>
                   ),
                   child: Center(
                     child: Text(
-                      symbol.substring(0, symbol.length > 3 ? 3 : symbol.length),
+                      symbol.substring(
+                        0,
+                        symbol.length > 3 ? 3 : symbol.length,
+                      ),
                       style: const TextStyle(
                         color: Color(0xFF2D5AF5),
                         fontWeight: FontWeight.bold,
@@ -377,10 +386,7 @@ class _WalletScreenState extends State<WalletScreen>
                     if (symbol == 'USDT')
                       Text(
                         '\$${total.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                   ],
                 ),
@@ -425,8 +431,10 @@ class _WalletScreenState extends State<WalletScreen>
           final symbol = order['symbol']?.toString() ?? '';
           final side = order['side']?.toString() ?? '';
           final type = order['type']?.toString() ?? '';
-          final price = double.tryParse(order['price']?.toString() ?? '0') ?? 0.0;
-          final qty = double.tryParse(order['origQty']?.toString() ?? '0') ?? 0.0;
+          final price =
+              double.tryParse(order['price']?.toString() ?? '0') ?? 0.0;
+          final qty =
+              double.tryParse(order['origQty']?.toString() ?? '0') ?? 0.0;
           final orderId = order['orderId']?.toString() ?? '';
 
           final isBuy = side.toUpperCase() == 'BUY';
@@ -454,7 +462,11 @@ class _WalletScreenState extends State<WalletScreen>
                       onPressed: wallet.loading
                           ? null
                           : () => _confirmCancel(wallet, symbol, orderId),
-                      icon: const Icon(Icons.cancel, size: 16, color: Colors.orangeAccent),
+                      icon: const Icon(
+                        Icons.cancel,
+                        size: 16,
+                        color: Colors.orangeAccent,
+                      ),
                       label: const Text(
                         'إلغاء',
                         style: TextStyle(
@@ -467,7 +479,10 @@ class _WalletScreenState extends State<WalletScreen>
 
                     // نوع الأمر
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: isBuy
                             ? const Color(0xFF00C087).withOpacity(0.15)
@@ -477,7 +492,9 @@ class _WalletScreenState extends State<WalletScreen>
                       child: Text(
                         '$side · $type',
                         style: TextStyle(
-                          color: isBuy ? const Color(0xFF00C087) : const Color(0xFFFF3B30),
+                          color: isBuy
+                              ? const Color(0xFF00C087)
+                              : const Color(0xFFFF3B30),
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -512,7 +529,10 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   Future<void> _confirmCancel(
-      WalletProvider wallet, String symbol, String orderId) async {
+    WalletProvider wallet,
+    String symbol,
+    String orderId,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -552,7 +572,9 @@ class _WalletScreenState extends State<WalletScreen>
               success ? 'تم إلغاء الأمر بنجاح' : 'فشل إلغاء الأمر',
               style: const TextStyle(fontFamily: 'Cairo'),
             ),
-            backgroundColor: success ? const Color(0xFF00C087) : const Color(0xFFFF3B30),
+            backgroundColor: success
+                ? const Color(0xFF00C087)
+                : const Color(0xFFFF3B30),
           ),
         );
       }
@@ -591,9 +613,11 @@ class _WalletScreenState extends State<WalletScreen>
           final trade = wallet.recentTrades[i];
           final symbol = trade['symbol']?.toString() ?? '';
           final isBuyer = trade['isBuyer'] == true;
-          final price = double.tryParse(trade['price']?.toString() ?? '0') ?? 0.0;
+          final price =
+              double.tryParse(trade['price']?.toString() ?? '0') ?? 0.0;
           final qty = double.tryParse(trade['qty']?.toString() ?? '0') ?? 0.0;
-          final quoteQty = double.tryParse(trade['quoteQty']?.toString() ?? '0') ?? 0.0;
+          final quoteQty =
+              double.tryParse(trade['quoteQty']?.toString() ?? '0') ?? 0.0;
           final time = DateTime.fromMillisecondsSinceEpoch(
             trade['time'] ?? DateTime.now().millisecondsSinceEpoch,
           );
@@ -617,7 +641,9 @@ class _WalletScreenState extends State<WalletScreen>
                   ),
                   child: Icon(
                     isBuyer ? Icons.arrow_upward : Icons.arrow_downward,
-                    color: isBuyer ? const Color(0xFF00C087) : const Color(0xFFFF3B30),
+                    color: isBuyer
+                        ? const Color(0xFF00C087)
+                        : const Color(0xFFFF3B30),
                     size: 18,
                   ),
                 ),
@@ -637,7 +663,10 @@ class _WalletScreenState extends State<WalletScreen>
                       const SizedBox(height: 4),
                       Text(
                         '${qty.toStringAsFixed(4)} @ \$${price.toStringAsFixed(2)}',
-                        style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
@@ -677,7 +706,11 @@ class _WalletScreenState extends State<WalletScreen>
           const SizedBox(height: 16),
           const Text(
             'لم يتم إعداد مفاتيح API',
-            style: TextStyle(color: Colors.white, fontSize: 18, fontFamily: 'Cairo'),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontFamily: 'Cairo',
+            ),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -688,7 +721,10 @@ class _WalletScreenState extends State<WalletScreen>
           ElevatedButton.icon(
             onPressed: () => context.read<WalletProvider>().syncAll(),
             icon: const Icon(Icons.settings),
-            label: const Text('الإعدادات', style: TextStyle(fontFamily: 'Cairo')),
+            label: const Text(
+              'الإعدادات',
+              style: TextStyle(fontFamily: 'Cairo'),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF2D5AF5),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),

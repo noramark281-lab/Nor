@@ -25,7 +25,10 @@ class WalletProvider with ChangeNotifier {
   Map<String, dynamic>? get depositAddress => _depositAddress;
 
   double get totalBalance {
-    return _balances.values.fold(0.0, (sum, b) => sum + (b['free'] ?? 0) + (b['locked'] ?? 0));
+    return _balances.values.fold(
+      0.0,
+      (sum, b) => sum + (b['free'] ?? 0) + (b['locked'] ?? 0),
+    );
   }
 
   double get usdtBalance => _balances['USDT']?['free'] ?? 0.0;
@@ -64,7 +67,12 @@ class WalletProvider with ChangeNotifier {
     _loading = true;
     _error = null;
     notifyListeners();
-    await Future.wait([_syncBalances(), _syncOpenOrders(), _syncRecentTrades(), _syncPositions()]);
+    await Future.wait([
+      _syncBalances(),
+      _syncOpenOrders(),
+      _syncRecentTrades(),
+      _syncPositions(),
+    ]);
     _loading = false;
     notifyListeners();
   }
@@ -72,7 +80,10 @@ class WalletProvider with ChangeNotifier {
   Future<void> _syncBalances() async {
     try {
       _balances = await _api.getRealBalances();
-      ApiLogger.i('WalletProvider', 'Balances synced: ${_balances.length} assets');
+      ApiLogger.i(
+        'WalletProvider',
+        'Balances synced: ${_balances.length} assets',
+      );
     } catch (e) {
       ApiLogger.e('WalletProvider', 'Balance sync failed: $e');
       _error = 'فشل تحديث الرصيد: $e';
@@ -82,7 +93,10 @@ class WalletProvider with ChangeNotifier {
   Future<void> _syncOpenOrders() async {
     try {
       _openOrders = await _api.getOpenOrders();
-      ApiLogger.i('WalletProvider', 'Open orders synced: ${_openOrders.length}');
+      ApiLogger.i(
+        'WalletProvider',
+        'Open orders synced: ${_openOrders.length}',
+      );
     } catch (e) {
       ApiLogger.e('WalletProvider', 'Open orders sync failed: $e');
     }

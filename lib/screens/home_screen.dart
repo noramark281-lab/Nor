@@ -40,14 +40,29 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedItemColor: const Color(0xFF2D5AF5),
         unselectedItemColor: Colors.grey,
         selectedLabelStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 11),
-        unselectedLabelStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 11),
+        unselectedLabelStyle: const TextStyle(
+          fontFamily: 'Cairo',
+          fontSize: 11,
+        ),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'الرئيسية'),
-          BottomNavigationBarItem(icon: Icon(Icons.candlestick_chart), label: 'التداول'),
-          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: 'المحفظة'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard),
+            label: 'الرئيسية',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.candlestick_chart),
+            label: 'التداول',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.account_balance_wallet),
+            label: 'المحفظة',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.smart_toy), label: 'البوت'),
           BottomNavigationBarItem(icon: Icon(Icons.history), label: 'التاريخ'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'الإعدادات'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'الإعدادات',
+          ),
         ],
       ),
     );
@@ -86,7 +101,12 @@ class _MarketTabState extends State<_MarketTab> {
                 ),
                 const Text(
                   'عقود الحدث المتاحة',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white, fontFamily: 'Cairo'),
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontFamily: 'Cairo',
+                  ),
                 ),
               ],
             ),
@@ -97,12 +117,19 @@ class _MarketTabState extends State<_MarketTab> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                      const Icon(
+                        Icons.error_outline,
+                        color: Colors.red,
+                        size: 48,
+                      ),
                       const SizedBox(height: 12),
                       Text(
                         market.error!,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.red, fontFamily: 'Cairo'),
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontFamily: 'Cairo',
+                        ),
                       ),
                       const SizedBox(height: 12),
                       ElevatedButton.icon(
@@ -129,7 +156,8 @@ class _MarketTabState extends State<_MarketTab> {
               Expanded(
                 child: ListView.builder(
                   itemCount: market.contracts.length,
-                  itemBuilder: (_, i) => _ContractCard(contract: market.contracts[i]),
+                  itemBuilder: (_, i) =>
+                      _ContractCard(contract: market.contracts[i]),
                 ),
               ),
           ],
@@ -155,15 +183,23 @@ class _ContractCard extends StatelessWidget {
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: isUp ? const Color(0xFF00C087).withOpacity(0.15) : const Color(0xFFFF3B30).withOpacity(0.15),
+            color: isUp
+                ? const Color(0xFF00C087).withOpacity(0.15)
+                : const Color(0xFFFF3B30).withOpacity(0.15),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(isUp ? Icons.arrow_upward : Icons.arrow_downward,
-              color: isUp ? const Color(0xFF00C087) : const Color(0xFFFF3B30)),
+          child: Icon(
+            isUp ? Icons.arrow_upward : Icons.arrow_downward,
+            color: isUp ? const Color(0xFF00C087) : const Color(0xFFFF3B30),
+          ),
         ),
         title: Text(
           contract.name,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'Cairo',
+          ),
         ),
         subtitle: Text(
           'السعر: \$${contract.currentPrice.toStringAsFixed(2)} | الحجم: ${(contract.volume24h / 1000).toStringAsFixed(1)}K',
@@ -172,7 +208,9 @@ class _ContractCard extends StatelessWidget {
         trailing: Text(
           '${contract.priceChangePercent > 0 ? '+' : ''}${contract.priceChangePercent.toStringAsFixed(2)}%',
           style: TextStyle(
-            color: contract.priceChangePercent >= 0 ? const Color(0xFF00C087) : const Color(0xFFFF3B30),
+            color: contract.priceChangePercent >= 0
+                ? const Color(0xFF00C087)
+                : const Color(0xFFFF3B30),
             fontWeight: FontWeight.bold,
           ),
         ),

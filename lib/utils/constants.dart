@@ -8,7 +8,9 @@ class AppConstants {
   static const String mexcWssUrl = 'wss://wss.mexc.com/ws';
 
   static const String buildTimeApiKey = String.fromEnvironment('MEXC_API_KEY');
-  static const String buildTimeApiSecret = String.fromEnvironment('MEXC_SECRET_KEY');
+  static const String buildTimeApiSecret = String.fromEnvironment(
+    'MEXC_SECRET_KEY',
+  );
 
   static const double defaultTradeAmount = 1.0;
   static const double maxRiskPerTrade = 0.02;

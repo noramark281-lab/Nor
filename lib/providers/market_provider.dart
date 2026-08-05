@@ -33,7 +33,9 @@ class MarketProvider with ChangeNotifier {
   Future<List<EventContract>> _fetchRealMarketData() async {
     final tickers = await _api.getAllTickers24hr();
     if (tickers.isEmpty) {
-      throw Exception('لم يتم استلام بيانات السوق من MEXC. تحقق من الاتصال بالإنترنت.');
+      throw Exception(
+        'لم يتم استلام بيانات السوق من MEXC. تحقق من الاتصال بالإنترنت.',
+      );
     }
 
     const pairs = MexcApiService.eventPairs;
@@ -49,28 +51,37 @@ class MarketProvider with ChangeNotifier {
       }
 
       if (ticker != null && ticker.isNotEmpty) {
-        final price = double.tryParse(ticker['lastPrice']?.toString() ?? '0') ?? 0.0;
-        final change = double.tryParse(ticker['priceChangePercent']?.toString() ?? '0') ?? 0.0;
-        final volume = double.tryParse(ticker['volume']?.toString() ?? '0') ?? 0.0;
-        final high = double.tryParse(ticker['highPrice']?.toString() ?? '0') ?? 0.0;
+        final price =
+            double.tryParse(ticker['lastPrice']?.toString() ?? '0') ?? 0.0;
+        final change =
+            double.tryParse(ticker['priceChangePercent']?.toString() ?? '0') ??
+            0.0;
+        final volume =
+            double.tryParse(ticker['volume']?.toString() ?? '0') ?? 0.0;
+        final high =
+            double.tryParse(ticker['highPrice']?.toString() ?? '0') ?? 0.0;
 
-        contracts.add(EventContract(
-          symbol: symbol,
-          name: pair['name']!,
-          category: pair['category']!,
-          strikePrice: high,
-          currentPrice: price,
-          priceChangePercent: change,
-          volume24h: volume,
-          expiryDate: DateTime.now().add(const Duration(days: 1)),
-          isActive: true,
-          side: change >= 0 ? 'UP' : 'DOWN',
-        ));
+        contracts.add(
+          EventContract(
+            symbol: symbol,
+            name: pair['name']!,
+            category: pair['category']!,
+            strikePrice: high,
+            currentPrice: price,
+            priceChangePercent: change,
+            volume24h: volume,
+            expiryDate: DateTime.now().add(const Duration(days: 1)),
+            isActive: true,
+            side: change >= 0 ? 'UP' : 'DOWN',
+          ),
+        );
       }
     }
 
     if (contracts.isEmpty) {
-      throw Exception('لم يتم العثور على بيانات للأزواج المحددة. قد تكون MEXC API غير متاحة.');
+      throw Exception(
+        'لم يتم العثور على بيانات للأزواج المحددة. قد تكون MEXC API غير متاحة.',
+      );
     }
 
     return contracts;

@@ -32,13 +32,18 @@ class EventContract {
       symbol: json['symbol'] ?? '',
       name: json['name'] ?? '',
       category: json['category'] ?? 'Event',
-      strikePrice: double.tryParse(json['strikePrice']?.toString() ?? '0') ?? 0.0,
-      currentPrice: double.tryParse(json['currentPrice']?.toString() ?? '0') ?? 0.0,
-      priceChangePercent: double.tryParse(json['priceChangePercent']?.toString() ?? '0') ?? 0.0,
+      strikePrice:
+          double.tryParse(json['strikePrice']?.toString() ?? '0') ?? 0.0,
+      currentPrice:
+          double.tryParse(json['currentPrice']?.toString() ?? '0') ?? 0.0,
+      priceChangePercent:
+          double.tryParse(json['priceChangePercent']?.toString() ?? '0') ?? 0.0,
       volume24h: double.tryParse(json['volume24h']?.toString() ?? '0') ?? 0.0,
       highPrice: double.tryParse(json['highPrice']?.toString() ?? ''),
       lowPrice: double.tryParse(json['lowPrice']?.toString() ?? ''),
-      expiryDate: DateTime.tryParse(json['expiryDate'] ?? '') ?? DateTime.now().add(const Duration(days: 1)),
+      expiryDate:
+          DateTime.tryParse(json['expiryDate'] ?? '') ??
+          DateTime.now().add(const Duration(days: 1)),
       isActive: json['isActive'] ?? true,
       side: json['side'] ?? 'UP',
     );
@@ -59,5 +64,3 @@ class EventContract {
     'side': side,
   };
 }
-
-

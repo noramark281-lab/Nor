@@ -26,9 +26,9 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
     );
     if (!didAuth) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لم يتم التحقق من الهوية')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('لم يتم التحقق من الهوية')));
       return;
     }
 
@@ -82,7 +82,12 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
           children: [
             const Text(
               'أدخل مفاتيح MEXC API',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white, fontFamily: 'Cairo'),
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                fontFamily: 'Cairo',
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -97,7 +102,9 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
               decoration: InputDecoration(
                 labelText: 'API Key',
                 labelStyle: const TextStyle(color: Colors.grey),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 prefixIcon: const Icon(Icons.vpn_key, color: Colors.grey),
                 filled: true,
                 fillColor: const Color(0xFF1A1D2D),
@@ -111,11 +118,17 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
               decoration: InputDecoration(
                 labelText: 'API Secret',
                 labelStyle: const TextStyle(color: Colors.grey),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 prefixIcon: const Icon(Icons.lock, color: Colors.grey),
                 suffixIcon: IconButton(
-                  icon: Icon(_obscureSecret ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
-                  onPressed: () => setState(() => _obscureSecret = !_obscureSecret),
+                  icon: Icon(
+                    _obscureSecret ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscureSecret = !_obscureSecret),
                 ),
                 filled: true,
                 fillColor: const Color(0xFF1A1D2D),
@@ -128,19 +141,35 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2D5AF5),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: _isSaving ? null : _saveWithAuth,
                 icon: _isSaving
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Icon(Icons.fingerprint),
-                label: Text(_isSaving ? 'جاري الحفظ...' : 'حفظ مع التحقق البيومتري', style: const TextStyle(fontFamily: 'Cairo')),
+                label: Text(
+                  _isSaving ? 'جاري الحفظ...' : 'حفظ مع التحقق البيومتري',
+                  style: const TextStyle(fontFamily: 'Cairo'),
+                ),
               ),
             ),
             const SizedBox(height: 16),
             const Text(
               '⚠ لا تشارك API مفاتيحك مع أحد. هذا التطبيق يخزنها مشفرة في جهازك فقط.',
-              style: TextStyle(color: Colors.orange, fontSize: 12, fontFamily: 'Cairo'),
+              style: TextStyle(
+                color: Colors.orange,
+                fontSize: 12,
+                fontFamily: 'Cairo',
+              ),
               textAlign: TextAlign.center,
             ),
           ],

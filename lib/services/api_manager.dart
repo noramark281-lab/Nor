@@ -75,14 +75,27 @@ class MexcApiManager {
     return digest.toString();
   }
 
-  Future<dynamic> publicGet(String endpoint, {Map<String, String>? params}) async {
-    final uri = Uri.parse('$baseUrl$endpoint').replace(queryParameters: params);
+  Map<String, String> _stringifyParams(Map<String, dynamic>? params) {
+    final Map<String, String> result = {};
+    if (params != null) {
+      params.forEach((key, value) {
+        if (value != null) {
+          result[key] = value.toString();
+        }
+      });
+    }
+    return result;
+  }
+
+  Future<dynamic> publicGet(String endpoint, {Map<String, dynamic>? params}) async {
+    final stringParams = _stringifyParams(params);
+    final uri = Uri.parse('$baseUrl$endpoint').replace(queryParameters: stringParams.isNotEmpty ? stringParams : null);
     final response = await http.get(uri);
     return _handleResponse(response);
   }
 
-  Future<dynamic> signedGet(String endpoint, {Map<String, String>? params}) async {
-    final queryParams = Map<String, String>.from(params ?? {});
+  Future<dynamic> signedGet(String endpoint, {Map<String, dynamic>? params}) async {
+    final queryParams = _stringifyParams(params);
     queryParams['timestamp'] = DateTime.now().millisecondsSinceEpoch.toString();
     queryParams['recvWindow'] = '5000';
 
@@ -101,8 +114,8 @@ class MexcApiManager {
     return _handleResponse(response);
   }
 
-  Future<dynamic> signedPost(String endpoint, {Map<String, String>? body, Map<String, String>? params}) async {
-    final queryParams = Map<String, String>.from(params ?? body ?? {});
+  Future<dynamic> signedPost(String endpoint, {Map<String, dynamic>? body, Map<String, dynamic>? params}) async {
+    final queryParams = _stringifyParams(params ?? body);
     queryParams['timestamp'] = DateTime.now().millisecondsSinceEpoch.toString();
     queryParams['recvWindow'] = '5000';
 
@@ -121,8 +134,8 @@ class MexcApiManager {
     return _handleResponse(response);
   }
 
-  Future<dynamic> signedDelete(String endpoint, {Map<String, String>? params}) async {
-    final queryParams = Map<String, String>.from(params ?? {});
+  Future<dynamic> signedDelete(String endpoint, {Map<String, dynamic>? params}) async {
+    final queryParams = _stringifyParams(params);
     queryParams['timestamp'] = DateTime.now().millisecondsSinceEpoch.toString();
     queryParams['recvWindow'] = '5000';
 

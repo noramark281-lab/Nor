@@ -1,55 +1,28 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// خدمة التخزين الآمن باستخدام Android Keystore / iOS Keychain
 class SecureStorageService {
-  static const _storage = FlutterSecureStorage(
-    aOptions: AndroidOptions(
-      encryptedSharedPreferences: true,
-      keyCipherAlgorithm: KeyCipherAlgorithm.RSA_ECB_PKCS1Padding,
-      storageCipherAlgorithm: StorageCipherAlgorithm.AES_GCM_NoPadding,
-    ),
-    iOptions: IOSOptions(
-      accountName: 'mexc_trader_secure',
-      accessibility: KeychainAccessibility.first_unlock_this_device,
-    ),
-  );
+  final _storage = const FlutterSecureStorage();
 
-  static Future<void> saveApiKey(String apiKey) async {
-    await _storage.write(key: 'mexc_api_key', value: apiKey);
+  static const _keyApiKey = 'mexc_api_key';
+  static const _keySecretKey = 'mexc_secret_key';
+
+  Future<void> saveApiKey(String apiKey) async {
+    await _storage.write(key: _keyApiKey, value: apiKey);
   }
 
-  static Future<void> saveApiSecret(String apiSecret) async {
-    await _storage.write(key: 'mexc_api_secret', value: apiSecret);
+  Future<String?> getApiKey() async {
+    return await _storage.read(key: _keyApiKey);
   }
 
-  static Future<String?> getApiKey() async {
-    return await _storage.read(key: 'mexc_api_key');
+  Future<void> saveSecretKey(String secretKey) async {
+    await _storage.write(key: _keySecretKey, value: secretKey);
   }
 
-  static Future<String?> getApiSecret() async {
-    return await _storage.read(key: 'mexc_api_secret');
+  Future<String?> getSecretKey() async {
+    return await _storage.read(key: _keySecretKey);
   }
 
-  static Future<void> clearAll() async {
+  Future<void> clearAll() async {
     await _storage.deleteAll();
-  }
-
-  static Future<void> clearApiKeys() async {
-    await _storage.delete(key: 'mexc_api_key');
-    await _storage.delete(key: 'mexc_api_secret');
-  }
-
-  static Future<void> saveApiCredentials(
-    String apiKey,
-    String apiSecret,
-  ) async {
-    await _storage.write(key: 'mexc_api_key', value: apiKey);
-    await _storage.write(key: 'mexc_api_secret', value: apiSecret);
-  }
-
-  static Future<Map<String, String?>> getApiCredentials() async {
-    final key = await _storage.read(key: 'mexc_api_key');
-    final secret = await _storage.read(key: 'mexc_api_secret');
-    return {'apiKey': key, 'apiSecret': secret};
   }
 }

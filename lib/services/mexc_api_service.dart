@@ -16,7 +16,7 @@ class MexcApiService {
   Future<double> getUsdtBalance() async {
     try {
       final response = await _api.signedGet('/api/v1/private/account/assets');
-      if (response != null && response['code'] == 200) {
+      if (response != null && response['code'] == 0) {
         final List<dynamic> assets = response['data'] ?? [];
         final usdtAsset = assets.firstWhere(
           (element) => element['currency'] == 'USDT',
@@ -41,7 +41,7 @@ class MexcApiService {
     try {
       final response = await _api.signedGet('/api/v1/private/account/assets');
       final balances = <String, Map<String, double>>{};
-      if (response != null && response['code'] == 200) {
+      if (response != null && response['code'] == 0) {
         final List<dynamic> assets = response['data'] ?? [];
         for (final asset in assets) {
           final currency = asset['currency']?.toString() ?? '';
@@ -67,7 +67,7 @@ class MexcApiService {
       final response = await _api.signedGet(
         '/api/v1/private/order/open_orders',
       );
-      if (response != null && response['code'] == 200) {
+      if (response != null && response['code'] == 0) {
         final List<dynamic> orders = response['data'] ?? [];
         return orders.map((o) {
           final map = Map<String, dynamic>.from(o);
@@ -98,7 +98,7 @@ class MexcApiService {
       final response = await _api.signedGet(
         '/api/v1/private/order/history_orders',
       );
-      if (response != null && response['code'] == 200) {
+      if (response != null && response['code'] == 0) {
         final List<dynamic> trades = response['data'] ?? [];
         return trades.map((t) {
           final map = Map<String, dynamic>.from(t);
@@ -137,7 +137,7 @@ class MexcApiService {
         '/api/v1/private/order/cancel',
         body: {'symbol': symbol, 'orderId': orderId},
       );
-      return response != null && response['code'] == 200;
+      return response != null && response['code'] == 0;
     } catch (e) {
       developer.log('خطأ في إلغاء الأمر: $e', name: 'MexcApiService');
       return false;
@@ -150,7 +150,7 @@ class MexcApiService {
         '/api/v1/private/position/open_positions',
         params: {'symbol': symbol},
       );
-      if (response != null && response['code'] == 200) {
+      if (response != null && response['code'] == 0) {
         final List<dynamic> positions = response['data'] ?? [];
         return positions.map((p) => Map<String, dynamic>.from(p)).toList();
       }
@@ -166,7 +166,7 @@ class MexcApiService {
       final response = await _api.signedGet(
         '/api/v1/private/account/deposit/address/$currency',
       );
-      if (response != null && response['code'] == 200) {
+      if (response != null && response['code'] == 0) {
         return Map<String, dynamic>.from(response['data'] ?? {});
       }
       return null;
@@ -192,7 +192,7 @@ class MexcApiService {
   Future<bool> testApiKeys() async {
     try {
       final response = await _api.signedGet('/api/v1/private/account/assets');
-      return response != null && response['code'] == 200;
+      return response != null && response['code'] == 0;
     } catch (_) {
       return false;
     }
@@ -204,7 +204,7 @@ class MexcApiService {
         '/api/v1/contract/ticker',
         params: {'symbol': symbol},
       );
-      if (res != null && res['code'] == 200) {
+      if (res != null && res['code'] == 0) {
         final data = res['data'];
         return double.tryParse(data['lastPrice'].toString()) ?? 0.0;
       }
@@ -229,7 +229,7 @@ class MexcApiService {
         params: {'interval': minutesInterval, 'limit': limit.toString()},
       );
 
-      if (res == null || res['code'] != 200) {
+      if (res == null || res['code'] != 0) {
         throw Exception('استجابة خاطئة من خادم الشموع');
       }
 
@@ -256,7 +256,7 @@ class MexcApiService {
         '/api/v1/contract/detail',
         params: {'symbol': symbol},
       );
-      return res != null && res['code'] == 200;
+      return res != null && res['code'] == 0;
     } catch (_) {
       return false;
     }
@@ -265,7 +265,7 @@ class MexcApiService {
   Future<List<Map<String, dynamic>>> getAllTickers24hr() async {
     try {
       final res = await _api.publicGet('/api/v1/contract/ticker');
-      if (res != null && res['code'] == 200) {
+      if (res != null && res['code'] == 0) {
         final List<dynamic> data = res['data'] ?? [];
         return data.map((t) {
           final map = Map<String, dynamic>.from(t);

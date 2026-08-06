@@ -101,7 +101,7 @@ class MexcApiManager {
         "ApiKey": _apiKey,
         "Request-Time": reqTime,
         "Signature": signature,
-        "Content-Type": "application/json",
+        "Accept": "application/json",
       },
     );
     if (response.statusCode != 200) {

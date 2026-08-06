@@ -58,7 +58,7 @@ class TradingProvider with ChangeNotifier {
       final response = await _apiManager.signedGet(
         '/api/v1/private/account/assets',
       );
-      if (response != null && response['code'] == 200) {
+      if (response != null && response['code'] == 0) {
         final List<dynamic> assets = response['data'] ?? [];
         final usdtAsset = assets.firstWhere(
           (element) => element['currency'] == 'USDT',
@@ -82,7 +82,7 @@ class TradingProvider with ChangeNotifier {
         '/api/v1/contract/kline/$symbol',
         params: {'interval': '60', 'limit': '50'},
       );
-      if (klines == null || klines['code'] != 200) return null;
+      if (klines == null || klines['code'] != 0) return null;
 
       final List<dynamic> list = klines['data'] ?? [];
       if (list.length < 20) return null;
@@ -168,7 +168,7 @@ class TradingProvider with ChangeNotifier {
         body: orderPayload,
       );
 
-      if (response != null && response['code'] == 200) {
+      if (response != null && response['code'] == 0) {
         final String orderId =
             response['data']?.toString() ??
             DateTime.now().millisecondsSinceEpoch.toString();
@@ -220,7 +220,7 @@ class TradingProvider with ChangeNotifier {
         },
       );
 
-      if (response != null && response['code'] == 200) {
+      if (response != null && response['code'] == 0) {
         final exitPrice = trade.amount > 0
             ? trade.amount * trade.entryPrice
             : 0.0;

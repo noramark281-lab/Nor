@@ -90,7 +90,7 @@ class AutoTradingStrategies {
         body: orderPayload,
       );
 
-      if (response != null && response['code'] == 200) {
+      if (response != null && response['code'] == 0) {
         print(
           "✅ نجاح كامل! تم فتح صفقة حقيقية لزوج $symbol. تفاصيل العقد: ${response['data']}",
         );

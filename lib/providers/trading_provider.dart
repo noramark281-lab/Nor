@@ -201,7 +201,7 @@ class TradingProvider with ChangeNotifier {
         return true;
       } else {
         _error =
-            'رفضت المنصة تنفيذ العقد: \${response?['message'] ?? 'خطأ غير معروف'}';
+            "رفضت المنصة تنفيذ العقد: \${response?['message'] ?? 'خطأ غير معروف'}";
         _loading = false;
         notifyListeners();
         return false;

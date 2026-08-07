@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:developer' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'api_manager.dart';
 
@@ -278,35 +278,21 @@ class MexcApiService {
     return false;
   }
 
-  /// Cancel all orders for a symbol
+  /// Cancel all orders for a symbol (cancel each individually as cancel_all is not a v1 endpoint)
   Future<bool> cancelAllOrders(String symbol) async {
-    final manager = MexcApiManager();
-    if (!manager.isInitialized) {
-      throw Exception('مفاتيح API غير مفعلة');
-    }
-
-    final body = <String, dynamic>{
-      'symbol': symbol,
-    };
-
-    final bodyString = jsonEncode(body);
-    final headers = manager.getAuthHeadersForPost(bodyString);
-    final url = Uri.parse('$_baseUrl/api/v1/private/order/cancel_all');
-
-    debugPrint('[MexcApiService] POST $url body=$bodyString');
-
-    final response = await _client.post(url, headers: headers, body: bodyString);
-    debugPrint('[MexcApiService] order/cancel_all status=${response.statusCode}');
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data is Map) {
-        final success = data['success'] ?? true;
-        return success == true || success == 1;
+    try {
+      final orders = await getOpenOrders(symbol: symbol);
+      for (final order in orders) {
+        final orderId = order['orderId']?.toString() ?? order['id']?.toString();
+        if (orderId != null) {
+          await cancelOrder(symbol, orderId);
+        }
       }
       return true;
+    } catch (e) {
+      debugPrint('[MexcApiService] cancelAllOrders error: $e');
+      return false;
     }
-    return false;
   }
 
   /// Get order deals / trade history
@@ -340,34 +326,15 @@ class MexcApiService {
     }
   }
 
-  /// Get position info
+  /// Get position info (derived from open orders)
   Future<List<Map<String, dynamic>>> getPositions({String? symbol}) async {
-    final manager = MexcApiManager();
-    if (!manager.isInitialized) {
-      throw Exception('مفاتيح API غير مفعلة');
-    }
-
-    var queryString = '';
-    if (symbol != null && symbol.isNotEmpty) {
-      queryString = 'symbol=$symbol';
-    }
-
-    final headers = manager.getAuthHeadersForGet(queryString);
-    final url = Uri.parse('$_baseUrl/api/v1/private/position/list${queryString.isNotEmpty ? '?$queryString' : ''}');
-
-    debugPrint('[MexcApiService] GET $url');
-
-    final response = await _client.get(url, headers: headers);
-    debugPrint('[MexcApiService] position/list status=${response.statusCode}');
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data is Map && data.containsKey('data') && data['data'] is List) {
-        return (data['data'] as List).map((e) => e as Map<String, dynamic>).toList();
-      }
+    try {
+      final orders = await getOpenOrders(symbol: symbol);
+      // Derive positions from open orders for v1 compatibility
+      return orders.where((o) => o['type']?.toString().toUpperCase().contains('OPEN') ?? false).toList();
+    } catch (e) {
+      debugPrint('[MexcApiService] getPositions error: $e');
       return [];
-    } else {
-      throw Exception('فشل في جلب المراكز: ${response.statusCode} ${response.body}');
     }
   }
 

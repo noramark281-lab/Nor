@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:developer' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:crypto/crypto.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../utils/constants.dart';
@@ -115,13 +115,16 @@ class MexcApiManager {
       paramString: paramString,
     );
 
-    return {
+    final headers = {
       'ApiKey': _apiKey!,
       'Request-Time': timestamp,
       'Signature': signature,
-      'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
+    if (method.toUpperCase() == 'POST') {
+      headers['Content-Type'] = 'application/json';
+    }
+    return headers;
   }
 
   // ── Convenience: GET Auth Headers ───────────────────────────────

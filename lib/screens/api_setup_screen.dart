@@ -6,7 +6,8 @@ import '../services/mexc_api_service.dart';
 /// API Setup Screen - إعداد مفاتيح MEXC Futures API
 /// ═══════════════════════════════════════════════════════════════════
 class ApiSetupScreen extends StatefulWidget {
-  const ApiSetupScreen({super.key});
+  final Widget? nextScreen;
+  const ApiSetupScreen({super.key, this.nextScreen});
 
   @override
   State<ApiSetupScreen> createState() => _ApiSetupScreenState();
@@ -72,6 +73,11 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
         _statusMsg = '✅ تم التحقق بنجاح! تم الاتصال بـ MEXC Futures API.';
         _statusIsError = false;
       });
+      if (widget.nextScreen != null && mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => widget.nextScreen!),
+        );
+      }
     } catch (e) {
       // Clear credentials on failure
       await MexcApiManager().clearCredentials();

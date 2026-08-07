@@ -76,7 +76,7 @@ class HistoryScreen extends StatelessWidget {
           _sumItem('الرصيد', '\$${trades.balance.toStringAsFixed(2)}', Colors.white),
           _sumItem('الربح/خسارة', '\$${trades.totalProfit.toStringAsFixed(2)}',
               trades.totalProfit >= 0 ? const Color(0xFF00C087) : const Color(0xFFFF3B30)),
-          _sumItem('الصفقات', '${trades.trades.length}', const Color(0xFF2D5AF5)),
+          _sumItem('الصفقات', '${trades.openTrades.length + trades.closedTrades.length}', const Color(0xFF2D5AF5)),
         ],
       ),
     );

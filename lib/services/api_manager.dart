@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer' show debugPrint;
 import 'package:crypto/crypto.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../utils/constants.dart';
 
 /// ═══════════════════════════════════════════════════════════════════
 /// MEXC Futures API v1 Authentication Manager
@@ -40,6 +41,15 @@ class MexcApiManager {
   Future<void> initialize() async {
     _apiKey = await _secureStorage.read(key: _kApiKey);
     _secretKey = await _secureStorage.read(key: _kSecretKey);
+
+    // Fallback to build-time dart-define values (CI/CD / GitHub Actions)
+    if (_apiKey == null || _apiKey!.isEmpty) {
+      _apiKey = AppConstants.buildTimeApiKey.isNotEmpty ? AppConstants.buildTimeApiKey : null;
+    }
+    if (_secretKey == null || _secretKey!.isEmpty) {
+      _secretKey = AppConstants.buildTimeApiSecret.isNotEmpty ? AppConstants.buildTimeApiSecret : null;
+    }
+
     _isInitialized = (_apiKey?.isNotEmpty ?? false) && (_secretKey?.isNotEmpty ?? false);
     debugPrint('[MexcApiManager] initialized=$_isInitialized');
   }

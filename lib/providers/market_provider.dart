@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/event_contract.dart';
 import '../services/mexc_api_service.dart';
 
-/// يوفر بيانات السوق الحية من MEXC API
+/// يوفر بيانات السوق الحية من MEXC Futures API
 class MarketProvider with ChangeNotifier {
   final MexcApiService _api = MexcApiService();
   List<EventContract> _contracts = [];
@@ -29,11 +29,11 @@ class MarketProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// يجلب بيانات السوق الحقيقية من MEXC ويحوّلها إلى EventContract
+  /// يجلب بيانات السوق الحقيقية من MEXC Futures ويحوّلها إلى EventContract
   Future<List<EventContract>> _fetchRealMarketData() async {
     final tickers = await _api.getAllTickers24hr();
     if (tickers.isEmpty) {
-      throw Exception('لم يتم استلام بيانات السوق من MEXC. تحقق من الاتصال بالإنترنت.');
+      throw Exception('لم يتم استلام بيانات السوق من MEXC Futures. تحقق من الاتصال بالإنترنت.');
     }
 
     const pairs = MexcApiService.eventPairs;
@@ -49,10 +49,11 @@ class MarketProvider with ChangeNotifier {
       }
 
       if (ticker != null && ticker.isNotEmpty) {
-        final price = double.tryParse(ticker['lastPrice']?.toString() ?? '0') ?? 0.0;
-        final change = double.tryParse(ticker['priceChangePercent']?.toString() ?? '0') ?? 0.0;
-        final volume = double.tryParse(ticker['volume']?.toString() ?? '0') ?? 0.0;
-        final high = double.tryParse(ticker['highPrice']?.toString() ?? '0') ?? 0.0;
+        // MEXC Futures ticker fields
+        final price = _parseDouble(ticker['lastPrice'] ?? ticker['lastFairPrice'] ?? ticker['lastPrice'] ?? 0);
+        final change = _parseDouble(ticker['riseFallRate'] ?? ticker['priceChangePercent'] ?? ticker['riseFallRate'] ?? 0);
+        final volume = _parseDouble(ticker['volume24'] ?? ticker['volume'] ?? ticker['amount24'] ?? 0);
+        final high = _parseDouble(ticker['highPrice'] ?? ticker['maxBidPrice'] ?? 0);
 
         contracts.add(EventContract(
           symbol: symbol,
@@ -60,7 +61,7 @@ class MarketProvider with ChangeNotifier {
           category: pair['category']!,
           strikePrice: high,
           currentPrice: price,
-          priceChangePercent: change,
+          priceChangePercent: change * 100, // riseFallRate may be decimal (0.05 = 5%)
           volume24h: volume,
           expiryDate: DateTime.now().add(const Duration(days: 1)),
           isActive: true,
@@ -70,7 +71,7 @@ class MarketProvider with ChangeNotifier {
     }
 
     if (contracts.isEmpty) {
-      throw Exception('لم يتم العثور على بيانات للأزواج المحددة. قد تكون MEXC API غير متاحة.');
+      throw Exception('لم يتم العثور على بيانات للأزواج المحددة. قد تكون MEXC Futures API غير متاحة.');
     }
 
     return contracts;
@@ -88,5 +89,13 @@ class MarketProvider with ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  double _parseDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
   }
 }

@@ -4,7 +4,7 @@ class AppConstants {
   static const String appVersion = '1.6.0';
 
   /// روابط MEXC API الإنتاجية الحقيقية
-  static const String mexcBaseUrl = 'https://api.mexc.com';
+  static const String mexcBaseUrl = 'https://contract.mexc.com';
   static const String mexcWssUrl = 'wss://wss.mexc.com/ws';
 
   /// مفاتيح API المُضمَّنة في وقت البناء (Build-time) عبر --dart-define

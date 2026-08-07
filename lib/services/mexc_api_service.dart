@@ -1,363 +1,385 @@
-import 'dart:async';
-import 'dart:math' as math;
+import 'dart:convert';
+import 'dart:developer' show debugPrint;
+import 'package:http/http.dart' as http;
 import 'api_manager.dart';
 
 /// ═══════════════════════════════════════════════════════════════════
-/// MEXC API Service - التداول الحقيقي المباشر / العقود الآجلة وعقود الأحداث
-/// ═══════════════════════════════════════════════════════════════
+/// MEXC Futures API v1 Service
+/// ═══════════════════════════════════════════════════════════════════
+///
+/// Base URL: https://contract.mexc.com
+///
+/// Public Endpoints (no auth):
+///   GET /api/v1/contract/detail       → contract details
+///   GET /api/v1/contract/ticker       → ticker / 24h stats
+///
+/// Private Endpoints (auth required):
+///   GET  /api/v1/private/account/assets           → wallet balances
+///   GET  /api/v1/private/order/list/open_orders   → open orders
+///   POST /api/v1/private/order/submit             → place order
+///   POST /api/v1/private/order/cancel             → cancel order
+///   GET  /api/v1/private/order/list/order_deals   → trade history
+///
 class MexcApiService {
-  static final MexcApiService _instance = MexcApiService._internal();
-  factory MexcApiService() => _instance;
-  MexcApiService._internal();
+  static const String _baseUrl = 'https://contract.mexc.com';
 
-  final _api = MexcApiManager();
-
-  List<Map<String, dynamic>>? _exchangeInfoCache;
-  DateTime? _exchangeInfoCacheTime;
-
-  // 1) الرصيد والحساب الحقيقي
-  Future<Map<String, Map<String, double>>> getRealBalances() async {
-    final dynamic response = await _api.signedGet('/api/v3/account');
-    final balances = <String, Map<String, double>>{};
-
-    if (response is Map<String, dynamic> && response['balances'] is List) {
-      for (final b in response['balances']) {
-        final free = double.tryParse(b['free'].toString()) ?? 0.0;
-        final locked = double.tryParse(b['locked'].toString()) ?? 0.0;
-        if (free > 0 || locked > 0) {
-          balances[b['asset'].toString()] = {'free': free, 'locked': locked};
-        }
-      }
-    }
-    return balances;
-  }
-
-  Future<double> getUsdtBalance() async {
-    final balances = await getRealBalances();
-    final usdt = balances['USDT'];
-    return usdt?['free'] ?? 0.0;
-  }
-
-  Future<bool> testConnectivity() async {
-    try {
-      await _api.publicGet('/api/v3/time');
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<bool> testApiKeys() async {
-    try {
-      await _api.signedGet('/api/v3/account');
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  // 2) بيانات السوق الحية
-  Future<Map<String, dynamic>?> getTicker24hr(String symbol) async {
-    try {
-      final res = await _api.publicGet('/api/v3/ticker/24hr', params: {'symbol': symbol});
-      if (res is Map<String, dynamic>) return res;
-      return null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getAllTickers24hr() async {
-    try {
-      final dynamic res = await _api.publicGet('/api/v3/ticker/24hr');
-      List list = [];
-      if (res is List) {
-        list = res;
-      } else if (res is Map<String, dynamic> && res['data'] is List) {
-        list = res['data'] as List;
-      }
-      return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-    } catch (e) {
-      throw Exception('فشل تحميل بيانات السوق: $e');
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getExchangeInfo({String? symbol}) async {
-    if (_exchangeInfoCache != null && _exchangeInfoCacheTime != null) {
-      if (DateTime.now().difference(_exchangeInfoCacheTime!) < const Duration(minutes: 5)) {
-        if (symbol == null) return _exchangeInfoCache!;
-        return _exchangeInfoCache!.where((s) => s['symbol'] == symbol).toList();
-      }
-    }
-
-    try {
-      final params = symbol != null ? {'symbol': symbol} : null;
-      final dynamic data = await _api.publicGet('/api/v3/exchangeInfo', params: params);
-      List symbols = [];
-      if (data is Map<String, dynamic> && data['symbols'] is List) {
-        symbols = data['symbols'] as List;
-      }
-      final result = symbols.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      _exchangeInfoCache = result;
-      _exchangeInfoCacheTime = DateTime.now();
-      return result;
-    } catch (e) {
-      throw Exception('فشل تحميل معلومات البورصة: $e');
-    }
-  }
-
-  Future<Map<String, dynamic>?> getSymbolFilters(String symbol) async {
-    try {
-      final info = await getExchangeInfo(symbol: symbol);
-      if (info.isEmpty) return null;
-      final sym = info.first;
-      final filters = sym['filters'] as List? ?? [];
-      final result = <String, dynamic>{};
-      for (final f in filters) {
-        final filterType = f['filterType']?.toString() ?? '';
-        if (filterType == 'LOT_SIZE') {
-          result['stepSize'] = double.tryParse(f['stepSize'].toString()) ?? 0.00001;
-        } else if (filterType == 'PRICE_FILTER') {
-          result['tickSize'] = double.tryParse(f['tickSize'].toString()) ?? 0.01;
-        }
-      }
-      return result;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  double _roundQuantity(double qty, double stepSize) {
-    if (stepSize <= 0) return qty;
-    return (qty / stepSize).floorToDouble() * stepSize;
-  }
-
-  Future<List<Map<String, dynamic>>> getKlines(
-    String symbol, {
-    String interval = '1h',
-    int limit = 100,
-  }) async {
-    try {
-      final dynamic res = await _api.publicGet('/api/v3/klines', params: {
-        'symbol': symbol,
-        'interval': interval,
-        'limit': limit.toString(),
-      });
-
-      List list = [];
-      if (res is List) {
-        list = res;
-      } else if (res is Map<String, dynamic> && res['data'] is List) {
-        list = res['data'] as List;
-      }
-
-      return list.map((e) {
-        final arr = e as List;
-        return {
-          'openTime': arr[0],
-          'open': double.tryParse(arr[1].toString()) ?? 0.0,
-          'high': double.tryParse(arr[2].toString()) ?? 0.0,
-          'low': double.tryParse(arr[3].toString()) ?? 0.0,
-          'close': double.tryParse(arr[4].toString()) ?? 0.0,
-          'volume': double.tryParse(arr[5].toString()) ?? 0.0,
-          'closeTime': arr[6],
-        };
-      }).toList();
-    } catch (e) {
-      throw Exception('فشل تحميل الشموع: $e');
-    }
-  }
-
-  // 3) التنفيذ الحقيقي للأوامر
-  Future<Map<String, dynamic>> placeMarketOrder({
-    required String symbol,
-    required String side,
-    required double quantity,
-  }) async {
-    final filters = await getSymbolFilters(symbol);
-    double qty = quantity;
-    if (filters != null && filters['stepSize'] != null) {
-      qty = _roundQuantity(quantity, filters['stepSize'] as double);
-    }
-
-    final dynamic res = await _api.signedPost('/api/v3/order', body: {
-      'symbol': symbol,
-      'side': side.toUpperCase(),
-      'type': 'MARKET',
-      'quantity': qty.toStringAsFixed(6),
-    });
-    return Map<String, dynamic>.from(res as Map);
-  }
-
-  Future<Map<String, dynamic>> placeLimitOrder({
-    required String symbol,
-    required String side,
-    required double quantity,
-    required double price,
-    String timeInForce = 'GTC',
-  }) async {
-    final filters = await getSymbolFilters(symbol);
-    double qty = quantity;
-    double prc = price;
-    if (filters != null) {
-      if (filters['stepSize'] != null) {
-        qty = _roundQuantity(quantity, filters['stepSize'] as double);
-      }
-      if (filters['tickSize'] != null) {
-        final tickSize = filters['tickSize'] as double;
-        prc = (price / tickSize).floorToDouble() * tickSize;
-      }
-    }
-
-    final dynamic res = await _api.signedPost('/api/v3/order', body: {
-      'symbol': symbol,
-      'side': side.toUpperCase(),
-      'type': 'LIMIT',
-      'quantity': qty.toStringAsFixed(6),
-      'price': prc.toStringAsFixed(4),
-      'timeInForce': timeInForce,
-    });
-    return Map<String, dynamic>.from(res as Map);
-  }
-
-  // 4) الأوامر والصفقات
-  Future<List<Map<String, dynamic>>> getOpenOrders({String? symbol}) async {
-    if (symbol != null) {
-      try {
-        final dynamic data = await _api.signedGet('/api/v3/openOrders', params: {'symbol': symbol});
-        List list = data is List ? data : ((data is Map && data['data'] is List) ? data['data'] : []);
-        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      } catch (_) {
-        return [];
-      }
-    }
-
-    final allOrders = <Map<String, dynamic>>[];
-    for (final pair in eventPairs) {
-      final sym = pair['symbol']!;
-      try {
-        final dynamic data = await _api.signedGet('/api/v3/openOrders', params: {'symbol': sym});
-        List list = data is List ? data : ((data is Map && data['data'] is List) ? data['data'] : []);
-        allOrders.addAll(list.map((e) => {
-          ...Map<String, dynamic>.from(e as Map),
-          'symbol': sym,
-        }));
-        await Future.delayed(const Duration(milliseconds: 30));
-      } catch (_) {}
-    }
-    return allOrders;
-  }
-
-  Future<List<Map<String, dynamic>>> getMyTrades(String symbol, {int limit = 500}) async {
-    try {
-      final dynamic data = await _api.signedGet('/api/v3/myTrades', params: {
-        'symbol': symbol,
-        'limit': limit.toString(),
-      });
-      List list = data is List ? data : ((data is Map && data['data'] is List) ? data['data'] : []);
-      return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  // 5) Technical Indicators
-  Future<double> calculateRSI(String symbol, {int period = 14, String interval = '1h'}) async {
-    try {
-      final klines = await getKlines(symbol, interval: interval, limit: period + 100);
-      if (klines.length < period + 1) return 0.0;
-
-      final prices = klines.map((k) => k['close'] as double).toList();
-      double gain = 0;
-      double loss = 0;
-
-      for (int i = 1; i <= period; i++) {
-        final diff = prices[i] - prices[i - 1];
-        if (diff >= 0)
-          gain += diff;
-        else
-          loss -= diff;
-      }
-
-      double avgGain = gain / period;
-      double avgLoss = loss / period;
-
-      for (int i = period + 1; i < prices.length; i++) {
-        final diff = prices[i] - prices[i - 1];
-        if (diff >= 0) {
-          avgGain = (avgGain * (period - 1) + diff) / period;
-          avgLoss = (avgLoss * (period - 1)) / period;
-        } else {
-          avgGain = (avgGain * (period - 1)) / period;
-          avgLoss = (avgLoss * (period - 1) - diff) / period;
-        }
-      }
-
-      if (avgLoss == 0) return 100.0;
-      final rs = avgGain / avgLoss;
-      return 100 - (100 / (1 + rs));
-    } catch (_) {
-      return 0.0;
-    }
-  }
-
-  Future<Map<String, double>> calculateSMAs(String symbol, {required List<int> periods, String interval = '1h'}) async {
-    try {
-      final maxPeriod = periods.reduce(math.max);
-      final klines = await getKlines(symbol, interval: interval, limit: maxPeriod);
-      final prices = klines.map((k) => k['close'] as double).toList();
-
-      final result = <String, double>{};
-      for (final p in periods) {
-        if (prices.length >= p) {
-          final sum = prices.sublist(prices.length - p).reduce((a, b) => a + b);
-          result['SMA$p'] = sum / p;
-        } else {
-          result['SMA$p'] = 0.0;
-        }
-      }
-      return result;
-    } catch (_) {
-      return {};
-    }
-  }
-
-  Future<double> getCurrentPrice(String symbol) async {
-    final ticker = await getTicker24hr(symbol);
-    return double.tryParse(ticker?['lastPrice']?.toString() ?? '0') ?? 0.0;
-  }
-
-  Future<List<Map<String, dynamic>>> getAllMyTrades() async {
-    final allTrades = <Map<String, dynamic>>[];
-    for (final pair in eventPairs) {
-      final sym = pair['symbol']!;
-      final trades = await getMyTrades(sym);
-      allTrades.addAll(trades.map((t) => {...t, 'symbol': sym}));
-      await Future.delayed(const Duration(milliseconds: 50));
-    }
-    return allTrades;
-  }
-
-  Future<bool> cancelOrder(String symbol, String orderId) async {
-    try {
-      await _api.signedDelete('/api/v3/order', params: {
-        'symbol': symbol,
-        'orderId': orderId,
-      });
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
+  // ── Supported Futures Pairs (MEXC format: BTC_USDT) ─────────────
   static const List<Map<String, String>> eventPairs = [
-    {'symbol': 'BTCUSDT', 'name': 'Bitcoin UP/Down', 'category': 'crypto'},
-    {'symbol': 'ETHUSDT', 'name': 'Ethereum UP/Down', 'category': 'crypto'},
-    {'symbol': 'SOLUSDT', 'name': 'Solana UP/Down', 'category': 'crypto'},
-    {'symbol': 'XRPUSDT', 'name': 'XRP UP/Down', 'category': 'crypto'},
-    {'symbol': 'DOGEUSDT', 'name': 'Doge UP/Down', 'category': 'crypto'},
-    {'symbol': 'ADAUSDT', 'name': 'Cardano UP/Down', 'category': 'crypto'},
-    {'symbol': 'LINKUSDT', 'name': 'Chainlink UP/Down', 'category': 'crypto'},
-    {'symbol': 'MATICUSDT', 'name': 'Polygon UP/Down', 'category': 'crypto'},
+    {'symbol': 'BTC_USDT', 'name': 'Bitcoin', 'category': 'Crypto'},
+    {'symbol': 'ETH_USDT', 'name': 'Ethereum', 'category': 'Crypto'},
+    {'symbol': 'SOL_USDT', 'name': 'Solana', 'category': 'Crypto'},
+    {'symbol': 'XRP_USDT', 'name': 'Ripple', 'category': 'Crypto'},
+    {'symbol': 'DOGE_USDT', 'name': 'Dogecoin', 'category': 'Crypto'},
+    {'symbol': 'ADA_USDT', 'name': 'Cardano', 'category': 'Crypto'},
+    {'symbol': 'AVAX_USDT', 'name': 'Avalanche', 'category': 'Crypto'},
+    {'symbol': 'LINK_USDT', 'name': 'Chainlink', 'category': 'Crypto'},
   ];
+
+  // ── HTTP Client ─────────────────────────────────────────────────
+  final http.Client _client = http.Client();
+
+  // ═════════════════════════════════════════════════════════════════
+  // PUBLIC ENDPOINTS
+  // ═════════════════════════════════════════════════════════════════
+
+  /// Get all contract details (public)
+  Future<List<Map<String, dynamic>>> getContractDetails() async {
+    final url = Uri.parse('$_baseUrl/api/v1/contract/detail');
+    debugPrint('[MexcApiService] GET $url');
+
+    final response = await _client.get(url, headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    });
+
+    debugPrint('[MexcApiService] contract/detail status=${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map && data.containsKey('data')) {
+        final list = data['data'];
+        if (list is List) {
+          return list.map((e) => e as Map<String, dynamic>).toList();
+        }
+      }
+      return [];
+    } else {
+      throw Exception('فشل في جلب تفاصيل العقود: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  /// Get 24h ticker data for all contracts (public)
+  Future<List<Map<String, dynamic>>> getAllTickers24hr() async {
+    final url = Uri.parse('$_baseUrl/api/v1/contract/ticker');
+    debugPrint('[MexcApiService] GET $url');
+
+    final response = await _client.get(url, headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    });
+
+    debugPrint('[MexcApiService] contract/ticker status=${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map && data.containsKey('data')) {
+        final list = data['data'];
+        if (list is List) {
+          return list.map((e) => e as Map<String, dynamic>).toList();
+        }
+      }
+      return [];
+    } else {
+      throw Exception('فشل في جلب بيانات السوق: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  /// Get ticker for a single symbol (public)
+  Future<Map<String, dynamic>?> getTicker(String symbol) async {
+    final url = Uri.parse('$_baseUrl/api/v1/contract/ticker?symbol=$symbol');
+    debugPrint('[MexcApiService] GET $url');
+
+    final response = await _client.get(url, headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    });
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map && data.containsKey('data')) {
+        final tickerData = data['data'];
+        if (tickerData is Map) {
+          return tickerData as Map<String, dynamic>;
+        }
+      }
+      return null;
+    }
+    return null;
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // PRIVATE ENDPOINTS (Auth Required)
+  // ═════════════════════════════════════════════════════════════════
+
+  /// Get account assets / wallet balances
+  Future<Map<String, Map<String, double>>> getRealBalances() async {
+    final manager = MexcApiManager();
+    if (!manager.isInitialized) {
+      throw Exception('مفاتيح API غير مفعلة');
+    }
+
+    const queryString = '';
+    final headers = manager.getAuthHeadersForGet(queryString);
+    final url = Uri.parse('$_baseUrl/api/v1/private/account/assets');
+
+    debugPrint('[MexcApiService] GET $url');
+
+    final response = await _client.get(url, headers: headers);
+    debugPrint('[MexcApiService] account/assets status=${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final balances = <String, Map<String, double>>{};
+
+      if (data is Map && data.containsKey('data') && data['data'] is Map) {
+        final assetsData = data['data'] as Map<String, dynamic>;
+
+        // MEXC Futures returns assets keyed by currency
+        assetsData.forEach((currency, assetInfo) {
+          if (assetInfo is Map) {
+            final free = _parseDouble(assetInfo['availableBalance'] ?? assetInfo['available'] ?? 0);
+            final locked = _parseDouble(assetInfo['frozenBalance'] ?? assetInfo['frozen'] ?? 0);
+            balances[currency.toUpperCase()] = {
+              'free': free,
+              'locked': locked,
+            };
+          }
+        });
+      }
+
+      // Ensure USDT is present
+      if (!balances.containsKey('USDT')) {
+        balances['USDT'] = {'free': 0.0, 'locked': 0.0};
+      }
+
+      return balances;
+    } else if (response.statusCode == 401 || response.statusCode == 403) {
+      throw Exception('خطأ في المصادقة: ${response.statusCode}. تحقق من مفاتيح API.');
+    } else {
+      throw Exception('فشل في جلب الأرصدة: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  /// Get open orders
+  Future<List<Map<String, dynamic>>> getOpenOrders({String? symbol}) async {
+    final manager = MexcApiManager();
+    if (!manager.isInitialized) {
+      throw Exception('مفاتيح API غير مفعلة');
+    }
+
+    var queryString = '';
+    if (symbol != null && symbol.isNotEmpty) {
+      queryString = 'symbol=$symbol';
+    }
+
+    final headers = manager.getAuthHeadersForGet(queryString);
+    final url = Uri.parse('$_baseUrl/api/v1/private/order/list/open_orders${queryString.isNotEmpty ? '?$queryString' : ''}');
+
+    debugPrint('[MexcApiService] GET $url');
+
+    final response = await _client.get(url, headers: headers);
+    debugPrint('[MexcApiService] open_orders status=${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map && data.containsKey('data') && data['data'] is List) {
+        return (data['data'] as List).map((e) => e as Map<String, dynamic>).toList();
+      }
+      return [];
+    } else {
+      throw Exception('فشل في جلب الأوامر المفتوحة: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  /// Place a new futures order
+  Future<Map<String, dynamic>?> placeOrder({
+    required String symbol,
+    required String side,        // "BUY_OPEN" / "SELL_OPEN" / "BUY_CLOSE" / "SELL_CLOSE"
+    required String type,        // "LIMIT" / "MARKET"
+    required double volume,      // position size
+    double? price,               // required for LIMIT
+    double? leverage,
+    String? openType,            // "ISOLATED" / "CROSSED"
+  }) async {
+    final manager = MexcApiManager();
+    if (!manager.isInitialized) {
+      throw Exception('مفاتيح API غير مفعلة');
+    }
+
+    final body = <String, dynamic>{
+      'symbol': symbol,
+      'side': side,
+      'type': type,
+      'vol': volume,
+      if (price != null) 'price': price,
+      if (leverage != null) 'leverage': leverage,
+      if (openType != null) 'openType': openType,
+    };
+
+    final bodyString = jsonEncode(body);
+    final headers = manager.getAuthHeadersForPost(bodyString);
+    final url = Uri.parse('$_baseUrl/api/v1/private/order/submit');
+
+    debugPrint('[MexcApiService] POST $url body=$bodyString');
+
+    final response = await _client.post(url, headers: headers, body: bodyString);
+    debugPrint('[MexcApiService] order/submit status=${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map && data.containsKey('data')) {
+        return data['data'] as Map<String, dynamic>;
+      }
+      return data as Map<String, dynamic>?;
+    } else {
+      throw Exception('فشل في إرسال الأمر: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  /// Cancel an order
+  Future<bool> cancelOrder(String symbol, String orderId) async {
+    final manager = MexcApiManager();
+    if (!manager.isInitialized) {
+      throw Exception('مفاتيح API غير مفعلة');
+    }
+
+    final body = <String, dynamic>{
+      'symbol': symbol,
+      'orderId': orderId,
+    };
+
+    final bodyString = jsonEncode(body);
+    final headers = manager.getAuthHeadersForPost(bodyString);
+    final url = Uri.parse('$_baseUrl/api/v1/private/order/cancel');
+
+    debugPrint('[MexcApiService] POST $url body=$bodyString');
+
+    final response = await _client.post(url, headers: headers, body: bodyString);
+    debugPrint('[MexcApiService] order/cancel status=${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map) {
+        final success = data['success'] ?? true;
+        return success == true || success == 1;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /// Cancel all orders for a symbol
+  Future<bool> cancelAllOrders(String symbol) async {
+    final manager = MexcApiManager();
+    if (!manager.isInitialized) {
+      throw Exception('مفاتيح API غير مفعلة');
+    }
+
+    final body = <String, dynamic>{
+      'symbol': symbol,
+    };
+
+    final bodyString = jsonEncode(body);
+    final headers = manager.getAuthHeadersForPost(bodyString);
+    final url = Uri.parse('$_baseUrl/api/v1/private/order/cancel_all');
+
+    debugPrint('[MexcApiService] POST $url body=$bodyString');
+
+    final response = await _client.post(url, headers: headers, body: bodyString);
+    debugPrint('[MexcApiService] order/cancel_all status=${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map) {
+        final success = data['success'] ?? true;
+        return success == true || success == 1;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /// Get order deals / trade history
+  Future<List<Map<String, dynamic>>> getAllMyTrades({String? symbol, int pageSize = 50}) async {
+    final manager = MexcApiManager();
+    if (!manager.isInitialized) {
+      throw Exception('مفاتيح API غير مفعلة');
+    }
+
+    var queryString = 'pageSize=$pageSize';
+    if (symbol != null && symbol.isNotEmpty) {
+      queryString += '&symbol=$symbol';
+    }
+
+    final headers = manager.getAuthHeadersForGet(queryString);
+    final url = Uri.parse('$_baseUrl/api/v1/private/order/list/order_deals?$queryString');
+
+    debugPrint('[MexcApiService] GET $url');
+
+    final response = await _client.get(url, headers: headers);
+    debugPrint('[MexcApiService] order_deals status=${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map && data.containsKey('data') && data['data'] is List) {
+        return (data['data'] as List).map((e) => e as Map<String, dynamic>).toList();
+      }
+      return [];
+    } else {
+      throw Exception('فشل في جلب سجل الصفقات: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  /// Get position info
+  Future<List<Map<String, dynamic>>> getPositions({String? symbol}) async {
+    final manager = MexcApiManager();
+    if (!manager.isInitialized) {
+      throw Exception('مفاتيح API غير مفعلة');
+    }
+
+    var queryString = '';
+    if (symbol != null && symbol.isNotEmpty) {
+      queryString = 'symbol=$symbol';
+    }
+
+    final headers = manager.getAuthHeadersForGet(queryString);
+    final url = Uri.parse('$_baseUrl/api/v1/private/position/list${queryString.isNotEmpty ? '?$queryString' : ''}');
+
+    debugPrint('[MexcApiService] GET $url');
+
+    final response = await _client.get(url, headers: headers);
+    debugPrint('[MexcApiService] position/list status=${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map && data.containsKey('data') && data['data'] is List) {
+        return (data['data'] as List).map((e) => e as Map<String, dynamic>).toList();
+      }
+      return [];
+    } else {
+      throw Exception('فشل في جلب المراكز: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════
+  // HELPERS
+  // ═════════════════════════════════════════════════════════════════
+
+  double _parseDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
 }

@@ -1,10 +1,11 @@
 import 'dart:async';
+import 'dart:developer' show debugPrint;
 import 'package:flutter/material.dart';
 import '../services/mexc_api_service.dart';
 import '../services/api_manager.dart';
 
 /// ═══════════════════════════════════════════════════════════════════
-/// Wallet Provider - إدارة المحفظة الحقيقية في MEXC
+/// Wallet Provider - إدارة المحفظة الحقيقية في MEXC Futures
 /// ═══════════════════════════════════════════════════════════════════
 class WalletProvider with ChangeNotifier {
   final MexcApiService _api = MexcApiService();
@@ -117,17 +118,17 @@ class WalletProvider with ChangeNotifier {
     // Run each sync independently so failure in one doesn't block others
     final balanceFuture = _syncBalances().catchError((e) {
       _balanceError = 'خطأ في الأرصدة: $e';
-      ApiLogger.e('WalletProvider', 'Balance sync failed: $e');
+      debugPrint('[WalletProvider] Balance sync failed: $e');
     });
 
     final ordersFuture = _syncOpenOrders().catchError((e) {
       _ordersError = 'خطأ في الأوامر: $e';
-      ApiLogger.e('WalletProvider', 'Orders sync failed: $e');
+      debugPrint('[WalletProvider] Orders sync failed: $e');
     });
 
     final tradesFuture = _syncRecentTrades().catchError((e) {
       _tradesError = 'خطأ في الصفقات: $e';
-      ApiLogger.e('WalletProvider', 'Trades sync failed: $e');
+      debugPrint('[WalletProvider] Trades sync failed: $e');
     });
 
     await Future.wait([balanceFuture, ordersFuture, tradesFuture]);
@@ -171,7 +172,7 @@ class WalletProvider with ChangeNotifier {
 
   /// مزامنة الصفقات الأخيرة
   Future<void> _syncRecentTrades() async {
-    _recentTrades = await _api.getAllMyTrades();
+    _recentTrades = await _api.getAllMyTrades(pageSize: 20);
   }
 
   // ── Order Management ────────────────────────────────────────────
@@ -220,6 +221,8 @@ class WalletProvider with ChangeNotifier {
   }
 
   String getOrderSideColor(String side) {
-    return side.toUpperCase() == 'BUY' ? '0xFF00C087' : '0xFFFF3B30';
+    final s = side.toUpperCase();
+    if (s.contains('BUY')) return '0xFF00C087';
+    return '0xFFFF3B30';
   }
 }

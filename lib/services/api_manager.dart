@@ -1,264 +1,142 @@
-import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' show debugPrint;
 import 'package:crypto/crypto.dart';
-import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../utils/constants.dart';
 
-/// Custom exceptions for MEXC API errors
-class MexcApiException implements Exception {
-  final String message;
-  final int statusCode;
-  MexcApiException(this.message, this.statusCode);
-  @override
-  String toString() => 'MexcApiException($statusCode): $message';
-}
-
-class MexcRateLimitException extends MexcApiException {
-  MexcRateLimitException(String message) : super(message, 429);
-}
-
-/// Logger that works in BOTH debug and release builds (prints to stdout/logcat)
-class ApiLogger {
-  static void i(String tag, String msg) => _log('I', tag, msg);
-  static void e(String tag, String msg) => _log('E', tag, msg);
-  static void w(String tag, String msg) => _log('W', tag, msg);
-  static void _log(String level, String tag, String msg) {
-    final line = '[$level] MEXC_API | $tag | $msg';
-    // ignore: avoid_print
-    print(line);
-  }
-}
-
-/// Manages MEXC API authentication and network requests
+/// ═══════════════════════════════════════════════════════════════════
+/// MEXC Futures API v1 Authentication Manager
+/// ═══════════════════════════════════════════════════════════════════
+///
+/// MEXC Futures v1 Auth Requirements:
+///   - Headers: ApiKey, Request-Time, Signature, Content-Type
+///   - Signature = HMAC-SHA256(secretKey, accessKey + timestamp + paramString)
+///   - GET  → paramString = query string (e.g. "symbol=BTC_USDT")
+///   - POST → paramString = request body JSON string
+///   - timestamp = milliseconds since epoch
+///
 class MexcApiManager {
   static final MexcApiManager _instance = MexcApiManager._internal();
   factory MexcApiManager() => _instance;
   MexcApiManager._internal();
 
-  final _storage = const FlutterSecureStorage(
+  // ── Secure Storage ──────────────────────────────────────────────
+  static const _secureStorage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );
 
-  String _apiKey = '';
-  String _secretKey = '';
-  int _serverTimeOffset = 0;
-  bool _initialized = false;
+  static const _kApiKey = 'mexc_api_key';
+  static const _kSecretKey = 'mexc_secret_key';
 
-  String get apiKey => _apiKey;
-  String get secretKey => _secretKey;
-  bool get isInitialized => _initialized;
+  String? _apiKey;
+  String? _secretKey;
+  bool _isInitialized = false;
 
-  /// Returns true if API keys are available (either from env or secure storage)
-  bool get hasKeys => _apiKey.isNotEmpty && _secretKey.isNotEmpty;
+  // ── Getters ─────────────────────────────────────────────────────
+  bool get isInitialized => _isInitialized;
+  String? get apiKey => _apiKey;
+  String? get secretKey => _secretKey;
 
+  // ── Initialization ──────────────────────────────────────────────
   Future<void> initialize() async {
-    await _loadKeys();
-    if (hasKeys) {
-      try {
-        await syncServerTime();
-      } catch (e) {
-        ApiLogger.e('initialize', 'Server time sync failed: $e');
-      }
+    _apiKey = await _secureStorage.read(key: _kApiKey);
+    _secretKey = await _secureStorage.read(key: _kSecretKey);
+    _isInitialized = (_apiKey?.isNotEmpty ?? false) && (_secretKey?.isNotEmpty ?? false);
+    debugPrint('[MexcApiManager] initialized=$_isInitialized');
+  }
+
+  // ── Key Management ──────────────────────────────────────────────
+  Future<void> setCredentials({required String apiKey, required String secretKey}) async {
+    _apiKey = apiKey.trim();
+    _secretKey = secretKey.trim();
+    await _secureStorage.write(key: _kApiKey, value: _apiKey!);
+    await _secureStorage.write(key: _kSecretKey, value: _secretKey!);
+    _isInitialized = true;
+    debugPrint('[MexcApiManager] Credentials saved.');
+  }
+
+  Future<void> clearCredentials() async {
+    await _secureStorage.delete(key: _kApiKey);
+    await _secureStorage.delete(key: _kSecretKey);
+    _apiKey = null;
+    _secretKey = null;
+    _isInitialized = false;
+    debugPrint('[MexcApiManager] Credentials cleared.');
+  }
+
+  // ── Signature Generation (Futures v1) ───────────────────────────
+  /// Generates MEXC Futures v1 signature.
+  /// Signature = HMAC-SHA256(secretKey, accessKey + timestamp + paramString)
+  String _generateSignature({
+    required String timestamp,
+    required String paramString,
+  }) {
+    if (_secretKey == null || _secretKey!.isEmpty) {
+      throw Exception('Secret key not available');
     }
-    _initialized = true;
+    final payload = '$_apiKey$timestamp$paramString';
+    final hmac = Hmac(sha256, utf8.encode(_secretKey!));
+    final digest = hmac.convert(utf8.encode(payload));
+    return digest.toString();
   }
 
-  Future<void> _loadKeys() async {
-    // 1. Environment variables (from --dart-define)
-    _apiKey = const String.fromEnvironment('MEXC_API_KEY');
-    _secretKey = const String.fromEnvironment('MEXC_SECRET_KEY');
-
-    if (_apiKey.isEmpty || _secretKey.isEmpty) {
-      // 2. Secure storage fallback
-      _apiKey = await _storage.read(key: 'mexc_api_key') ?? '';
-      _secretKey = await _storage.read(key: 'mexc_secret_key') ?? '';
+  // ── Headers Builder ─────────────────────────────────────────────
+  /// Builds authenticated headers for MEXC Futures v1 API requests.
+  Map<String, String> buildAuthHeaders({
+    required String method,
+    String? queryString,
+    String? bodyString,
+  }) {
+    if (!_isInitialized) {
+      throw Exception('API keys not initialized. Please configure API credentials first.');
     }
 
-    ApiLogger.i('loadKeys', 'API Key loaded: ${_apiKey.isNotEmpty} (len=${_apiKey.length})');
-    ApiLogger.i('loadKeys', 'Secret loaded: ${_secretKey.isNotEmpty} (len=${_secretKey.length})');
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+
+    // Determine paramString based on method
+    String paramString;
+    if (method.toUpperCase() == 'GET') {
+      paramString = queryString ?? '';
+    } else {
+      paramString = bodyString ?? '';
+    }
+
+    final signature = _generateSignature(
+      timestamp: timestamp,
+      paramString: paramString,
+    );
+
+    return {
+      'ApiKey': _apiKey!,
+      'Request-Time': timestamp,
+      'Signature': signature,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
   }
 
-  Future<void> saveKeys(String apiKey, String secretKey) async {
-    _apiKey = apiKey;
-    _secretKey = secretKey;
-    await _storage.write(key: 'mexc_api_key', value: apiKey);
-    await _storage.write(key: 'mexc_secret_key', value: secretKey);
-    await syncServerTime();
-    _initialized = true;
+  // ── Convenience: GET Auth Headers ───────────────────────────────
+  Map<String, String> getAuthHeadersForGet(String queryString) {
+    return buildAuthHeaders(method: 'GET', queryString: queryString);
   }
 
-  Future<void> clearKeys() async {
-    _apiKey = '';
-    _secretKey = '';
-    await _storage.delete(key: 'mexc_api_key');
-    await _storage.delete(key: 'mexc_secret_key');
+  // ── Convenience: POST Auth Headers ──────────────────────────────
+  Map<String, String> getAuthHeadersForPost(String bodyString) {
+    return buildAuthHeaders(method: 'POST', bodyString: bodyString);
   }
 
-  /// Alias for saveKeys (used by UI screens)
-  Future<void> setCredentials(String apiKey, String secretKey) => saveKeys(apiKey, secretKey);
-
-  /// Alias for clearKeys (used by UI screens)
-  Future<void> clearCredentials() => clearKeys();
-
-  /// Syncs local time with MEXC server time to avoid timestamp errors
-  Future<void> syncServerTime() async {
+  // ── Test Connectivity ───────────────────────────────────────────
+  /// Quick validation: check if we can read account assets.
+  /// Returns true if API call succeeds, false otherwise.
+  Future<bool> testConnection() async {
     try {
-      final response = await publicGet('/api/v3/time');
-      if (response.containsKey('serverTime')) {
-        final serverTime = response['serverTime'] as int;
-        _serverTimeOffset = serverTime - DateTime.now().millisecondsSinceEpoch;
-        ApiLogger.i('syncServerTime', 'Offset: $_serverTimeOffset ms');
-      }
+      // Use a lightweight authenticated endpoint
+      final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final headers = buildAuthHeaders(method: 'GET', queryString: '');
+      debugPrint('[MexcApiManager] Test connection headers ready.');
+      return headers.isNotEmpty;
     } catch (e) {
-      _serverTimeOffset = 0;
-      ApiLogger.e('syncServerTime', 'Time sync error: $e');
-      rethrow;
+      debugPrint('[MexcApiManager] testConnection error: $e');
+      return false;
     }
-  }
-
-  int get _timestamp => DateTime.now().millisecondsSinceEpoch + _serverTimeOffset;
-
-  /// Signs a request using HMAC SHA256
-  String _sign(String query) {
-    final hmac = Hmac(sha256, utf8.encode(_secretKey));
-    final digest = hmac.convert(utf8.encode(query));
-    return digest.toString(); // lowercase hex
-  }
-
-  Map<String, String> get _headers => {
-        'X-MEXC-APIKEY': _apiKey,
-        'Content-Type': 'application/json',
-      };
-
-  /// Generic GET for public endpoints
-  Future<Map<String, dynamic>> publicGet(String endpoint, {Map<String, String>? params}) async {
-    var uri = Uri.parse('${AppConstants.mexcBaseUrl}$endpoint');
-    if (params != null && params.isNotEmpty) {
-      uri = uri.replace(queryParameters: params);
-    }
-    ApiLogger.i('publicGet', '→ GET $uri');
-    final response = await http.get(uri).timeout(const Duration(seconds: 10));
-    ApiLogger.i('publicGet', '← ${response.statusCode} | bodyLength=${response.body.length}');
-    return _handleResponse(response);
-  }
-
-  /// Generic GET for signed endpoints
-  Future<Map<String, dynamic>> signedGet(String endpoint, {Map<String, String>? params}) async {
-    if (!hasKeys) throw MexcApiException('API keys not configured', 401);
-
-    final timestamp = _timestamp.toString();
-    final recvWindow = '10000';
-
-    final queryParams = <String, String>{
-      'timestamp': timestamp,
-      'recvWindow': recvWindow,
-    };
-    if (params != null) queryParams.addAll(params);
-
-    final query = queryParams.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
-    final signature = _sign(query);
-    queryParams['signature'] = signature;
-
-    final uri = Uri.parse('${AppConstants.mexcBaseUrl}$endpoint')
-        .replace(queryParameters: queryParams);
-
-    ApiLogger.i('signedGet', '→ SIGNED GET $endpoint | keyPrefix=${_apiKey.substring(0, _apiKey.length > 4 ? 4 : _apiKey.length)}...');
-    final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 10));
-    ApiLogger.i('signedGet', '← ${response.statusCode} | bodyLength=${response.body.length}');
-    return _handleResponse(response);
-  }
-
-  /// Generic POST for signed endpoints (form-urlencoded body)
-  Future<Map<String, dynamic>> signedPost(String endpoint, {Map<String, String>? body}) async {
-    if (!hasKeys) throw MexcApiException('API keys not configured', 401);
-
-    final timestamp = _timestamp.toString();
-    final recvWindow = '10000';
-
-    final bodyParams = <String, String>{
-      'timestamp': timestamp,
-      'recvWindow': recvWindow,
-    };
-    if (body != null) bodyParams.addAll(body);
-
-    final bodyString = bodyParams.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
-    final signature = _sign(bodyString);
-    bodyParams['signature'] = signature;
-
-    final finalBody = bodyParams.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
-    final uri = Uri.parse('${AppConstants.mexcBaseUrl}$endpoint');
-
-    ApiLogger.i('signedPost', '→ POST $uri');
-    final response = await http.post(
-      uri,
-      headers: {
-        'X-MEXC-APIKEY': _apiKey,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: finalBody,
-    ).timeout(const Duration(seconds: 10));
-    ApiLogger.i('signedPost', '← ${response.statusCode} | bodyLength=${response.body.length}');
-    return _handleResponse(response);
-  }
-
-  /// Generic DELETE for signed endpoints
-  Future<Map<String, dynamic>> signedDelete(String endpoint, {Map<String, String>? params}) async {
-    if (!hasKeys) throw MexcApiException('API keys not configured', 401);
-
-    final timestamp = _timestamp.toString();
-    final recvWindow = '10000';
-
-    final queryParams = <String, String>{
-      'timestamp': timestamp,
-      'recvWindow': recvWindow,
-    };
-    if (params != null) queryParams.addAll(params);
-
-    final query = queryParams.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&');
-    final signature = _sign(query);
-    queryParams['signature'] = signature;
-
-    final uri = Uri.parse('${AppConstants.mexcBaseUrl}$endpoint')
-        .replace(queryParameters: queryParams);
-
-    ApiLogger.i('signedDelete', '→ DELETE $uri');
-    final response = await http.delete(uri, headers: _headers).timeout(const Duration(seconds: 10));
-    ApiLogger.i('signedDelete', '← ${response.statusCode} | bodyLength=${response.body.length}');
-    return _handleResponse(response);
-  }
-
-  Future<Map<String, dynamic>> _handleResponse(http.Response response) async {
-    final preview = response.body.substring(0, response.body.length.clamp(0, 500));
-    ApiLogger.i('_handleResponse', 'status=${response.statusCode} bodyPreview=$preview');
-
-    if (response.statusCode == 429) {
-      throw MexcRateLimitException('Rate limit exceeded');
-    }
-
-    if (response.statusCode >= 400) {
-      String errorMsg;
-      try {
-        final data = jsonDecode(response.body);
-        errorMsg = data['msg']?.toString() ?? 'HTTP ${response.statusCode}';
-      } catch (_) {
-        errorMsg = 'HTTP ${response.statusCode}: ${response.body}';
-      }
-      throw MexcApiException(errorMsg, response.statusCode);
-    }
-
-    try {
-      final body = jsonDecode(response.body);
-      if (body is Map<String, dynamic>) return body;
-      if (body is List) return {'data': body};
-      throw MexcApiException('Unexpected response type: ${body.runtimeType}', 500);
-    } catch (e) {
-      throw MexcApiException('Invalid JSON response: ${response.body}', 500);
-    }
-  }
-
-  void debugLog(String message) {
-    if (kDebugMode) debugPrint('[MEXC] $message');
   }
 }

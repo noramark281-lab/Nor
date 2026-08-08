@@ -41,3 +41,8 @@
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
+
+# Google Play Core / SplitCompat (referenced by Flutter R8)
+-dontwarn com.google.android.play.core.splitcompat.**
+-dontwarn com.google.android.play.core.splitinstall.**
+-dontwarn com.google.android.play.core.tasks.**

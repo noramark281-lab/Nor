@@ -416,7 +416,7 @@ class _TradingScreenState extends State<TradingScreen> with SingleTickerProvider
                       Text('الوقت: ${o['createdAt'] ?? '-'}', style: TextStyle(color: textColor, fontSize: 11)),
                       GestureDetector(
                         onTap: () {
-                          wp.cancelOrder(o['id']?.toString() ?? '');
+                          wp.cancelOrder(o['symbol']?.toString() ?? '', o['id']?.toString() ?? '');
                         },
                         child: Text('إلغاء', style: TextStyle(color: bearish, fontSize: 12, fontWeight: FontWeight.w600)),
                       ),

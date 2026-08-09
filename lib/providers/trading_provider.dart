@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 import '../models/event_contract.dart';
+import '../models/trading_pair.dart';
 import '../services/mexc_api_service.dart';
 import '../services/api_manager.dart';
 
@@ -18,7 +19,7 @@ class TradingProvider with ChangeNotifier {
   String? _lastSuccess;
   Timer? _orderSyncTimer;
   Timer? _botTimer;
-  final List<Map<String, dynamic>> _pairs = [];
+  final List<TradingPair> _pairs = [];
   String? _selectedSymbol = 'BTC_USDT';
   double _leverage = 1.0;
   double _availableBalance = 0.0;
@@ -54,11 +55,11 @@ class TradingProvider with ChangeNotifier {
   String? get error => _lastError;
 
   // Market getters
-  List<Map<String, dynamic>> get pairs => List.unmodifiable(_pairs);
+  List<TradingPair> get pairs => List.unmodifiable(_pairs);
   String? get selectedSymbol => _selectedSymbol;
-  Map<String, dynamic>? get selectedPair => _pairs.isEmpty
+  TradingPair? get selectedPair => _pairs.isEmpty
       ? null
-      : _pairs.firstWhere((p) => p['symbol'] == _selectedSymbol, orElse: () => _pairs.first);
+      : _pairs.firstWhere((p) => p.symbol == _selectedSymbol, orElse: () => _pairs.first);
   double get leverage => _leverage;
   double get availableBalance => _availableBalance;
 
@@ -102,14 +103,14 @@ class TradingProvider with ChangeNotifier {
       for (final t in tickers) {
         final sym = t['symbol']?.toString() ?? '';
         if (sym.isNotEmpty) {
-          _pairs.add({
-            'symbol': sym,
-            'base': sym.split('_').firstOrNull ?? sym,
-            'quote': sym.split('_').length > 1 ? sym.split('_')[1] : 'USDT',
-            'lastPrice': _parseDouble(t['lastPrice'] ?? t['lastFairPrice'] ?? 0),
-            'priceChangePercent': _parseDouble(t['riseFallRate'] ?? t['priceChangePercent'] ?? 0),
-            'volume24h': _parseDouble(t['volume24h'] ?? t['vol24h'] ?? 0),
-          });
+          _pairs.add(TradingPair(
+            symbol: sym,
+            base: sym.split('_').firstOrNull ?? sym,
+            quote: sym.split('_').length > 1 ? sym.split('_')[1] : 'USDT',
+            lastPrice: _parseDouble(t['lastPrice'] ?? t['lastFairPrice'] ?? 0),
+            priceChangePercent: _parseDouble(t['riseFallRate'] ?? t['priceChangePercent'] ?? 0),
+            volume24h: _parseDouble(t['volume24h'] ?? t['vol24h'] ?? 0),
+          ));
         }
       }
       notifyListeners();

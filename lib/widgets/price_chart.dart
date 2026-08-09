@@ -215,7 +215,7 @@ class _PriceChartState extends State<PriceChart> {
             barTouchData: BarTouchData(
               enabled: true,
               touchTooltipData: BarTouchTooltipData(
-                tooltipBgColor: const Color(0xFF2A2D3E),
+                getTooltipColor: (touchedSpot) => const Color(0xFF2A2D3E),
                 getTooltipItem: (group, groupIndex, rod, rodIndex) {
                   final c = _candles[groupIndex];
                   return BarTooltipItem(

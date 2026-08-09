@@ -49,12 +49,12 @@ jobs:
           TAG="v${VERSION}-r${{ github.run_number }}"
           APK="build/app/outputs/flutter-apk/app-release.apk"
 
-          # Create release
+          # Create DRAFT release first (not immutable until published)
           RELEASE_JSON=$(curl -s -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Content-Type: application/json" \
             "https://api.github.com/repos/${{ github.repository }}/releases" \
-            -d "{\"tag_name\":\"$TAG\",\"name\":\"Release v$VERSION (build ${{ github.run_number }})\",\"body\":\"APK release for version $VERSION\",\"draft\":false,\"prerelease\":false}")
+            -d "{\"tag_name\":\"$TAG\",\"name\":\"Release v$VERSION (build ${{ github.run_number }})\",\"body\":\"APK release for version $VERSION\",\"draft\":true,\"prerelease\":false}")
 
           RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.id // empty')
           UPLOAD_URL=$(echo "$RELEASE_JSON" | jq -r '.upload_url // empty' | sed 's/{?name,label}//')
@@ -65,14 +65,23 @@ jobs:
             exit 1
           fi
 
-          echo "Created release $RELEASE_ID"
+          echo "Created draft release $RELEASE_ID"
 
-          # Upload APK
+          # Upload APK to draft release
           FILENAME=$(basename "$APK")
-          curl -s -X POST \
+          UPLOAD_RESULT=$(curl -s -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Content-Type: application/vnd.android.package-archive" \
             "${UPLOAD_URL}?name=${FILENAME}" \
-            --data-binary "@$APK"
+            --data-binary "@$APK")
 
-          echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/$TAG"
+          echo "Upload result: $UPLOAD_RESULT"
+
+          # Publish the release (make it non-draft)
+          curl -s -X PATCH \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID" \
+            -d '{"draft":false}'
+
+          echo "Published release: https://github.com/${{ github.repository }}/releases/tag/$TAG"

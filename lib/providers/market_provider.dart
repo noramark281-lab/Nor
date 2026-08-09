@@ -1,101 +1,149 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import '../models/event_contract.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/trading_pair.dart';
 import '../services/mexc_api_service.dart';
 
-/// يوفر بيانات السوق الحية من MEXC Futures API
-class MarketProvider with ChangeNotifier {
-  final MexcApiService _api = MexcApiService();
-  List<EventContract> _contracts = [];
-  bool _loading = false;
-  String? _error;
+class MarketProvider extends ChangeNotifier {
+  final List<TradingPair> _pairs = [];
+  List<TradingPair> _filteredPairs = [];
+  bool _isLoading = false;
+  String? _errorMessage;
+  String _searchQuery = '';
+  int _categoryIndex = 0; // 0=All, 1=Favorites, 2=Spot, 3=Futures, 4=Hot
+  List<String> _favorites = [];
+  Timer? _timer;
 
-  List<EventContract> get contracts => _contracts;
-  bool get loading => _loading;
-  String? get error => _error;
+  List<TradingPair> get pairs => List.unmodifiable(_pairs);
+  List<TradingPair> get filteredPairs => List.unmodifiable(_filteredPairs);
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
+  String get searchQuery => _searchQuery;
+  int get categoryIndex => _categoryIndex;
+  List<String> get favorites => List.unmodifiable(_favorites);
 
-  Future<void> loadContracts() async {
-    _loading = true;
-    _error = null;
-    notifyListeners();
+  static const List<String> kCategories = [
+    'الكل',
+    'المفضلة',
+    'سبوت',
+    'عقود مستديمة',
+    'الأكثر تداولاً',
+  ];
 
+  MarketProvider() {
+    _loadFavorites();
+    startAutoRefresh();
+  }
+
+  Future<void> _loadFavorites() async {
     try {
-      _contracts = await _fetchRealMarketData();
+      final prefs = await SharedPreferences.getInstance();
+      _favorites = prefs.getStringList('market_favorites') ?? [];
+      notifyListeners();
     } catch (e) {
-      _error = 'فشل تحميل بيانات السوق: $e';
-      _contracts = [];
+      debugPrint('MarketProvider: _loadFavorites error: $e');
     }
+  }
 
-    _loading = false;
+  Future<void> toggleFavorite(String symbol) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_favorites.contains(symbol)) {
+        _favorites.remove(symbol);
+      } else {
+        _favorites.add(symbol);
+      }
+      await prefs.setStringList('market_favorites', _favorites);
+      _applyFilter();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('MarketProvider: toggleFavorite error: $e');
+    }
+  }
+
+  bool isFavorite(String symbol) => _favorites.contains(symbol);
+
+  void setSearchQuery(String query) {
+    _searchQuery = query;
+    _applyFilter();
     notifyListeners();
   }
 
-  /// يجلب بيانات السوق الحقيقية من MEXC Futures ويحوّلها إلى EventContract
-  Future<List<EventContract>> _fetchRealMarketData() async {
-    final tickers = await _api.getAllTickers24hr();
-    if (tickers.isEmpty) {
-      throw Exception('لم يتم استلام بيانات السوق من MEXC Futures. تحقق من الاتصال بالإنترنت.');
-    }
-
-    const pairs = MexcApiService.eventPairs;
-    final contracts = <EventContract>[];
-
-    for (final pair in pairs) {
-      final symbol = pair['symbol']!;
-      Map<String, dynamic>? ticker;
-      try {
-        ticker = tickers.firstWhere((t) => t['symbol'] == symbol);
-      } catch (_) {
-        ticker = null;
-      }
-
-      if (ticker != null && ticker.isNotEmpty) {
-        // MEXC Futures ticker fields
-        final price = _parseDouble(ticker['lastPrice'] ?? ticker['lastFairPrice'] ?? ticker['lastPrice'] ?? 0);
-        final change = _parseDouble(ticker['riseFallRate'] ?? ticker['priceChangePercent'] ?? ticker['riseFallRate'] ?? 0);
-        final volume = _parseDouble(ticker['volume24'] ?? ticker['volume'] ?? ticker['amount24'] ?? 0);
-        final high = _parseDouble(ticker['highPrice'] ?? ticker['maxBidPrice'] ?? 0);
-
-        contracts.add(EventContract(
-          symbol: symbol,
-          name: pair['name']!,
-          category: pair['category']!,
-          strikePrice: high,
-          currentPrice: price,
-          priceChangePercent: change * 100, // riseFallRate may be decimal (0.05 = 5%)
-          volume24h: volume,
-          expiryDate: DateTime.now().add(const Duration(days: 1)),
-          isActive: true,
-          side: change >= 0 ? 'UP' : 'DOWN',
-        ));
-      }
-    }
-
-    if (contracts.isEmpty) {
-      throw Exception('لم يتم العثور على بيانات للأزواج المحددة. قد تكون MEXC Futures API غير متاحة.');
-    }
-
-    return contracts;
+  void setCategoryIndex(int index) {
+    _categoryIndex = index;
+    _applyFilter();
+    notifyListeners();
   }
 
-  List<EventContract> get upContracts =>
-      _contracts.where((c) => c.side == 'UP').toList();
+  void _applyFilter() {
+    List<TradingPair> result = _pairs;
 
-  List<EventContract> get downContracts =>
-      _contracts.where((c) => c.side == 'DOWN').toList();
+    // Category filter
+    if (_categoryIndex == 1) {
+      // Favorites
+      result = result.where((p) => _favorites.contains(p.symbol)).toList();
+    } else if (_categoryIndex == 4) {
+      // Hot - highest volume
+      result = result.toList()..sort((a, b) => b.volume24h.compareTo(a.volume24h));
+      result = result.take(20).toList();
+    }
+    // Spot and Futures categories are all pairs for now (MEXC v1 all futures)
+    else if (_categoryIndex == 2) {
+      // Spot - filter for spot pairs (no _USDT suffix, or specific logic)
+      // For now, all are futures on this endpoint, show all
+      result = result;
+    } else if (_categoryIndex == 3) {
+      // Perpetual - all futures pairs
+      result = result;
+    }
 
-  EventContract? getContractBySymbol(String symbol) {
+    // Search filter
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      result = result.where((p) {
+        final sym = p.symbol.toLowerCase();
+        final base = p.base.toLowerCase();
+        final quote = p.quote.toLowerCase();
+        return sym.contains(q) || base.contains(q) || quote.contains(q);
+      }).toList();
+    }
+
+    _filteredPairs = result;
+  }
+
+  Future<void> loadMarketData() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
     try {
-      return _contracts.firstWhere((c) => c.symbol == symbol);
-    } catch (_) {
-      return null;
+      final pairs = await MexcApiService().getMarketInfo();
+      _pairs.clear();
+      _pairs.addAll(pairs);
+      _applyFilter();
+      _errorMessage = null;
+    } catch (e) {
+      _errorMessage = 'فشل تحميل بيانات السوق: $e';
+      debugPrint('MarketProvider error: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
-  double _parseDouble(dynamic value) {
-    if (value == null) return 0.0;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) return double.tryParse(value) ?? 0.0;
-    return 0.0;
+  void startAutoRefresh() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => loadMarketData());
+  }
+
+  void stopAutoRefresh() {
+    _timer?.cancel();
+  }
+
+  void refresh() => loadMarketData();
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 }

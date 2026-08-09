@@ -19,6 +19,9 @@ class WalletProvider with ChangeNotifier {
   // ── Orders ──────────────────────────────────────────────────────
   List<Map<String, dynamic>> _openOrders = [];
 
+  // ── Positions ─────────────────────────────────────────────────────
+  List<Map<String, dynamic>> _positions = [];
+
   // ── Trades ──────────────────────────────────────────────────────
   List<Map<String, dynamic>> _recentTrades = [];
 
@@ -39,6 +42,7 @@ class WalletProvider with ChangeNotifier {
   double get availableUsdt => _availableUsdt;
   double get lockedUsdt => _lockedUsdt;
   List<Map<String, dynamic>> get openOrders => _openOrders;
+  List<Map<String, dynamic>> get positions => _positions;
   List<Map<String, dynamic>> get recentTrades => _recentTrades;
   bool get loading => _loading;
   String? get error => _error;
@@ -126,12 +130,16 @@ class WalletProvider with ChangeNotifier {
       debugPrint('[WalletProvider] Orders sync failed: $e');
     });
 
+    final positionsFuture = _syncPositions().catchError((e) {
+      debugPrint('[WalletProvider] Positions sync failed: $e');
+    });
+
     final tradesFuture = _syncRecentTrades().catchError((e) {
       _tradesError = 'خطأ في الصفقات: $e';
       debugPrint('[WalletProvider] Trades sync failed: $e');
     });
 
-    await Future.wait([balanceFuture, ordersFuture, tradesFuture]);
+    await Future.wait([balanceFuture, ordersFuture, positionsFuture, tradesFuture]);
 
     // Build combined error if any
     final errors = <String>[];
@@ -168,6 +176,11 @@ class WalletProvider with ChangeNotifier {
   /// مزامنة الأوامر المفتوحة
   Future<void> _syncOpenOrders() async {
     _openOrders = await _api.getOpenOrders();
+  }
+
+  /// مزامنة المراكز المفتوحة
+  Future<void> _syncPositions() async {
+    _positions = await _api.getPositions();
   }
 
   /// مزامنة الصفقات الأخيرة

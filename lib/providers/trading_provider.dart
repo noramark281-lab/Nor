@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 import '../models/event_contract.dart';
 import '../services/mexc_api_service.dart';
@@ -17,6 +18,10 @@ class TradingProvider with ChangeNotifier {
   String? _lastSuccess;
   Timer? _orderSyncTimer;
   Timer? _botTimer;
+  final List<Map<String, dynamic>> _pairs = [];
+  String? _selectedSymbol = 'BTC_USDT';
+  double _leverage = 1.0;
+  double _availableBalance = 0.0;
 
   // ── Bot State ───────────────────────────────────────────────────
   bool _isTrading = false;
@@ -48,6 +53,15 @@ class TradingProvider with ChangeNotifier {
   bool get loading => _isLoading;
   String? get error => _lastError;
 
+  // Market getters
+  List<Map<String, dynamic>> get pairs => List.unmodifiable(_pairs);
+  String? get selectedSymbol => _selectedSymbol;
+  Map<String, dynamic>? get selectedPair => _pairs.isEmpty
+      ? null
+      : _pairs.firstWhere((p) => p['symbol'] == _selectedSymbol, orElse: () => _pairs.first);
+  double get leverage => _leverage;
+  double get availableBalance => _availableBalance;
+
   // Bot getters
   bool get isTrading => _isTrading;
   String get selectedStrategy => _selectedStrategy;
@@ -78,6 +92,77 @@ class TradingProvider with ChangeNotifier {
   void stopOrderSync() {
     _orderSyncTimer?.cancel();
     _orderSyncTimer = null;
+  }
+
+  // ── Market Data ─────────────────────────────────────────────────
+  Future<void> loadPairs() async {
+    try {
+      final tickers = await _api.getAllTickers24hr();
+      _pairs.clear();
+      for (final t in tickers) {
+        final sym = t['symbol']?.toString() ?? '';
+        if (sym.isNotEmpty) {
+          _pairs.add({
+            'symbol': sym,
+            'base': sym.split('_').firstOrNull ?? sym,
+            'quote': sym.split('_').length > 1 ? sym.split('_')[1] : 'USDT',
+            'lastPrice': _parseDouble(t['lastPrice'] ?? t['lastFairPrice'] ?? 0),
+            'priceChangePercent': _parseDouble(t['riseFallRate'] ?? t['priceChangePercent'] ?? 0),
+            'volume24h': _parseDouble(t['volume24h'] ?? t['vol24h'] ?? 0),
+          });
+        }
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[TradingProvider] loadPairs error: $e');
+    }
+  }
+
+  void selectPair(String symbol) {
+    _selectedSymbol = symbol;
+    notifyListeners();
+  }
+
+  void setLeverage(double l) {
+    _leverage = l;
+    notifyListeners();
+  }
+
+  /// Unified placeOrder used by TradingScreen
+  Future<bool> placeOrder({
+    required String type,
+    required String side,
+    required double price,
+    required double quantity,
+    required double leverage,
+  }) async {
+    _leverage = leverage;
+    final symbol = _selectedSymbol ?? 'BTC_USDT';
+    if (type.toLowerCase() == 'limit') {
+      return placeLimitOrder(
+        symbol: symbol,
+        side: side,
+        price: price,
+        volume: quantity,
+        leverage: leverage,
+      );
+    } else {
+      final contract = EventContract(
+        symbol: symbol,
+        name: symbol,
+        category: 'Futures',
+        strikePrice: price,
+        currentPrice: price,
+        priceChangePercent: 0,
+        volume24h: 0,
+        expiryDate: DateTime.now().add(const Duration(days: 1)),
+      );
+      if (side.toUpperCase() == 'BUY' || side.toUpperCase() == 'BUY_OPEN') {
+        return executeBuy(contract, amount: quantity, leverage: leverage);
+      } else {
+        return executeSell(contract, amount: quantity, leverage: leverage);
+      }
+    }
   }
 
   @override

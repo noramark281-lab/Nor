@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'api_manager.dart';
+import '../models/trading_pair.dart';
 
 /// ═══════════════════════════════════════════════════════════════════
 /// MEXC Futures API v1 Service
@@ -92,6 +93,29 @@ class MexcApiService {
     } else {
       throw Exception('فشل في جلب بيانات السوق: ${response.statusCode} ${response.body}');
     }
+  }
+
+  /// Get market info as TradingPairs for UI (public)
+  Future<List<TradingPair>> getMarketInfo() async {
+    final tickers = await getAllTickers24hr();
+    return tickers.map((t) {
+      final symbol = t['symbol']?.toString() ?? '';
+      final parts = symbol.split('_');
+      final base = parts.isNotEmpty ? parts[0] : symbol;
+      final quote = parts.length > 1 ? parts[1] : 'USDT';
+      final lastPrice = _parseDouble(t['lastPrice'] ?? t['lastEp'] ?? t['price'] ?? 0);
+      final priceChangePercent = _parseDouble(t['priceChangePercent'] ?? t['riseFallRate'] ?? t['changeRate'] ?? 0);
+      final volume24h = _parseDouble(t['volume24h'] ?? t['amount24'] ?? t['vol24'] ?? 0);
+      return TradingPair(
+        symbol: symbol,
+        base: base,
+        quote: quote,
+        lastPrice: lastPrice,
+        priceChangePercent: priceChangePercent,
+        volume24h: volume24h,
+        category: 'Futures',
+      );
+    }).toList();
   }
 
   /// Get ticker for a single symbol (public)
@@ -339,6 +363,57 @@ class MexcApiService {
   }
 
   // ═════════════════════════════════════════════════════════════════
+  // KLINE / CANDLESTICK DATA (Public)
+  // ═════════════════════════════════════════════════════════════════
+
+  /// Fetch kline/candlestick data for a symbol
+  /// interval: Min1, Min5, Min15, Min30, Hour1, Hour4, Day1
+  Future<List<CandleData>> getKlines(String symbol, {String interval = 'Min1', int limit = 100}) async {
+    final url = Uri.parse('$_baseUrl/api/v1/contract/kline?symbol=$symbol&interval=$interval');
+    debugPrint('[MexcApiService] GET $url');
+
+    final response = await _client.get(url, headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    });
+
+    debugPrint('[MexcApiService] kline status=${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map && data.containsKey('data')) {
+        final klineData = data['data'];
+        if (klineData is Map) {
+          final times = (klineData['time'] as List?)?.map((e) => e is int ? e : int.tryParse(e.toString()) ?? 0).toList() ?? [];
+          final opens = (klineData['open'] as List?)?.map((e) => _parseDouble(e)).toList() ?? [];
+          final closes = (klineData['close'] as List?)?.map((e) => _parseDouble(e)).toList() ?? [];
+          final highs = (klineData['high'] as List?)?.map((e) => _parseDouble(e)).toList() ?? [];
+          final lows = (klineData['low'] as List?)?.map((e) => _parseDouble(e)).toList() ?? [];
+          final vols = (klineData['vol'] as List?)?.map((e) => _parseDouble(e)).toList() ?? [];
+
+          final candles = <CandleData>[];
+          final count = [times.length, opens.length, closes.length, highs.length, lows.length].reduce((a, b) => a < b ? a : b);
+          for (int i = 0; i < count; i++) {
+            candles.add(CandleData(
+              timestamp: DateTime.fromMillisecondsSinceEpoch(times[i] * 1000),
+              open: opens[i],
+              high: highs[i],
+              low: lows[i],
+              close: closes[i],
+              volume: vols.isNotEmpty && i < vols.length ? vols[i] : 0.0,
+            ));
+          }
+          return candles;
+        }
+      }
+      return [];
+    } else {
+      debugPrint('[MexcApiService] kline error: ${response.statusCode} ${response.body}');
+      return [];
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════
   // HELPERS
   // ═════════════════════════════════════════════════════════════════
 
@@ -349,4 +424,31 @@ class MexcApiService {
     if (value is String) return double.tryParse(value) ?? 0.0;
     return 0.0;
   }
+}
+
+/// OHLC Candle data point
+class CandleData {
+  final DateTime timestamp;
+  final double open;
+  final double high;
+  final double low;
+  final double close;
+  final double volume;
+
+  CandleData({
+    required this.timestamp,
+    required this.open,
+    required this.high,
+    required this.low,
+    required this.close,
+    required this.volume,
+  });
+
+  bool get isBullish => close >= open;
+  bool get isBearish => close < open;
+  double get bodyTop => close > open ? close : open;
+  double get bodyBottom => close > open ? open : close;
+  double get bodyHeight => (close - open).abs();
+  double get wickHigh => high;
+  double get wickLow => low;
 }

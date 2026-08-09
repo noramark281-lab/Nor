@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:developer' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 import '../services/mexc_api_service.dart';
 import '../services/api_manager.dart';

@@ -1,7 +1,7 @@
 /// الثوابت والإعدادات العامة
 class AppConstants {
   static const String appName = 'MEXC Event Trader';
-  static const String appVersion = '1.6.0';
+  static const String appVersion = '1.6.1+17';
 
   /// روابط MEXC API الإنتاجية الحقيقية
   static const String mexcBaseUrl = 'https://contract.mexc.com';

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/trading_provider.dart';
 import '../models/event_contract.dart';
+import '../models/trade_record.dart';
 
 class TradingScreen extends StatefulWidget {
   final EventContract? contract;
@@ -50,13 +51,13 @@ class _TradingScreenState extends State<TradingScreen>
 
     final side = _side;
     final ok = await context.read<TradingProvider>().placeTrade(
-      symbol: widget.contract!.symbol,
-      side: side,
-      amount: amount,
-      price: widget.contract!.currentPrice,
-      isLimit: _isLimit,
-      limitPrice: limitPrice,
-    );
+          symbol: widget.contract!.symbol,
+          side: side,
+          amount: amount,
+          price: widget.contract!.currentPrice,
+          isLimit: _isLimit,
+          limitPrice: limitPrice,
+        );
 
     if (ok) {
       _showSnack('تم تنفيذ الأمر بنجاح');
@@ -72,17 +73,16 @@ class _TradingScreenState extends State<TradingScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: const TextStyle(fontFamily: 'Cairo')),
-        backgroundColor: msg.contains('نجاح')
-            ? const Color(0xFF00C087)
-            : Colors.red,
+        backgroundColor:
+            msg.contains('نجاح') ? const Color(0xFF00C087) : Colors.red,
       ),
     );
   }
 
   void _analyzeMarket() async {
     final analysis = await context.read<TradingProvider>().analyzeReal(
-      widget.contract!.symbol,
-    );
+          widget.contract!.symbol,
+        );
     if (analysis != null) {
       setState(() => _lastSignal = analysis['trend'] ?? 'محايد');
       _showSnack(
@@ -473,8 +473,8 @@ class _TradingScreenState extends State<TradingScreen>
                 color: trade.lastSignal == 'BUY'
                     ? const Color(0xFF00C087)
                     : trade.lastSignal == 'SELL'
-                    ? const Color(0xFFFF3B30)
-                    : Colors.grey,
+                        ? const Color(0xFFFF3B30)
+                        : Colors.grey,
                 fontWeight: FontWeight.bold,
                 fontFamily: 'Cairo',
               ),

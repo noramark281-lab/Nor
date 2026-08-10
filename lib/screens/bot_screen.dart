@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/trading_provider.dart';
 import '../providers/wallet_provider.dart';
+import '../models/trade_record.dart';
 
 class BotScreen extends StatefulWidget {
   const BotScreen({super.key});
@@ -155,15 +156,15 @@ class _BotScreenState extends State<BotScreen> {
                   color: bot.lastSignal == 'BUY'
                       ? const Color(0xFF00C087).withOpacity(0.15)
                       : bot.lastSignal == 'SELL'
-                      ? const Color(0xFFFF3B30).withOpacity(0.15)
-                      : const Color(0xFF1A1D2D),
+                          ? const Color(0xFFFF3B30).withOpacity(0.15)
+                          : const Color(0xFF1A1D2D),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: bot.lastSignal == 'BUY'
                         ? const Color(0xFF00C087)
                         : bot.lastSignal == 'SELL'
-                        ? const Color(0xFFFF3B30)
-                        : Colors.transparent,
+                            ? const Color(0xFFFF3B30)
+                            : Colors.transparent,
                     width: 1,
                   ),
                 ),
@@ -174,27 +175,23 @@ class _BotScreenState extends State<BotScreen> {
                       bot.lastSignal == 'BUY'
                           ? Icons.arrow_upward
                           : bot.lastSignal == 'SELL'
-                          ? Icons.arrow_downward
-                          : Icons.horizontal_rule,
+                              ? Icons.arrow_downward
+                              : Icons.horizontal_rule,
                       color: bot.lastSignal == 'BUY'
                           ? const Color(0xFF00C087)
                           : bot.lastSignal == 'SELL'
-                          ? const Color(0xFFFF3B30)
-                          : Colors.grey,
+                              ? const Color(0xFFFF3B30)
+                              : Colors.grey,
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'آخر إشارة: ${bot.lastSignal == 'BUY'
-                          ? 'شراء'
-                          : bot.lastSignal == 'SELL'
-                          ? 'بيع'
-                          : 'انتظار'}',
+                      'آخر إشارة: ${bot.lastSignal == 'BUY' ? 'شراء' : bot.lastSignal == 'SELL' ? 'بيع' : 'انتظار'}',
                       style: TextStyle(
                         color: bot.lastSignal == 'BUY'
                             ? const Color(0xFF00C087)
                             : bot.lastSignal == 'SELL'
-                            ? const Color(0xFFFF3B30)
-                            : Colors.grey,
+                                ? const Color(0xFFFF3B30)
+                                : Colors.grey,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'Cairo',
                       ),
@@ -323,8 +320,8 @@ class _BotScreenState extends State<BotScreen> {
                 bot.loading
                     ? 'جاري التنفيذ...'
                     : bot.isTrading
-                    ? 'إيقاف البوت'
-                    : 'تشغيل البوت',
+                        ? 'إيقاف البوت'
+                        : 'تشغيل البوت',
                 style: const TextStyle(fontSize: 18, fontFamily: 'Cairo'),
               ),
             ),

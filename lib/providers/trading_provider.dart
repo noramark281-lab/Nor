@@ -1,33 +1,165 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+
+import '../models/trade_record.dart';
 import '../services/mexc_api_service.dart';
 
-class TradingProvider with ChangeNotifier {
-  MexcApiService? _apiService;
-  bool _isLive = true;
+class TradingProvider extends ChangeNotifier {
+  final MexcApiService _mexcApiService = MexcApiService();
 
-  bool get isLive => _isLive;
+  double balance = 10000.0;
+  bool loading = false;
+  String? error;
+  List<TradeRecord> openTrades = [];
+  List<TradeRecord> closedTrades = [];
+  List<String> availableStrategies = [
+    'Hybrid',
+    'Momentum',
+    'Breakout',
+    'SMA Crossover',
+    'MeanReversion',
+    'Heikin Ashi',
+    'Sentiment',
+  ];
+  String selectedStrategy = 'Hybrid';
+  String? lastSignal;
+  double totalProfit = 0.0;
+  bool isTrading = false;
+  int consecutiveLosses = 0;
 
-  void setApiKeys(String apiKey, String secretKey) {
-    _apiService = MexcApiService(apiKey: apiKey, secretKey: secretKey);
+  Future<void> placeTrade({
+    required String symbol,
+    required String side,
+    required double quantity,
+    required double price,
+  }) async {
+    loading = true;
+    error = null;
+    notifyListeners();
+
+    try {
+      final amount = quantity * price;
+      final trade = TradeRecord(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        symbol: symbol,
+        side: side.toUpperCase(),
+        amount: amount,
+        entryPrice: price,
+        enteredAt: DateTime.now(),
+        status: 'open',
+      );
+
+      openTrades.add(trade);
+      balance -= amount;
+      lastSignal = side.toUpperCase();
+      notifyListeners();
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> analyzeReal({
+    required String symbol,
+    required String strategy,
+  }) async {
+    loading = true;
+    error = null;
+    notifyListeners();
+
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      lastSignal =
+          strategy == 'Momentum' || strategy == 'Breakout' ? 'BUY' : 'SELL';
+      notifyListeners();
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> closeTrade(
+    String tradeId, {
+    double? closePrice,
+  }) async {
+    loading = true;
+    error = null;
+    notifyListeners();
+
+    try {
+      final index = openTrades.indexWhere((trade) => trade.id == tradeId);
+      if (index == -1) {
+        throw Exception('Trade not found');
+      }
+
+      final trade = openTrades[index];
+      final resolvedPrice = closePrice ?? trade.entryPrice;
+      final realizedProfit = trade.side.toUpperCase() == 'BUY'
+          ? resolvedPrice - trade.entryPrice
+          : trade.entryPrice - resolvedPrice;
+
+      final closedTrade = trade.copyWith(
+        status: 'closed',
+        closedAt: DateTime.now(),
+        profit: realizedProfit,
+      );
+
+      openTrades.removeAt(index);
+      closedTrades.add(closedTrade);
+
+      balance += trade.amount;
+      totalProfit += realizedProfit;
+
+      if (realizedProfit < 0) {
+        consecutiveLosses += 1;
+      } else {
+        consecutiveLosses = 0;
+      }
+
+      lastSignal = realizedProfit >= 0 ? 'BUY' : 'SELL';
+      notifyListeners();
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
+  }
+
+  void selectStrategy(String strategy) {
+    selectedStrategy = strategy;
     notifyListeners();
   }
 
-  Future<void> executeLiveTrade({
-    required String symbol,
-    required double price,
-    required int vol,
-    required int side,
-  }) async {
-    if (_apiService == null) {
-      throw Exception("مفاتيح API غير معينة");
+  Future<void> syncBalance() async {
+    loading = true;
+    notifyListeners();
+
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+    } finally {
+      loading = false;
+      notifyListeners();
     }
-    await _apiService!.placeOrder(
-      symbol: symbol,
-      price: price,
-      vol: vol,
-      side: side,
-      type: 5, // Market Order
-    );
+  }
+
+  void startAutoTrading() {
+    isTrading = true;
+    error = null;
+    notifyListeners();
+  }
+
+  void stopAutoTrading() {
+    isTrading = false;
     notifyListeners();
   }
 }

@@ -1,5 +1,8 @@
 class MexcFuturesConfig {
-  static const String defaultType = 'swap'; // عقود آجلة فقط
-  static const double fixedOrderSizeUsdt = 1.0; // حجم الطلب 1 دولار
-  static const int defaultLeverage = 1; // بدون رافعة مالية إضافية
+  static const String baseUrl = 'https://contract.mexc.com';
+  static const String webSocketUrl = 'wss://contract.mexc.com/ws';
+  
+  // ضبط التداول الحي كوضع افتراضي
+  static bool isTestnet = false;
+  static bool useMockData = false;
 }

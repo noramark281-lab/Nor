@@ -114,6 +114,47 @@ jobs:
             exit 1
           }
 
+      - name: Bundle MSVC runtime DLLs
+        shell: pwsh
+        run: |
+          $buildDir = "build\windows\x64\runner\Release"
+          
+          # These are the Visual C++ Redistributable DLLs that users need
+          # to have installed. We bundle them so the app works without
+          # requiring a separate VC++ Redist installation.
+          $dlls = @(
+            "MSVCP140.dll",
+            "VCRUNTIME140.dll",
+            "VCRUNTIME140_1.dll"
+          )
+          
+          foreach ($dll in $dlls) {
+            $systemPath = "C:\Windows\System32\$dll"
+            if (Test-Path $systemPath) {
+              Copy-Item $systemPath -Destination $buildDir -Force
+              Write-Host "Bundled: $dll"
+            } else {
+              Write-Host "WARNING: $dll not found in System32 - searching VCToolsInstallDir"
+              # Try to find it from the MSVC toolchain
+              $vctools = [System.Environment]::GetEnvironmentVariable("VCToolsInstallDir")
+              if ($vctools) {
+                $altPath = Get-ChildItem -Path $vctools -Recurse -Filter $dll -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($altPath) {
+                  Copy-Item $altPath.FullName -Destination $buildDir -Force
+                  Write-Host "Bundled from VCTools: $dll"
+                } else {
+                  Write-Host "ERROR: Could not find $dll anywhere!"
+                }
+              } else {
+                Write-Host "ERROR: VCToolsInstallDir not set, could not find $dll"
+              }
+            }
+          }
+          
+          Write-Host ""
+          Write-Host "Final Release directory contents:"
+          Get-ChildItem $buildDir | ForEach-Object { Write-Host "  $($_.Name)  ($($_.Length) bytes)" }
+
       - name: Package as ZIP
         shell: pwsh
         run: |
@@ -145,6 +186,7 @@ jobs:
             3. شغّل Nor.exe
             
             متطلبات: Windows 10/11 64-bit
+            ✅ يتضمن مكتبات MSVC اللازمة (لا حاجة لتثبيت VC++ Redist)
           draft: false
           prerelease: false
         env:

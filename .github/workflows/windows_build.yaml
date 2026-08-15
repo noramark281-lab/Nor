@@ -11,7 +11,7 @@ on:
 
 jobs:
   build-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     permissions:
       contents: write
     
@@ -24,6 +24,11 @@ jobs:
         with:
           flutter-version: '3.24.5'
           channel: 'stable'
+
+      - name: Setup Visual Studio C++ Build Tools
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
       - name: Verify Flutter installation
         run: |
@@ -79,10 +84,6 @@ jobs:
 
       - name: Get dependencies
         run: flutter pub get
-
-      - name: Analyze code
-        run: flutter analyze --no-pub
-        continue-on-error: true
 
       - name: Build Windows EXE
         run: flutter build windows --release

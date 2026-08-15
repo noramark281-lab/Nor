@@ -12,74 +12,93 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.24.0'
-          channel: 'stable'
+          channel: stable
+          cache: true
 
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Static analysis
+        run: flutter analyze
+
       - name: Build APK
         run: flutter build apk --release
+
+      - name: Verify APK output
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          test -s "$APK"
+          echo "APK_PATH=$APK"
+          ls -lh "$APK"
+          file "$APK"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
 
       - name: Get version
         id: version
+        shell: bash
         run: |
-          VERSION=$(grep 'version:' pubspec.yaml | head -n 1 | awk '{print $2}')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          VERSION=$(awk '/^version:/{print $2; exit}' pubspec.yaml)
+          test -n "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create Release with unique tag
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
+          set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
           TAG="v${VERSION}-r${{ github.run_number }}"
           APK="build/app/outputs/flutter-apk/app-release.apk"
 
-          # Create DRAFT release first (not immutable until published)
-          RELEASE_JSON=$(curl -s -X POST \
-            -H "Authorization: token $GITHUB_TOKEN" \
+          RELEASE_JSON=$(curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/json" \
             "https://api.github.com/repos/${{ github.repository }}/releases" \
-            -d "{\"tag_name\":\"$TAG\",\"name\":\"Release v$VERSION (build ${{ github.run_number }})\",\"body\":\"APK release for version $VERSION\",\"draft\":true,\"prerelease\":false}")
+            -d "{\"tag_name\":\"$TAG\",\"name\":\"Release v$VERSION (build ${{ github.run_number }})\",\"body\":\"Verified Flutter release APK for version $VERSION\",\"draft\":true,\"prerelease\":false}")
 
           RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.id // empty')
           UPLOAD_URL=$(echo "$RELEASE_JSON" | jq -r '.upload_url // empty' | sed 's/{?name,label}//')
+          test -n "$RELEASE_ID"
+          test -n "$UPLOAD_URL"
 
-          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "null" ]; then
-            echo "Failed to create release"
-            echo "$RELEASE_JSON"
-            exit 1
-          fi
-
-          echo "Created draft release $RELEASE_ID"
-
-          # Upload APK to draft release
           FILENAME=$(basename "$APK")
-          UPLOAD_RESULT=$(curl -s -X POST \
-            -H "Authorization: token $GITHUB_TOKEN" \
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/vnd.android.package-archive" \
             "${UPLOAD_URL}?name=${FILENAME}" \
-            --data-binary "@$APK")
+            --data-binary "@$APK"
 
-          echo "Upload result: $UPLOAD_RESULT"
-
-          # Publish the release (make it non-draft)
-          curl -s -X PATCH \
-            -H "Authorization: token $GITHUB_TOKEN" \
+          curl --fail-with-body -sS -X PATCH \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/json" \
             "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID" \
             -d '{"draft":false}'

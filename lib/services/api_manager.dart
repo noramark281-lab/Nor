@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:crypto/crypto.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/constants.dart';
 
 /// ═══════════════════════════════════════════════════════════════════
@@ -15,16 +15,14 @@ import '../utils/constants.dart';
 ///   - POST → paramString = request body JSON string
 ///   - timestamp = milliseconds since epoch
 ///
+/// Uses SharedPreferences for cross-platform storage (Android, iOS, Windows, macOS, Linux)
+///
 class MexcApiManager {
   static final MexcApiManager _instance = MexcApiManager._internal();
   factory MexcApiManager() => _instance;
   MexcApiManager._internal();
 
-  // ── Secure Storage ──────────────────────────────────────────────
-  static const _secureStorage = FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-  );
-
+  // ── SharedPreferences (cross-platform including Windows) ────────
   static const _kApiKey = 'mexc_api_key';
   static const _kSecretKey = 'mexc_secret_key';
 
@@ -39,8 +37,9 @@ class MexcApiManager {
 
   // ── Initialization ──────────────────────────────────────────────
   Future<void> initialize() async {
-    _apiKey = await _secureStorage.read(key: _kApiKey);
-    _secretKey = await _secureStorage.read(key: _kSecretKey);
+    final prefs = await SharedPreferences.getInstance();
+    _apiKey = prefs.getString(_kApiKey);
+    _secretKey = prefs.getString(_kSecretKey);
 
     // Fallback to build-time dart-define values (CI/CD / GitHub Actions)
     if (_apiKey == null || _apiKey!.isEmpty) {
@@ -58,15 +57,17 @@ class MexcApiManager {
   Future<void> setCredentials({required String apiKey, required String secretKey}) async {
     _apiKey = apiKey.trim();
     _secretKey = secretKey.trim();
-    await _secureStorage.write(key: _kApiKey, value: _apiKey!);
-    await _secureStorage.write(key: _kSecretKey, value: _secretKey!);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kApiKey, _apiKey!);
+    await prefs.setString(_kSecretKey, _secretKey!);
     _isInitialized = true;
     debugPrint('[MexcApiManager] Credentials saved.');
   }
 
   Future<void> clearCredentials() async {
-    await _secureStorage.delete(key: _kApiKey);
-    await _secureStorage.delete(key: _kSecretKey);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kApiKey);
+    await prefs.remove(_kSecretKey);
     _apiKey = null;
     _secretKey = null;
     _isInitialized = false;
@@ -142,8 +143,6 @@ class MexcApiManager {
   /// Returns true if API call succeeds, false otherwise.
   Future<bool> testConnection() async {
     try {
-      // Use a lightweight authenticated endpoint
-      final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
       final headers = buildAuthHeaders(method: 'GET', queryString: '');
       debugPrint('[MexcApiManager] Test connection headers ready.');
       return headers.isNotEmpty;

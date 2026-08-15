@@ -116,7 +116,7 @@ export default function TradingScreen({
 
         if (isWon) {
           setBalance((b) => b + contract.amount + profit)
-          setSuccess(`🎉 تهانينا! ربحت صفقة ${contract.side === 'UP' ? 'أعلى ↗' : 'أدنى ↘'} (+$${profit.toFixed(2)} USDT)`)
+          setSuccess(`🎉 تهانينا! ربحت صفقة ${contract.side === 'UP' ? 'أعلى ↗' : 'أدنى ↘'} (+${profit.toFixed(2)} USDT)`)
         } else {
           setError(`انتهى عقد ${contract.side === 'UP' ? 'أعلى ↗' : 'أدنى ↘'} بدون ربح`)
         }
@@ -136,7 +136,7 @@ export default function TradingScreen({
     setSuccess('')
 
     if (balance < tradeAmount) {
-      setError(`الرصيد المتاح ($${balance.toFixed(4)}) غير كافٍ لفتح عقد بقيمة $${tradeAmount} USDT`)
+      setError(`الرصيد المتاح (${balance.toFixed(4)}) غير كافٍ لفتح عقد بقيمة ${tradeAmount} USDT`)
       return
     }
 

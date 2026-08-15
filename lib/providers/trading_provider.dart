@@ -368,7 +368,7 @@ class TradingProvider extends ChangeNotifier {
     }
 
     if (_balance < _tradeAmount) {
-      _lastError = 'الرصيد المتاح (\$$_balance) غير كافٍ لتنفيذ العقد بقيمة \$$_tradeAmount USDT';
+      _lastError = 'الرصيد المتاح (\$_balance) غير كافٍ لتنفيذ العقد بقيمة \$_tradeAmount USDT';
       return false;
     }
 

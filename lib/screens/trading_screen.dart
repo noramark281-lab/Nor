@@ -151,7 +151,7 @@ class _TradingScreenState extends State<TradingScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                provider.currentPrice > 0 ? '\$${provider.currentPrice.toStringAsFixed(2)}' : 'جاري التحميل...',
+                provider.currentPrice > 0 ? '\${provider.currentPrice.toStringAsFixed(2)}' : 'جاري التحميل...',
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -358,7 +358,7 @@ class _TradingScreenState extends State<TradingScreen> {
                 style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.bold),
               ),
               Text(
-                'مبلغ العقد: \$${provider.tradeAmount.toStringAsFixed(1)} USDT',
+                'مبلغ العقد: \${provider.tradeAmount.toStringAsFixed(1)} USDT',
                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
               ),
             ],
@@ -386,7 +386,7 @@ class _TradingScreenState extends State<TradingScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            '\$${amt.toInt()}',
+                            '\${amt.toInt()}',
                             style: TextStyle(
                               color: isSel ? Colors.black : Colors.white,
                               fontWeight: FontWeight.bold,
@@ -552,13 +552,13 @@ class _TradingScreenState extends State<TradingScreen> {
                           Icon(isUp ? Icons.arrow_upward : Icons.arrow_downward, color: isUp ? const Color(0xFF00C087) : const Color(0xFFFF4D4F), size: 16),
                           const SizedBox(width: 4),
                           Text(
-                            '${isUp ? "أعلى ↗" : "أدنى ↘"} - \$${contract.amount} USDT',
+                            '${isUp ? "أعلى ↗" : "أدنى ↘"} - \${contract.amount} USDT',
                             style: TextStyle(fontWeight: FontWeight.bold, color: isUp ? const Color(0xFF00C087) : const Color(0xFFFF4D4F)),
                           ),
                         ],
                       ),
                       Text(
-                        'سعر الدخول: \$${contract.strikePrice.toStringAsFixed(2)}',
+                        'سعر الدخول: \${contract.strikePrice.toStringAsFixed(2)}',
                         style: const TextStyle(fontSize: 11, color: Colors.grey),
                       ),
                     ],
@@ -606,9 +606,9 @@ class _TradingScreenState extends State<TradingScreen> {
           children: [
             Text('الزوج: BTC/USDT', style: TextStyle(color: Colors.grey.shade300)),
             Text('المدة: ${provider.selectedDurationMinutes} دقيقة', style: TextStyle(color: Colors.grey.shade300)),
-            Text('المبلغ: \$${provider.tradeAmount.toStringAsFixed(2)} USDT', style: TextStyle(color: Colors.grey.shade300)),
+            Text('المبلغ: \${provider.tradeAmount.toStringAsFixed(2)} USDT', style: TextStyle(color: Colors.grey.shade300)),
             Text('نسبة الدفع: 80%', style: const TextStyle(color: Color(0xFF00C087), fontWeight: FontWeight.bold)),
-            Text('العائد الإجمالي عند الربح: \$${provider.potentialPayout.toStringAsFixed(2)} USDT', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text('العائد الإجمالي عند الربح: \${provider.potentialPayout.toStringAsFixed(2)} USDT', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(8),

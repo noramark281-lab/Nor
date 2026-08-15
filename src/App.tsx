@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Chrome as Home, ChartCandlestick as CandlestickChart, Bot, History, Settings as SettingsIcon } from 'lucide-react'
 import { db } from './lib/supabase'
 import HomeScreen from './screens/HomeScreen'

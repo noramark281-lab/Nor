@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Wallet, TrendingUp, Bot, ArrowLeftRight, CircleAlert as AlertCircle, Zap } from 'lucide-react'
 import { mexcApi, db } from '../lib/supabase'
 import { SYMBOLS, COLORS, MAX_TRADE_AMOUNT } from '../lib/constants'

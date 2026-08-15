@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Trash2, History as HistoryIcon, Bot } from 'lucide-react'
 import { db } from '../lib/supabase'
 

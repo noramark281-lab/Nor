@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { ArrowUpRight, ArrowDownRight, CircleAlert as AlertCircle, CircleCheck as CheckCircle, RefreshCw, Clock, Wallet } from 'lucide-react'
 import { mexcApi } from '../lib/supabase'
 import type { AppSettings } from '../App'

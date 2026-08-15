@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Bot, Play, Square, CircleAlert as AlertCircle, Activity } from 'lucide-react'
 import { mexcApi, db } from '../lib/supabase'
 import { executeStrategy } from '../lib/strategies'

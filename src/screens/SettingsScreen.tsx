@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Key, Save, Eye, EyeOff, CircleCheck as CheckCircle, CircleAlert as AlertCircle, Shield } from 'lucide-react'
 import { db, mexcApi } from '../lib/supabase'
 import { MAX_TRADE_AMOUNT, MIN_TRADE_AMOUNT } from '../lib/constants'

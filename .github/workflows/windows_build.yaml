@@ -86,7 +86,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Windows EXE
-        run: flutter build windows --release
+        run: flutter build windows --release --dart-define=MEXC_API_KEY="${{ secrets.MEXC_API_KEY }}" --dart-define=MEXC_SECRET_KEY="${{ secrets.MEXC_SECRET_KEY }}" --dart-define=SERVER_IP="${{ secrets.SERVER_IP }}"
 
       - name: Verify build output
         shell: pwsh

@@ -32,6 +32,17 @@ class AppConstants {
   /// مفاتيح API المُضمَّنة في وقت البناء (Build-time) عبر --dart-define
   static const String buildTimeApiKey = String.fromEnvironment('MEXC_API_KEY');
   static const String buildTimeApiSecret = String.fromEnvironment('MEXC_SECRET_KEY');
+  static const String serverIp = String.fromEnvironment('SERVER_IP');
+
+  static String get backendUrl {
+    if (serverIp.isNotEmpty) {
+      if (serverIp.startsWith('http://') || serverIp.startsWith('https://')) {
+        return serverIp;
+      }
+      return 'http://$serverIp:8000';
+    }
+    return defaultBackendUrl;
+  }
 
   /// إعدادات التداول الافتراضية
   static const double defaultTradeAmount = 5.0;

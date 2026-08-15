@@ -28,7 +28,23 @@ jobs:
 
       - name: Generate Windows platform files
         shell: pwsh
-        run: flutter create --platforms=windows .
+        run: |
+          Copy-Item pubspec.yaml pubspec.yaml.backup -Force
+          try {
+            $lines = Get-Content pubspec.yaml
+            $updated = $false
+            $lines = $lines | ForEach-Object {
+              if (-not $updated -and $_ -match '^name:\s*') {
+                $updated = $true
+                'name: nor'
+              } else { $_ }
+            }
+            if (-not $updated) { throw 'Could not find package name in pubspec.yaml' }
+            Set-Content pubspec.yaml $lines -Encoding utf8
+            flutter create --platforms=windows .
+          } finally {
+            Move-Item pubspec.yaml.backup pubspec.yaml -Force
+          }
 
       - name: Install dependencies
         run: flutter pub get

@@ -1,69 +1,41 @@
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/event_contract.dart';
 
+/// DatabaseService - تخزين سجل التداولات محلياً عبر SharedPreferences
+/// يعمل على جميع المنصات (Android, Windows, iOS, Web, macOS, Linux)
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
   factory DatabaseService() => _instance;
   DatabaseService._internal();
 
-  static Database? _database;
-
-  Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _initDB();
-    return _database!;
-  }
-
-  Future<Database> _initDB() async {
-    String path = join(await getDatabasesPath(), 'trading_history.db');
-    return await openDatabase(
-      path,
-      version: 1,
-      onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            symbol TEXT,
-            side TEXT,
-            amount REAL,
-            durationMinutes INTEGER,
-            expiryTime TEXT,
-            status TEXT,
-            payoutPercent REAL
-          )
-        ''');
-      },
-    );
-  }
+  static const String _kTradesKey = 'mexc_trade_history_v1';
 
   Future<void> insertTrade(EventContract contract) async {
-    final db = await database;
-    await db.insert('history', {
-      'symbol': contract.symbol,
-      'side': contract.side,
-      'amount': contract.amount,
-      'durationMinutes': contract.durationMinutes,
-      'expiryTime': contract.expiryTime.toIso8601String(),
-      'status': contract.status,
-      'payoutPercent': contract.payoutPercent,
-    });
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_kTradesKey) ?? [];
+    list.insert(0, jsonEncode(contract.toJson()));
+    if (list.length > 200) {
+      list.removeRange(200, list.length);
+    }
+    await prefs.setStringList(_kTradesKey, list);
   }
 
   Future<List<EventContract>> getTradeHistory() async {
-    final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query('history', orderBy: 'id DESC');
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_kTradesKey) ?? [];
+    return list.map((item) {
+      try {
+        final map = jsonDecode(item) as Map<String, dynamic>;
+        return EventContract.fromJson(map);
+      } catch (_) {
+        return null;
+      }
+    }).whereType<EventContract>().toList();
+  }
 
-    return List.generate(maps.length, (i) {
-      return EventContract(
-        symbol: maps[i]['symbol'],
-        side: maps[i]['side'],
-        amount: maps[i]['amount'],
-        durationMinutes: maps[i]['durationMinutes'],
-        expiryTime: DateTime.parse(maps[i]['expiryTime']),
-        status: maps[i]['status'],
-        payoutPercent: maps[i]['payoutPercent'],
-      );
-    });
+  Future<void> clearHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kTradesKey);
   }
 }

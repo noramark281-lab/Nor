@@ -1,11 +1,33 @@
 /// الثوابت والإعدادات العامة
 class AppConstants {
   static const String appName = 'MEXC Event Trader';
-  static const String appVersion = '1.6.1+17';
+  static const String appVersion = '1.8.0+19';
 
   /// روابط MEXC API الإنتاجية الحقيقية
   static const String mexcBaseUrl = 'https://contract.mexc.com';
   static const String mexcWssUrl = 'wss://wss.mexc.com/ws';
+  static const String mexcWebSocket = 'wss://wbs.mexc.com/ws';
+  static const String defaultBackendUrl = 'http://localhost:8000';
+
+  /// العملات المدعومة
+  static const List<String> symbols = [
+    'BTCUSDT',
+    'ETHUSDT',
+    'SOLUSDT',
+    'XRPUSDT',
+    'DOGEUSDT',
+    'BNBUSDT',
+    'ADAUSDT',
+  ];
+
+  /// الاستراتيجيات
+  static const Map<String, String> strategyNames = {
+    'scalping': 'سكالبينغ سريع (Scalping)',
+    'grid': 'تداول الشبكة (Grid Trading)',
+    'trend': 'تتبع الاتجاه (Trend Following)',
+    'dca': 'متوسط التكلفة (DCA)',
+    'ai': 'تحليل ذكي (AI Strategy)',
+  };
 
   /// مفاتيح API المُضمَّنة في وقت البناء (Build-time) عبر --dart-define
   static const String buildTimeApiKey = String.fromEnvironment('MEXC_API_KEY');
@@ -22,3 +44,6 @@ class AppConstants {
   static const int rsiPeriod = 14;
   static const int bollingerPeriod = 20;
 }
+
+typedef Constants = AppConstants;
+

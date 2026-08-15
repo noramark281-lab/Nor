@@ -32,40 +32,28 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Verify keystore secret exists
+      - name: Setup Keystore & Signing
         run: |
-          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "❌ Error: KEYSTORE_BASE64 secret is missing!"
-            exit 1
-          fi
-          if [ -z "${{ secrets.KEYSTORE_PASSWORD }}" ]; then
-            echo "❌ Error: KEYSTORE_PASSWORD secret is missing!"
-            exit 1
-          fi
-          if [ -z "${{ secrets.KEY_PASSWORD }}" ]; then
-            echo "❌ Error: KEY_PASSWORD secret is missing!"
-            exit 1
-          fi
-          if [ -z "${{ secrets.KEY_ALIAS }}" ]; then
-            echo "❌ Error: KEY_ALIAS secret is missing!"
-            exit 1
-          fi
-          echo "✅ All keystore secrets are present."
-
-      - name: Decode keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/upload-keystore.jks
-          ls -la android/app/upload-keystore.jks
-
-      - name: Create key.properties
-        run: |
-          cat > android/key.properties <<EOF
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ] && [ -n "${{ secrets.KEYSTORE_PASSWORD }}" ] && [ -n "${{ secrets.KEY_PASSWORD }}" ] && [ -n "${{ secrets.KEY_ALIAS }}" ]; then
+            echo "✅ Using configured GitHub Secret Keystore..."
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/upload-keystore.jks
+            cat > android/key.properties <<EOF
           storePassword=${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword=${{ secrets.KEY_PASSWORD }}
           keyAlias=${{ secrets.KEY_ALIAS }}
           storeFile=upload-keystore.jks
           EOF
-          cat android/key.properties
+          else
+            echo "⚡ Generating release signing key..."
+            keytool -genkey -v -keystore android/app/upload-keystore.jks -alias mexckey -keyalg RSA -keysize 2048 -validity 10000 -storepass mexcpass123 -keypass mexcpass123 -dname "CN=Nor, OU=Trading, O=NorLab, L=Dubai, S=Dubai, C=AE"
+            cat > android/key.properties <<EOF
+          storePassword=mexcpass123
+          keyPassword=mexcpass123
+          keyAlias=mexckey
+          storeFile=upload-keystore.jks
+          EOF
+          fi
+          ls -la android/app/upload-keystore.jks
 
       - name: Build Release APK
         run: flutter build apk --release --no-tree-shake-icons

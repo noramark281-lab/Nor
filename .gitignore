@@ -19,6 +19,7 @@ captures/
 # Dependencies & Build
 node_modules/
 dist/
+.vite/
 .env
 *.env
 android/app/upload-keystore.jks

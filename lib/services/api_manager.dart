@@ -34,6 +34,7 @@ class MexcApiManager {
   bool get isInitialized => _isInitialized;
   String? get apiKey => _apiKey;
   String? get secretKey => _secretKey;
+  String? get apiSecret => _secretKey;
 
   // ── Initialization ──────────────────────────────────────────────
   Future<void> initialize() async {

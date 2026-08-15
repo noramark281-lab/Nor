@@ -117,4 +117,18 @@ class SecureStorageService {
       'apiSecret': await getApiSecret(),
     };
   }
+
+  // ── Backend URL Storage ──────────────────────────────────────────
+
+  static Future<void> saveBackendUrl(String url) async {
+    final s = instance;
+    await s.init();
+    await s._prefs!.setString('backend_url', url);
+  }
+
+  static Future<String?> getBackendUrl() async {
+    final s = instance;
+    await s.init();
+    return s._prefs!.getString('backend_url');
+  }
 }

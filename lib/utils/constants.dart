@@ -1,47 +1,24 @@
-class Constants {
-  static const List<String> symbols = [
-    'BTCUSDT',
-    'ETHUSDT',
-    'BNBUSDT',
-    'XRPUSDT',
-    'SOLUSDT',
-    'ADAUSDT',
-    'DOGEUSDT',
-    'DOTUSDT',
-    'MATICUSDT',
-    'LINKUSDT',
-    'LTCUSDT',
-    'AVAXUSDT',
-  ];
+/// الثوابت والإعدادات العامة
+class AppConstants {
+  static const String appName = 'MEXC Event Trader';
+  static const String appVersion = '1.6.1+17';
 
-  static const List<String> timeframes = [
-    '1m',
-    '5m',
-    '15m',
-    '1h',
-    '4h',
-    '1d',
-  ];
+  /// روابط MEXC API الإنتاجية الحقيقية
+  static const String mexcBaseUrl = 'https://contract.mexc.com';
+  static const String mexcWssUrl = 'wss://wss.mexc.com/ws';
 
-  static const Map<String, String> strategyNames = {
-    'scalping': 'المضاربة السريعة (Scalping)',
-    'mean_reversion': 'الارتداد المتوسط (Mean Reversion)',
-    'rsi': 'مؤشر القوة النسبية (RSI)',
-    'trend_following': 'اتباع الاتجاه (Trend Following)',
-    'random': 'عشوائي (للاختبار)',
-  };
+  /// مفاتيح API المُضمَّنة في وقت البناء (Build-time) عبر --dart-define
+  static const String buildTimeApiKey = String.fromEnvironment('MEXC_API_KEY');
+  static const String buildTimeApiSecret = String.fromEnvironment('MEXC_SECRET_KEY');
 
-  static const String mexcApiBase = 'https://api.mexc.com';
-  static const String mexcWebSocket = 'wss://wbs.mexc.com/ws';
+  /// إعدادات التداول الافتراضية
+  static const double defaultTradeAmount = 5.0;
+  static const double maxRiskPerTrade = 0.02; // 2% من الرصيد
+  static const int maxConsecutiveLosses = 3;
 
-  // === REAL TRADING LIMITS ===
-  // MAX $1 per trade - enforced in UI and backend
-  static const double defaultPayout = 0.85;
-  static const double minTradeAmount = 1.0;
-  static const double maxTradeAmount = 1.0;  // $1 CAP
-  static const double maxDailyTradeAmount = 50.0;  // $50 daily max
-  static const int maxDailyTrades = 50;
-
-  // Backend config
-  static const String defaultBackendUrl = 'https://mexc-trading-bot.onrender.com';
+  /// فترات الاستراتيجيات
+  static const int smaShortPeriod = 5;
+  static const int smaLongPeriod = 20;
+  static const int rsiPeriod = 14;
+  static const int bollingerPeriod = 20;
 }

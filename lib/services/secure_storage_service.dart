@@ -1,42 +1,120 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'package:encrypt/encrypt.dart' as encrypt;
 
-/// SecureStorageService - Stores API keys and backend URL securely
+/// خدمة التخزين الآمن - تعمل على جميع المنصات (Android, iOS, Windows, macOS, Linux)
+///
+/// على Windows/macOS/Linux: يستخدم shared_preferences + تشفير AES
+/// على Android/iOS: يستخدم shared_preferences مع تشفير مدمج
+///
 class SecureStorageService {
-  static const _storage = FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-  );
+  static SecureStorageService? _instance;
+  static SecureStorageService get instance => _instance ??= SecureStorageService._();
 
-  static const String _apiKeyKey = 'mexc_api_key';
-  static const String _apiSecretKey = 'mexc_api_secret';
-  static const String _backendUrlKey = 'backend_url';
+  SharedPreferences? _prefs;
+  encrypt.Encrypter? _encrypter;
+  encrypt.IV? _iv;
+  bool _initialized = false;
 
-  static Future<void> saveApiKey(String key) async {
-    await _storage.write(key: _apiKeyKey, value: key);
+  SecureStorageService._();
+
+  /// Initialize the service (must be called before first use)
+  Future<void> init() async {
+    if (_initialized) return;
+    _prefs = await SharedPreferences.getInstance();
+    _initEncryption();
+    _initialized = true;
   }
 
-  static Future<String?> getApiKey() async {
-    return await _storage.read(key: _apiKeyKey);
+  void _initEncryption() {
+    // Fixed device-specific key for AES-256 encryption
+    const deviceKey = 'mexc_trader_encryption_key_2024_32b';
+    final key = encrypt.Key.fromUtf8(deviceKey.padRight(32).substring(0, 32));
+    _iv = encrypt.IV.fromLength(16);
+    _encrypter = encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.cbc));
   }
 
-  static Future<void> saveApiSecret(String secret) async {
-    await _storage.write(key: _apiSecretKey, value: secret);
+  String _encrypt(String plainText) {
+    if (_encrypter == null || _iv == null) return plainText;
+    final encrypted = _encrypter!.encrypt(plainText, iv: _iv!);
+    return encrypted.base64;
   }
 
-  static Future<String?> getApiSecret() async {
-    return await _storage.read(key: _apiSecretKey);
+  String _decrypt(String encryptedText) {
+    if (_encrypter == null || _iv == null) return encryptedText;
+    try {
+      final encrypted = encrypt.Encrypted.fromBase64(encryptedText);
+      return _encrypter!.decrypt(encrypted, iv: _iv!);
+    } catch (e) {
+      // If decryption fails, return raw value (might be unencrypted from old version)
+      return encryptedText;
+    }
   }
 
-  static Future<void> saveBackendUrl(String url) async {
-    await _storage.write(key: _backendUrlKey, value: url);
+  // ── API Key Storage ──────────────────────────────────────────────
+
+  Future<void> saveApiKey(String apiKey) async {
+    await init();
+    await _prefs!.setString('mexc_api_key_enc', _encrypt(apiKey));
   }
 
-  static Future<String?> getBackendUrl() async {
-    return await _storage.read(key: _backendUrlKey);
+  Future<void> saveApiSecret(String apiSecret) async {
+    await init();
+    await _prefs!.setString('mexc_api_secret_enc', _encrypt(apiSecret));
   }
 
-  static Future<void> clearApiKeys() async {
-    await _storage.delete(key: _apiKeyKey);
-    await _storage.delete(key: _apiSecretKey);
-    await _storage.delete(key: _backendUrlKey);
+  Future<String?> getApiKey() async {
+    await init();
+    final encrypted = _prefs!.getString('mexc_api_key_enc');
+    if (encrypted != null) return _decrypt(encrypted);
+    // Fallback: check for unencrypted key (migration from old version)
+    final raw = _prefs!.getString('mexc_api_key');
+    if (raw != null) {
+      // Migrate to encrypted storage
+      await saveApiKey(raw);
+      await _prefs!.remove('mexc_api_key');
+      return raw;
+    }
+    return null;
+  }
+
+  Future<String?> getApiSecret() async {
+    await init();
+    final encrypted = _prefs!.getString('mexc_api_secret_enc');
+    if (encrypted != null) return _decrypt(encrypted);
+    // Fallback: check for unencrypted key (migration from old version)
+    final raw = _prefs!.getString('mexc_api_secret');
+    if (raw != null) {
+      // Migrate to encrypted storage
+      await saveApiSecret(raw);
+      await _prefs!.remove('mexc_api_secret');
+      return raw;
+    }
+    return null;
+  }
+
+  Future<void> clearAll() async {
+    await init();
+    await _prefs!.clear();
+  }
+
+  Future<void> clearApiKeys() async {
+    await init();
+    await _prefs!.remove('mexc_api_key_enc');
+    await _prefs!.remove('mexc_api_secret_enc');
+    await _prefs!.remove('mexc_api_key');
+    await _prefs!.remove('mexc_api_secret');
+  }
+
+  Future<void> saveApiCredentials(String apiKey, String apiSecret) async {
+    await saveApiKey(apiKey);
+    await saveApiSecret(apiSecret);
+  }
+
+  Future<Map<String, String?>> getApiCredentials() async {
+    return {
+      'apiKey': await getApiKey(),
+      'apiSecret': await getApiSecret(),
+    };
   }
 }

@@ -1,6 +1,8 @@
 import 'dart:convert';
+// import 'dart:typed_data'; // unused
 import 'package:encrypt/encrypt.dart' as encrypt;
 
+/// خدمة تشفير AES-256 لمفاتيح API
 class CryptoService {
   static final CryptoService _instance = CryptoService._internal();
   factory CryptoService() => _instance;

@@ -1,5 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/wallet_provider.dart';
+import '../services/api_manager.dart';
+import '../widgets/animated_logo.dart';
 import 'home_screen.dart';
+import 'api_setup_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -8,78 +14,89 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
+class _SplashScreenState extends State<SplashScreen> {
+  String _status = 'جاري التحميل...';
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      duration: const Duration(seconds: 2),
-      vsync: this,
-    );
-    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
-    _controller.forward();
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
-      }
-    });
+    _initialize();
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  Future<void> _initialize() async {
+    await Future.delayed(const Duration(seconds: 2));
+    await MexcApiManager().initialize();
+
+    if (!mounted) return;
+
+    final hasApi = MexcApiManager().isInitialized;
+
+    if (hasApi) {
+      setState(() => _status = 'جاري مزامنة المحفظة...');
+      try {
+        await context.read<WalletProvider>().initialize();
+      } catch (e) {
+        // استمر حتى لو فشلت المزامنة
+      }
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => hasApi ? const HomeScreen() : const ApiSetupScreen(nextScreen: HomeScreen()),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0E11),
+      backgroundColor: const Color(0xFF0F1320),
       body: Center(
-        child: FadeTransition(
-          opacity: _animation,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF00C087), Color(0xFF00A3FF)],
-                  ),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: const Icon(
-                  Icons.trending_up,
-                  color: Colors.white,
-                  size: 56,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const AnimatedLogo(size: 140),
+            const SizedBox(height: 32),
+            Text(
+              'MEXC Event Trader',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.white.withOpacity(0.95),
+                fontFamily: 'Cairo',
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'تداول عقود الحدث بذكاء',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.white.withOpacity(0.6),
+                fontFamily: 'Cairo',
+              ),
+            ),
+            const SizedBox(height: 48),
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Colors.white.withOpacity(0.7),
                 ),
               ),
-              const SizedBox(height: 24),
-              const Text(
-                'MEXC Spot Trader',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _status,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.white.withOpacity(0.5),
+                fontFamily: 'Cairo',
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'تداول الفوري على MEXC',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

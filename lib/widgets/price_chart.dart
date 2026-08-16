@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../models/candle_data.dart';
 import '../services/mexc_api_service.dart';
+import '../services/mexc_klines_extension.dart';
 
-/// Interval presets matching MEXC UI
+/// Interval presets supported by the documented MEXC Spot V3 API.
 class ChartInterval {
   final String label;
   final String apiValue;
@@ -10,12 +12,12 @@ class ChartInterval {
 }
 
 const List<ChartInterval> kIntervals = [
-  ChartInterval('1m', 'Min1'),
-  ChartInterval('5m', 'Min5'),
-  ChartInterval('15m', 'Min15'),
-  ChartInterval('1h', 'Hour1'),
-  ChartInterval('4h', 'Hour4'),
-  ChartInterval('1d', 'Day1'),
+  ChartInterval('1m', '1m'),
+  ChartInterval('5m', '5m'),
+  ChartInterval('15m', '15m'),
+  ChartInterval('1h', '60m'),
+  ChartInterval('4h', '4h'),
+  ChartInterval('1d', '1d'),
 ];
 
 class PriceChart extends StatefulWidget {
@@ -47,7 +49,10 @@ class _PriceChartState extends State<PriceChart> {
 
   Future<void> _loadData() async {
     if (!mounted) return;
-    setState(() { _loading = true; _error = ''; });
+    setState(() {
+      _loading = true;
+      _error = '';
+    });
     try {
       final data = await MexcApiService().getKlines(
         widget.symbol,
@@ -55,27 +60,32 @@ class _PriceChartState extends State<PriceChart> {
         limit: 120,
       );
       if (!mounted) return;
-      setState(() { _candles = data; _loading = false; });
+      setState(() {
+        _candles = data;
+        _loading = false;
+      });
     } catch (e) {
       if (!mounted) return;
-      setState(() { _error = e.toString(); _loading = false; });
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final bg = const Color(0xFF0F1320);
-    final card = const Color(0xFF1A1D2D);
-    final accent = const Color(0xFF2D5AF5);
-    final bullish = const Color(0xFF00B87A);
-    final bearish = const Color(0xFFFF4D4D);
-    final textColor = const Color(0xFF9DA3B4);
+    const bg = Color(0xFF0F1320);
+    const card = Color(0xFF1A1D2D);
+    const accent = Color(0xFF2D5AF5);
+    const bullish = Color(0xFF00B87A);
+    const bearish = Color(0xFFFF4D4D);
+    const textColor = Color(0xFF9DA3B4);
 
     return Container(
       color: bg,
       child: Column(
         children: [
-          // ── Interval selector ──
           Container(
             height: 36,
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -109,20 +119,16 @@ class _PriceChartState extends State<PriceChart> {
               },
             ),
           ),
-          // ── Price info bar ──
-          if (_candles.isNotEmpty)
-            _buildPriceInfo(_candles.last, bullish, bearish),
-          // ── Chart ──
+          if (_candles.isNotEmpty) _buildPriceInfo(_candles.last, bullish, bearish),
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF2D5AF5)))
+                ? const Center(child: CircularProgressIndicator(color: accent))
                 : _error.isNotEmpty
                     ? _buildError(_error)
                     : _candles.isEmpty
                         ? _buildError('No data available')
                         : _buildChart(context, card, bullish, bearish, textColor, accent),
           ),
-          // ── Volume bar ──
           if (_candles.isNotEmpty)
             SizedBox(
               height: 60,
@@ -141,23 +147,26 @@ class _PriceChartState extends State<PriceChart> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Row(
         children: [
-          Text('O', style: TextStyle(color: Colors.white54, fontSize: 11)),
+          const Text('O', style: TextStyle(color: Colors.white54, fontSize: 11)),
           const SizedBox(width: 4),
-          Text('${last.open.toStringAsFixed(2)}', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(last.open.toStringAsFixed(2), style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
           const SizedBox(width: 14),
-          Text('H', style: TextStyle(color: Colors.white54, fontSize: 11)),
+          const Text('H', style: TextStyle(color: Colors.white54, fontSize: 11)),
           const SizedBox(width: 4),
-          Text('${last.high.toStringAsFixed(2)}', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(last.high.toStringAsFixed(2), style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
           const SizedBox(width: 14),
-          Text('L', style: TextStyle(color: Colors.white54, fontSize: 11)),
+          const Text('L', style: TextStyle(color: Colors.white54, fontSize: 11)),
           const SizedBox(width: 4),
-          Text('${last.low.toStringAsFixed(2)}', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(last.low.toStringAsFixed(2), style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
           const SizedBox(width: 14),
-          Text('C', style: TextStyle(color: Colors.white54, fontSize: 11)),
+          const Text('C', style: TextStyle(color: Colors.white54, fontSize: 11)),
           const SizedBox(width: 4),
-          Text('${last.close.toStringAsFixed(2)}', style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700)),
+          Text(last.close.toStringAsFixed(2), style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700)),
           const SizedBox(width: 14),
-          Text('${change >= 0 ? '+' : ''}${change.toStringAsFixed(2)} (${changePct.toStringAsFixed(2)}%)', style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700)),
+          Text(
+            '${change >= 0 ? '+' : ''}${change.toStringAsFixed(2)} (${changePct.toStringAsFixed(2)}%)',
+            style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700),
+          ),
         ],
       ),
     );
@@ -166,13 +175,14 @@ class _PriceChartState extends State<PriceChart> {
   Widget _buildChart(BuildContext context, Color card, Color bullish, Color bearish, Color textColor, Color accent) {
     final minPrice = _candles.map((c) => c.low).reduce((a, b) => a < b ? a : b);
     final maxPrice = _candles.map((c) => c.high).reduce((a, b) => a > b ? a : b);
-    final padding = (maxPrice - minPrice) * 0.05;
+    final range = maxPrice - minPrice;
+    final padding = range == 0 ? maxPrice * 0.01 : range * 0.05;
     final minY = minPrice - padding;
     final maxY = maxPrice + padding;
 
-    // Build line chart for price trend + candlestick overlay using BarChart for body
     return LayoutBuilder(
       builder: (context, constraints) {
+        final width = (constraints.maxWidth / (_candles.length * 1.4)).clamp(1.5, 8.0).toDouble();
         return BarChart(
           BarChartData(
             alignment: BarChartAlignment.center,
@@ -183,8 +193,8 @@ class _PriceChartState extends State<PriceChart> {
               drawVerticalLine: true,
               horizontalInterval: (maxY - minY) / 5,
               verticalInterval: (_candles.length / 6).ceilToDouble(),
-              getDrawingHorizontalLine: (value) => FlLine(color: const Color(0xFF2A2D3E), strokeWidth: 0.5),
-              getDrawingVerticalLine: (value) => FlLine(color: const Color(0xFF2A2D3E), strokeWidth: 0.5),
+              getDrawingHorizontalLine: (value) => const FlLine(color: Color(0xFF2A2D3E), strokeWidth: 0.5),
+              getDrawingVerticalLine: (value) => const FlLine(color: Color(0xFF2A2D3E), strokeWidth: 0.5),
             ),
             titlesData: FlTitlesData(
               leftTitles: AxisTitles(
@@ -193,8 +203,9 @@ class _PriceChartState extends State<PriceChart> {
                   reservedSize: 60,
                   getTitlesWidget: (value, meta) {
                     if (value == meta.min || value == meta.max) return const SizedBox.shrink();
-                    final diff = (maxY - minY);
+                    final diff = maxY - minY;
                     final step = diff / 5;
+                    if (step <= 0) return const SizedBox.shrink();
                     final idx = ((value - minY) / step).round();
                     if (idx >= 0 && idx <= 5) {
                       return Text(
@@ -207,9 +218,9 @@ class _PriceChartState extends State<PriceChart> {
                   },
                 ),
               ),
-              rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             ),
             borderData: FlBorderData(show: false),
             barTouchData: BarTouchData(
@@ -233,14 +244,11 @@ class _PriceChartState extends State<PriceChart> {
             barGroups: _candles.asMap().entries.map((entry) {
               final i = entry.key;
               final c = entry.value;
-              final isUp = c.isBullish;
-              final color = isUp ? bullish : bearish;
-              final width = constraints.maxWidth / (_candles.length * 1.4);
+              final color = c.isBullish ? bullish : bearish;
               final isTapped = i == _tapIndex;
               return BarChartGroupData(
                 x: i,
                 barRods: [
-                  // Wick (full range from low to high)
                   BarChartRodData(
                     fromY: c.low,
                     toY: c.high,
@@ -248,12 +256,11 @@ class _PriceChartState extends State<PriceChart> {
                     width: 1,
                     borderRadius: BorderRadius.zero,
                   ),
-                  // Body (open to close)
                   BarChartRodData(
                     fromY: c.bodyBottom,
                     toY: c.bodyTop,
                     color: isTapped ? color.withOpacity(0.9) : color.withOpacity(0.85),
-                    width: width.clamp(1.5, 8.0),
+                    width: width,
                     borderRadius: BorderRadius.circular(1),
                     backDrawRodData: BackgroundBarChartRodData(
                       show: true,
@@ -273,15 +280,16 @@ class _PriceChartState extends State<PriceChart> {
 
   Widget _buildVolumeChart(Color bullish, Color bearish, Color textColor) {
     final maxVol = _candles.map((c) => c.volume).reduce((a, b) => a > b ? a : b);
+    final chartMax = maxVol > 0 ? maxVol * 1.2 : 1.0;
     return Padding(
       padding: const EdgeInsets.only(left: 60, right: 8, bottom: 4),
       child: BarChart(
         BarChartData(
           alignment: BarChartAlignment.center,
-          maxY: maxVol * 1.2,
+          maxY: chartMax,
           minY: 0,
-          gridData: FlGridData(show: false),
-          titlesData: FlTitlesData(
+          gridData: const FlGridData(show: false),
+          titlesData: const FlTitlesData(
             leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
             rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
             topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -316,9 +324,9 @@ class _PriceChartState extends State<PriceChart> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, color: const Color(0xFFFF4D4D), size: 40),
+          const Icon(Icons.error_outline, color: Color(0xFFFF4D4D), size: 40),
           const SizedBox(height: 8),
-          Text('خطأ في تحميل الرسم البياني', style: TextStyle(color: const Color(0xFFFF4D4D))),
+          const Text('خطأ في تحميل الرسم البياني', style: TextStyle(color: Color(0xFFFF4D4D))),
           const SizedBox(height: 4),
           TextButton(
             onPressed: _loadData,

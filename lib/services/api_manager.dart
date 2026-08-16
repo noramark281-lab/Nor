@@ -4,25 +4,15 @@ import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/constants.dart';
 
-/// ═══════════════════════════════════════════════════════════════════
-/// MEXC Futures API v1 Authentication Manager
-/// ═══════════════════════════════════════════════════════════════════
+/// MEXC Spot API V3 authentication manager.
 ///
-/// MEXC Futures v1 Auth Requirements:
-///   - Headers: ApiKey, Request-Time, Signature, Content-Type
-///   - Signature = HMAC-SHA256(secretKey, accessKey + timestamp + paramString)
-///   - GET  → paramString = query string (e.g. "symbol=BTC_USDT")
-///   - POST → paramString = request body JSON string
-///   - timestamp = milliseconds since epoch
-///
-/// Uses SharedPreferences for cross-platform storage (Android, iOS, Windows, macOS, Linux)
-///
+/// API credentials are entered by the owner on the device and stored locally.
+/// They are deliberately NOT injected into the public APK at build time.
 class MexcApiManager {
   static final MexcApiManager _instance = MexcApiManager._internal();
   factory MexcApiManager() => _instance;
   MexcApiManager._internal();
 
-  // ── SharedPreferences (cross-platform including Windows) ────────
   static const _kApiKey = 'mexc_api_key';
   static const _kSecretKey = 'mexc_secret_key';
 
@@ -30,39 +20,29 @@ class MexcApiManager {
   String? _secretKey;
   bool _isInitialized = false;
 
-  // ── Getters ─────────────────────────────────────────────────────
   bool get isInitialized => _isInitialized;
   String? get apiKey => _apiKey;
   String? get secretKey => _secretKey;
   String? get apiSecret => _secretKey;
 
-  // ── Initialization ──────────────────────────────────────────────
   Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
     _apiKey = prefs.getString(_kApiKey);
     _secretKey = prefs.getString(_kSecretKey);
-
-    // Fallback to build-time dart-define values (CI/CD / GitHub Actions)
-    if (_apiKey == null || _apiKey!.isEmpty) {
-      _apiKey = AppConstants.buildTimeApiKey.isNotEmpty ? AppConstants.buildTimeApiKey : null;
-    }
-    if (_secretKey == null || _secretKey!.isEmpty) {
-      _secretKey = AppConstants.buildTimeApiSecret.isNotEmpty ? AppConstants.buildTimeApiSecret : null;
-    }
-
     _isInitialized = (_apiKey?.isNotEmpty ?? false) && (_secretKey?.isNotEmpty ?? false);
-    debugPrint('[MexcApiManager] initialized=$_isInitialized');
+    debugPrint('[MexcApiManager] Spot credentials initialized=$_isInitialized');
   }
 
-  // ── Key Management ──────────────────────────────────────────────
   Future<void> setCredentials({required String apiKey, required String secretKey}) async {
     _apiKey = apiKey.trim();
     _secretKey = secretKey.trim();
+    if (_apiKey!.isEmpty || _secretKey!.isEmpty) {
+      throw Exception('يجب إدخال API Key و Secret Key.');
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kApiKey, _apiKey!);
     await prefs.setString(_kSecretKey, _secretKey!);
     _isInitialized = true;
-    debugPrint('[MexcApiManager] Credentials saved.');
   }
 
   Future<void> clearCredentials() async {
@@ -72,103 +52,33 @@ class MexcApiManager {
     _apiKey = null;
     _secretKey = null;
     _isInitialized = false;
-    debugPrint('[MexcApiManager] Credentials cleared.');
   }
 
-  // ── Signature Generation (Futures v1) ───────────────────────────
-  /// Generates MEXC Futures v1 signature.
-  /// Signature = HMAC-SHA256(secretKey, accessKey + timestamp + paramString)
-  String _generateSignature({
-    required String timestamp,
-    required String paramString,
-  }) {
-    if (_secretKey == null || _secretKey!.isEmpty) {
-      throw Exception('Secret key not available');
-    }
-    final payload = '$_apiKey$timestamp$paramString';
-    final hmac = Hmac(sha256, utf8.encode(_secretKey!));
-    final digest = hmac.convert(utf8.encode(payload));
-    return digest.toString();
-  }
-
-  // ── Headers Builder ─────────────────────────────────────────────
-  /// Builds authenticated headers for MEXC Futures v1 API requests.
-  Map<String, String> buildAuthHeaders({
-    required String method,
-    String? queryString,
-    String? bodyString,
-  }) {
-    if (!_isInitialized) {
-      throw Exception('API keys not initialized. Please configure API credentials first.');
-    }
-
-    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-
-    // Determine paramString based on method
-    String paramString;
-    if (method.toUpperCase() == 'GET') {
-      paramString = queryString ?? '';
-    } else {
-      paramString = bodyString ?? '';
-    }
-
-    final signature = _generateSignature(
-      timestamp: timestamp,
-      paramString: paramString,
-    );
-
-    final headers = {
-      'ApiKey': _apiKey!,
-      'Request-Time': timestamp,
-      'Signature': signature,
-      'Accept': 'application/json',
-    };
-    if (method.toUpperCase() == 'POST') {
-      headers['Content-Type'] = 'application/json';
-    }
-    return headers;
-  }
-
-  // ── Convenience: GET Auth Headers ───────────────────────────────
-  Map<String, String> getAuthHeadersForGet(String queryString) {
-    return buildAuthHeaders(method: 'GET', queryString: queryString);
-  }
-
-  // ── Convenience: POST Auth Headers ──────────────────────────────
-  Map<String, String> getAuthHeadersForPost(String bodyString) {
-    return buildAuthHeaders(method: 'POST', bodyString: bodyString);
-  }
-
-  // ── Spot API v3 Support ─────────────────────────────────────────
-  /// Sign Spot query string: HMAC-SHA256(secretKey, queryString)
   String signSpotQuery(String queryString) {
-    if (_secretKey == null || _secretKey!.isEmpty) {
-      throw Exception('Secret key not available');
-    }
-    final hmac = Hmac(sha256, utf8.encode(_secretKey!));
-    final digest = hmac.convert(utf8.encode(queryString));
-    return digest.toString();
+    if (_secretKey == null || _secretKey!.isEmpty) throw Exception('Secret key not available');
+    return Hmac(sha256, utf8.encode(_secretKey!)).convert(utf8.encode(queryString)).toString();
   }
 
-  /// Get Spot request headers
   Map<String, String> getSpotHeaders() {
+    if (!_isInitialized || _apiKey == null || _apiKey!.isEmpty) {
+      throw Exception('MEXC Spot API credentials are not configured.');
+    }
     return {
       'Content-Type': 'application/json',
-      'X-MEXC-APIKEY': _apiKey ?? '',
+      'X-MEXC-APIKEY': _apiKey!,
       'Accept': 'application/json',
     };
   }
 
-  // ── Test Connectivity ───────────────────────────────────────────
-  /// Quick validation: check if we can read account assets.
-  /// Returns true if API call succeeds, false otherwise.
+  // Backwards-compatible helpers for any remaining callers. They are no longer
+  // used by the Spot service for authentication.
+  Map<String, String> getAuthHeadersForGet(String queryString) => getSpotHeaders();
+  Map<String, String> getAuthHeadersForPost(String bodyString) => getSpotHeaders();
+
   Future<bool> testConnection() async {
     try {
-      final headers = buildAuthHeaders(method: 'GET', queryString: '');
-      debugPrint('[MexcApiManager] Test connection headers ready.');
-      return headers.isNotEmpty;
-    } catch (e) {
-      debugPrint('[MexcApiManager] testConnection error: $e');
+      return _isInitialized && _apiKey!.isNotEmpty && _secretKey!.isNotEmpty;
+    } catch (_) {
       return false;
     }
   }

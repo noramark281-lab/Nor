@@ -191,14 +191,25 @@ export default function HomeScreen({
           </a>
 
           <a
-            href="https://github.com/noramark281-lab/Nor/releases/download/windows-v1.8.0-11/Nor-Windows-x64.zip"
+            href="https://github.com/noramark281-lab/Nor/releases/download/windows-v1.8.0-12/Nor-Windows-x64.zip"
             target="_blank"
             rel="noreferrer"
             className="btn btn-outline"
             style={{ textDecoration: 'none', justifyContent: 'center', gap: 8 }}
           >
             <Monitor size={18} />
-            <span>تحميل للويندوز Windows ZIP (11.37 MB)</span>
+            <span>تحميل لويندوز حزمة كاملة ZIP (11.37 MB)</span>
+          </a>
+
+          <a
+            href="https://github.com/noramark281-lab/Nor/releases/download/windows-v1.8.0-12/Nor.exe"
+            target="_blank"
+            rel="noreferrer"
+            className="btn btn-outline"
+            style={{ textDecoration: 'none', justifyContent: 'center', gap: 8 }}
+          >
+            <Monitor size={18} />
+            <span>تحميل ملف التشغيل المباشر Nor.exe</span>
           </a>
 
           <a

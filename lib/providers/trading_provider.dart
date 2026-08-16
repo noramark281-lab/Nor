@@ -7,13 +7,11 @@ import '../models/trading_pair.dart';
 import '../services/mexc_api_service.dart';
 import '../services/api_manager.dart';
 
-/// ═══════════════════════════════════════════════════════════════════
-/// Trading Provider - تنفيذ الصفقات الحقيقية + البوت التلقائي
-/// ═══════════════════════════════════════════════════════════════════
+/// Trading Provider for REAL MEXC Spot trading.
+/// Futures leverage/positions are intentionally not used.
 class TradingProvider with ChangeNotifier {
   final MexcApiService _api = MexcApiService();
 
-  // ── State ───────────────────────────────────────────────────────
   bool _isLoading = false;
   String? _lastError;
   String? _lastSuccess;
@@ -21,68 +19,44 @@ class TradingProvider with ChangeNotifier {
   Timer? _botTimer;
   final List<TradingPair> _pairs = [];
   String? _selectedSymbol = 'BTC_USDT';
-  double _leverage = 1.0;
+  double _leverage = 1.0; // retained only for UI compatibility; Spot has no leverage
   double _availableBalance = 0.0;
 
-  // ── Bot State ───────────────────────────────────────────────────
   bool _isTrading = false;
   String _selectedStrategy = 'Hybrid';
   String? _lastSignal;
   int _consecutiveLosses = 0;
   double _balance = 0.0;
 
-  final List<String> _availableStrategies = [
-    'Hybrid',
-    'Momentum',
-    'Breakout',
-    'SMA Crossover',
-    'MeanReversion',
-    'Heikin Ashi',
-    'Sentiment',
-  ];
-
-  // ── Orders & Trades ─────────────────────────────────────────────
+  final List<String> _availableStrategies = ['Hybrid', 'Momentum', 'Breakout', 'SMA Crossover', 'MeanReversion', 'Heikin Ashi', 'Sentiment'];
   final List<Map<String, dynamic>> _openOrders = [];
   final List<TradeRecord> _tradeHistory = [];
   final List<TradeRecord> _openTrades = [];
   final List<TradeRecord> _closedTrades = [];
 
-  // ── Getters ─────────────────────────────────────────────────────
   bool get isLoading => _isLoading;
   String? get lastError => _lastError;
   String? get lastSuccess => _lastSuccess;
   bool get loading => _isLoading;
   String? get error => _lastError;
-
-  // Market getters
   List<TradingPair> get pairs => List.unmodifiable(_pairs);
   String? get selectedSymbol => _selectedSymbol;
-  TradingPair? get selectedPair => _pairs.isEmpty
-      ? null
-      : _pairs.firstWhere((p) => p.symbol == _selectedSymbol, orElse: () => _pairs.first);
-  double get leverage => _leverage;
+  TradingPair? get selectedPair => _pairs.isEmpty ? null : _pairs.firstWhere((p) => p.symbol == _selectedSymbol, orElse: () => _pairs.first);
+  double get leverage => 1.0;
   double get availableBalance => _availableBalance;
-
-  // Bot getters
   bool get isTrading => _isTrading;
   String get selectedStrategy => _selectedStrategy;
   String? get lastSignal => _lastSignal;
   int get consecutiveLosses => _consecutiveLosses;
   double get balance => _balance;
   List<String> get availableStrategies => _availableStrategies;
+  List<TradeRecord> get tradeHistory => List.unmodifiable(_tradeHistory);
   List<TradeRecord> get openTrades => List.unmodifiable(_openTrades);
   List<TradeRecord> get closedTrades => List.unmodifiable(_closedTrades);
   List<Map<String, dynamic>> get openOrders => List.unmodifiable(_openOrders);
 
-  double get totalProfit {
-    double total = 0;
-    for (final t in _closedTrades) {
-      total += t.profit ?? 0;
-    }
-    return total;
-  }
+  double get totalProfit => _closedTrades.fold(0.0, (sum, t) => sum + (t.profit ?? 0));
 
-  // ── Lifecycle ───────────────────────────────────────────────────
   void startOrderSync() {
     _orderSyncTimer?.cancel();
     _orderSyncTimer = Timer.periodic(const Duration(seconds: 10), (_) {
@@ -95,27 +69,28 @@ class TradingProvider with ChangeNotifier {
     _orderSyncTimer = null;
   }
 
-  // ── Market Data ─────────────────────────────────────────────────
   Future<void> loadPairs() async {
     try {
       final tickers = await _api.getAllTickers24hr();
       _pairs.clear();
       for (final t in tickers) {
         final sym = t['symbol']?.toString() ?? '';
-        if (sym.isNotEmpty) {
-          _pairs.add(TradingPair(
-            symbol: sym,
-            base: sym.split('_').firstOrNull ?? sym,
-            quote: sym.split('_').length > 1 ? sym.split('_')[1] : 'USDT',
-            lastPrice: _parseDouble(t['lastPrice'] ?? t['lastFairPrice'] ?? 0),
-            priceChangePercent: _parseDouble(t['riseFallRate'] ?? t['priceChangePercent'] ?? 0),
-            volume24h: _parseDouble(t['volume24h'] ?? t['vol24h'] ?? 0),
-          ));
-        }
+        if (sym.isEmpty) continue;
+        final parts = sym.split('_');
+        _pairs.add(TradingPair(
+          symbol: sym,
+          base: parts.first,
+          quote: parts.length > 1 ? parts[1] : 'USDT',
+          lastPrice: _parseDouble(t['lastPrice']),
+          priceChangePercent: _parseDouble(t['priceChangePercent'] ?? t['riseFallRate']),
+          volume24h: _parseDouble(t['volume24h']),
+          category: 'Spot',
+        ));
       }
+      if (_pairs.isNotEmpty && !_pairs.any((p) => p.symbol == _selectedSymbol)) _selectedSymbol = _pairs.first.symbol;
       notifyListeners();
     } catch (e) {
-      debugPrint('[TradingProvider] loadPairs error: $e');
+      debugPrint('[TradingProvider] Spot loadPairs error: $e');
     }
   }
 
@@ -125,45 +100,20 @@ class TradingProvider with ChangeNotifier {
   }
 
   void setLeverage(double l) {
-    _leverage = l;
+    _leverage = 1.0;
     notifyListeners();
   }
 
-  /// Unified placeOrder used by TradingScreen
-  Future<bool> placeOrder({
-    required String type,
-    required String side,
-    required double price,
-    required double quantity,
-    required double leverage,
-  }) async {
-    _leverage = leverage;
+  Future<bool> placeOrder({required String type, required String side, required double price, required double quantity, required double leverage}) async {
+    _leverage = 1.0;
     final symbol = _selectedSymbol ?? 'BTC_USDT';
     if (type.toLowerCase() == 'limit') {
-      return placeLimitOrder(
-        symbol: symbol,
-        side: side,
-        price: price,
-        volume: quantity,
-        leverage: leverage,
-      );
-    } else {
-      final contract = EventContract(
-        symbol: symbol,
-        name: symbol,
-        category: 'Futures',
-        strikePrice: price,
-        currentPrice: price,
-        priceChangePercent: 0,
-        volume24h: 0,
-        expiryDate: DateTime.now().add(const Duration(days: 1)),
-      );
-      if (side.toUpperCase() == 'BUY' || side.toUpperCase() == 'BUY_OPEN') {
-        return executeBuy(contract, amount: quantity, leverage: leverage);
-      } else {
-        return executeSell(contract, amount: quantity, leverage: leverage);
-      }
+      return placeLimitOrder(symbol: symbol, side: side, price: price, volume: 1.0);
     }
+    final pair = selectedPair;
+    final currentPrice = pair?.lastPrice ?? price;
+    final contract = EventContract(symbol: symbol, name: symbol, category: 'Spot', strikePrice: currentPrice, currentPrice: currentPrice, priceChangePercent: pair?.priceChangePercent ?? 0, volume24h: pair?.volume24h ?? 0, expiryDate: DateTime.now());
+    return side.toUpperCase() == 'BUY' ? executeBuy(contract, amount: 1.0) : executeSell(contract, amount: 1.0);
   }
 
   @override
@@ -173,10 +123,6 @@ class TradingProvider with ChangeNotifier {
     super.dispose();
   }
 
-  // ═════════════════════════════════════════════════════════════════
-  // BOT CONTROLS
-  // ═════════════════════════════════════════════════════════════════
-
   void selectStrategy(String strategy) {
     _selectedStrategy = strategy;
     notifyListeners();
@@ -185,14 +131,10 @@ class TradingProvider with ChangeNotifier {
   void startAutoTrading() {
     _isTrading = true;
     notifyListeners();
-
     _botTimer?.cancel();
     _botTimer = Timer.periodic(const Duration(minutes: 2), (_) async {
-      if (!_isTrading) return;
-      await runBotAutoTrade(_selectedStrategy);
+      if (_isTrading) await runBotAutoTrade(_selectedStrategy);
     });
-
-    // Run immediately
     runBotAutoTrade(_selectedStrategy);
   }
 
@@ -207,384 +149,167 @@ class TradingProvider with ChangeNotifier {
     if (!MexcApiManager().isInitialized) return;
     try {
       final balances = await _api.getRealBalances();
-      final usdt = balances['USDT'];
-      _balance = (usdt?['free'] ?? 0.0) + (usdt?['locked'] ?? 0.0);
+      _availableBalance = balances['USDT']?['free'] ?? 0.0;
+      _balance = _availableBalance + (balances['USDT']?['locked'] ?? 0.0);
       notifyListeners();
-    } catch (e) {
-      // silent
-    }
+    } catch (_) {}
   }
 
-  // ═════════════════════════════════════════════════════════════════
-  // REAL TRADING via MEXC Futures API
-  // ═════════════════════════════════════════════════════════════════
-
-  /// Execute a buy (long) order on MEXC Futures
   Future<bool> executeBuy(EventContract contract, {required double amount, double? leverage}) async {
     _setLoading(true);
     _clearMessages();
-
     try {
-      final result = await _api.placeOrder(
-        symbol: contract.symbol,
-        side: 'BUY_OPEN',
-        type: 'MARKET',
-        volume: amount,
-        leverage: leverage ?? 1,
-        openType: 'ISOLATED',
-      );
-
-      _lastSuccess = '✅ تم فتح صفقة شراء ${contract.symbol} بنجاح';
+      final result = await _api.placeOrder(symbol: contract.symbol, side: 'BUY', type: 'MARKET', volume: 1.0);
+      _lastSuccess = '✅ تم تنفيذ شراء Spot حقيقي بقيمة 1 USDT: ${contract.symbol}';
       _lastSignal = 'BUY';
-      _openTrades.add(TradeRecord(
-        id: result?['orderId']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        symbol: contract.symbol,
-        side: 'BUY',
-        amount: amount,
-        entryPrice: contract.currentPrice,
-        entryTime: DateTime.now(),
-        status: 'OPEN',
-        strategy: _selectedStrategy,
-      ));
-
+      _openTrades.add(TradeRecord(id: result?['orderId']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(), symbol: contract.symbol, side: 'BUY', amount: 1.0, entryPrice: contract.currentPrice, entryTime: DateTime.now(), status: 'OPEN', strategy: _selectedStrategy));
       await syncOrders();
       await syncBalance();
-      _setLoading(false);
-      notifyListeners();
       return true;
     } catch (e) {
-      _lastError = '❌ فشل شراء ${contract.symbol}: $e';
+      _lastError = '❌ فشل شراء Spot ${contract.symbol}: $e';
       _consecutiveLosses++;
-      _setLoading(false);
-      notifyListeners();
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
-  /// Execute a sell (short) order on MEXC Futures
   Future<bool> executeSell(EventContract contract, {required double amount, double? leverage}) async {
     _setLoading(true);
     _clearMessages();
-
     try {
-      final result = await _api.placeOrder(
-        symbol: contract.symbol,
-        side: 'SELL_OPEN',
-        type: 'MARKET',
-        volume: amount,
-        leverage: leverage ?? 1,
-        openType: 'ISOLATED',
-      );
-
-      _lastSuccess = '✅ تم فتح صفقة بيع ${contract.symbol} بنجاح';
+      final result = await _api.placeOrder(symbol: contract.symbol, side: 'SELL', type: 'MARKET', volume: 1.0);
+      _lastSuccess = '✅ تم تنفيذ بيع Spot حقيقي بقيمة 1 USDT: ${contract.symbol}';
       _lastSignal = 'SELL';
-      _openTrades.add(TradeRecord(
-        id: result?['orderId']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        symbol: contract.symbol,
-        side: 'SELL',
-        amount: amount,
-        entryPrice: contract.currentPrice,
-        entryTime: DateTime.now(),
-        status: 'OPEN',
-        strategy: _selectedStrategy,
-      ));
-
+      _openTrades.add(TradeRecord(id: result?['orderId']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(), symbol: contract.symbol, side: 'SELL', amount: 1.0, entryPrice: contract.currentPrice, entryTime: DateTime.now(), status: 'OPEN', strategy: _selectedStrategy));
       await syncOrders();
       await syncBalance();
-      _setLoading(false);
-      notifyListeners();
       return true;
     } catch (e) {
-      _lastError = '❌ فشل بيع ${contract.symbol}: $e';
+      _lastError = '❌ فشل بيع Spot ${contract.symbol}: $e';
       _consecutiveLosses++;
-      _setLoading(false);
-      notifyListeners();
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
-  /// Close a position (opposite side)
   Future<bool> closePosition(EventContract contract, {required double amount, required String currentSide}) async {
-    _setLoading(true);
-    _clearMessages();
-
-    try {
-      final closeSide = currentSide.toUpperCase() == 'BUY' || currentSide.toUpperCase() == 'BUY_OPEN'
-          ? 'SELL_CLOSE'
-          : 'BUY_CLOSE';
-
-      await _api.placeOrder(
-        symbol: contract.symbol,
-        side: closeSide,
-        type: 'MARKET',
-        volume: amount,
-        openType: 'ISOLATED',
-      );
-
-      _lastSuccess = '✅ تم إغلاق مركز ${contract.symbol} بنجاح';
-
-      // Move from open to closed
-      final tradeIndex = _openTrades.indexWhere((t) => t.symbol == contract.symbol && t.isOpen);
-      if (tradeIndex >= 0) {
-        final trade = _openTrades.removeAt(tradeIndex);
-        final profit = (contract.currentPrice - trade.entryPrice) *
-            (trade.side == 'BUY' ? 1 : -1) * amount;
-        _closedTrades.add(TradeRecord(
-          id: trade.id,
-          symbol: trade.symbol,
-          side: trade.side,
-          amount: trade.amount,
-          entryPrice: trade.entryPrice,
-          exitPrice: contract.currentPrice,
-          entryTime: trade.entryTime,
-          exitTime: DateTime.now(),
-          status: 'CLOSED',
-          profit: profit,
-          strategy: trade.strategy,
-        ));
-        if (profit > 0) _consecutiveLosses = 0;
+    final side = currentSide.toUpperCase().contains('BUY') ? 'SELL' : 'BUY';
+    final ok = side == 'BUY' ? await executeBuy(contract, amount: 1.0) : await executeSell(contract, amount: 1.0);
+    if (ok) {
+      final idx = _openTrades.indexWhere((t) => t.symbol == contract.symbol && t.isOpen);
+      if (idx >= 0) {
+        final trade = _openTrades.removeAt(idx);
+        _closedTrades.add(TradeRecord(id: trade.id, symbol: trade.symbol, side: trade.side, amount: trade.amount, entryPrice: trade.entryPrice, exitPrice: contract.currentPrice, entryTime: trade.entryTime, exitTime: DateTime.now(), status: 'CLOSED', profit: (contract.currentPrice - trade.entryPrice) * (trade.side == 'BUY' ? 1 : -1) * trade.amount, strategy: trade.strategy));
       }
-
-      await syncOrders();
-      await syncBalance();
-      _setLoading(false);
       notifyListeners();
-      return true;
-    } catch (e) {
-      _lastError = '❌ فشل إغلاق ${contract.symbol}: $e';
-      _setLoading(false);
-      notifyListeners();
-      return false;
     }
+    return ok;
   }
 
-  /// Place a limit order
-  Future<bool> placeLimitOrder({
-    required String symbol,
-    required String side,
-    required double price,
-    required double volume,
-    double? leverage,
-  }) async {
+  Future<bool> placeLimitOrder({required String symbol, required String side, required double price, required double volume, double? leverage}) async {
     _setLoading(true);
     _clearMessages();
-
     try {
-      final apiSide = side.toUpperCase() == 'BUY' ? 'BUY_OPEN' : 'SELL_OPEN';
-
-      await _api.placeOrder(
-        symbol: symbol,
-        side: apiSide,
-        type: 'LIMIT',
-        price: price,
-        volume: volume,
-        leverage: leverage ?? 1,
-        openType: 'ISOLATED',
-      );
-
-      _lastSuccess = '✅ تم وضع أمر محدد $side لـ $symbol @ $price';
+      await _api.placeOrder(symbol: symbol, side: side, type: 'LIMIT', volume: 1.0, price: price);
+      _lastSuccess = '✅ تم وضع أمر Spot حقيقي بقيمة 1 USDT: $side $symbol @ $price';
       await syncOrders();
-      _setLoading(false);
-      notifyListeners();
       return true;
     } catch (e) {
-      _lastError = '❌ فشل أمر $side $symbol: $e';
-      _setLoading(false);
-      notifyListeners();
+      _lastError = '❌ فشل أمر Spot $side $symbol: $e';
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
-  /// Cancel an order by ID
   Future<bool> cancelOrder(String symbol, String orderId) async {
     _setLoading(true);
     _clearMessages();
-
     try {
-      final success = await _api.cancelOrder(symbol, orderId);
-      if (success) {
-        _lastSuccess = '✅ تم إلغاء الأمر $orderId';
+      final ok = await _api.cancelOrder(symbol, orderId);
+      if (ok) {
+        _lastSuccess = '✅ تم إلغاء أمر Spot $orderId';
         await syncOrders();
-      } else {
-        _lastError = '❌ فشل إلغاء الأمر $orderId';
       }
-      _setLoading(false);
-      notifyListeners();
-      return success;
+      return ok;
     } catch (e) {
       _lastError = '❌ فشل إلغاء الأمر: $e';
-      _setLoading(false);
-      notifyListeners();
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
-  /// Cancel all orders for a symbol
   Future<bool> cancelAllOrders(String symbol) async {
     _setLoading(true);
     _clearMessages();
-
     try {
-      final success = await _api.cancelAllOrders(symbol);
-      if (success) {
-        _lastSuccess = '✅ تم إلغاء جميع أوامر $symbol';
-        await syncOrders();
-      } else {
-        _lastError = '❌ فشل إلغاء أوامر $symbol';
-      }
-      _setLoading(false);
-      notifyListeners();
-      return success;
+      final ok = await _api.cancelAllOrders(symbol);
+      if (ok) await syncOrders();
+      return ok;
     } catch (e) {
-      _lastError = '❌ فشل إلغاء الأوامر: $e';
-      _setLoading(false);
-      notifyListeners();
+      _lastError = '❌ فشل إلغاء أوامر Spot: $e';
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
-  // ── Sync ────────────────────────────────────────────────────────
   Future<void> syncOrders() async {
     if (!MexcApiManager().isInitialized) return;
-
     try {
-      _openOrders.clear();
-      final orders = await _api.getOpenOrders();
-      _openOrders.addAll(orders);
-
-      final trades = await _api.getAllMyTrades(pageSize: 20);
-      _tradeHistory.clear();
-      for (final t in trades) {
-        _tradeHistory.add(TradeRecord(
-          id: t['id']?.toString() ?? t['orderId']?.toString() ?? Random().nextInt(999999).toString(),
-          symbol: t['symbol']?.toString() ?? '',
-          side: t['side']?.toString() ?? 'BUY',
-          amount: _parseDouble(t['vol'] ?? t['volume'] ?? 0),
-          entryPrice: _parseDouble(t['price'] ?? 0),
-          entryTime: DateTime.tryParse(t['createTime']?.toString() ?? '') ?? DateTime.now(),
-          status: 'CLOSED',
-          strategy: 'Manual',
-        ));
+      _openOrders
+        ..clear()
+        ..addAll(await _api.getOpenOrders());
+      final symbol = _selectedSymbol;
+      if (symbol != null) {
+        final trades = await _api.getAllMyTrades(pageSize: 20, symbol: symbol);
+        _tradeHistory
+          ..clear()
+          ..addAll(trades.map((t) => TradeRecord(id: t['id']?.toString() ?? t['orderId']?.toString() ?? Random().nextInt(999999).toString(), symbol: t['symbol']?.toString() ?? symbol, side: t['side']?.toString() ?? 'BUY', amount: _parseDouble(t['volume'] ?? t['qty']), entryPrice: _parseDouble(t['price']), entryTime: DateTime.fromMillisecondsSinceEpoch((t['createTime'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch), status: 'CLOSED', strategy: 'Manual')));
       }
-
       notifyListeners();
-    } catch (e) {
-      // Silent fail on background sync
-    }
+    } catch (_) {}
   }
 
-  /// Unified trade entry point used by TradingScreen
-  Future<bool> placeTrade({
-    required String symbol,
-    required String side,
-    required double amount,
-    required double price,
-    bool isLimit = false,
-    double? limitPrice,
-  }) async {
-    if (isLimit && limitPrice != null && limitPrice > 0) {
-      return placeLimitOrder(
-        symbol: symbol,
-        side: side,
-        price: limitPrice,
-        volume: amount,
-      );
-    }
-    // Create a dummy contract for the execute methods
-    final contract = EventContract(
-      symbol: symbol,
-      name: symbol,
-      category: 'Futures',
-      strikePrice: price,
-      currentPrice: price,
-      priceChangePercent: 0,
-      volume24h: 0,
-      expiryDate: DateTime.now().add(const Duration(days: 1)),
-    );
-    if (side.toUpperCase() == 'BUY') {
-      return executeBuy(contract, amount: amount);
-    } else {
-      return executeSell(contract, amount: amount);
-    }
+  Future<bool> placeTrade({required String symbol, required String side, required double amount, required double price, bool isLimit = false, double? limitPrice}) async {
+    if (isLimit && limitPrice != null && limitPrice > 0) return placeLimitOrder(symbol: symbol, side: side, price: limitPrice, volume: 1.0);
+    selectPair(symbol);
+    final contract = EventContract(symbol: symbol, name: symbol, category: 'Spot', strikePrice: price, currentPrice: price, priceChangePercent: 0, volume24h: 0, expiryDate: DateTime.now());
+    return side.toUpperCase() == 'BUY' ? executeBuy(contract, amount: 1.0) : executeSell(contract, amount: 1.0);
   }
-
-  // ═════════════════════════════════════════════════════════════════
-  // BOT AUTO-TRADING
-  // ═════════════════════════════════════════════════════════════════
 
   Future<void> runBotAutoTrade(String strategyName) async {
     _setLoading(true);
     _clearMessages();
-
     try {
-      // Fetch market data
       final tickers = await _api.getAllTickers24hr();
-      if (tickers.isEmpty) {
-        throw Exception('لا توجد بيانات سوق متاحة');
+      if (tickers.isEmpty) throw Exception('لا توجد بيانات سوق Spot متاحة');
+      tickers.sort((a, b) => _parseDouble(b['priceChangePercent']).compareTo(_parseDouble(a['priceChangePercent'])));
+      final top = tickers.first;
+      final symbol = top['symbol']?.toString() ?? '';
+      final price = _parseDouble(top['lastPrice']);
+      final change = _parseDouble(top['priceChangePercent']);
+      if (symbol.isEmpty || price <= 0) throw Exception('لا يوجد زوج Spot صالح');
+
+      // Spot cannot short. Positive signals buy $1; negative signals may sell
+      // $1 only when the wallet actually holds the base asset.
+      var side = change >= 0 ? 'BUY' : 'SELL';
+      if (side == 'SELL') {
+        final balances = await _api.getRealBalances();
+        final base = symbol.split('_').first;
+        final free = balances[base]?['free'] ?? 0.0;
+        if (free <= 0) side = 'BUY';
       }
 
-      // Simple strategy: pick top gainer for BUY
-      tickers.sort((a, b) {
-        final changeA = _parseDouble(a['riseFallRate'] ?? a['priceChangePercent'] ?? 0);
-        final changeB = _parseDouble(b['riseFallRate'] ?? b['priceChangePercent'] ?? 0);
-        return changeB.compareTo(changeA);
-      });
-
-      final topGainer = tickers.first;
-      final symbol = topGainer['symbol']?.toString() ?? '';
-      final price = _parseDouble(topGainer['lastPrice'] ?? topGainer['lastFairPrice'] ?? 0);
-
-      if (symbol.isEmpty) {
-        throw Exception('لا يوجد زوج تداول متاح');
-      }
-
-      // Determine side based on strategy
-      String side = 'BUY_OPEN';
-      double change = _parseDouble(topGainer['riseFallRate'] ?? 0);
-
-      switch (strategyName) {
-        case 'Momentum':
-        case 'Breakout':
-          side = change > 0 ? 'BUY_OPEN' : 'SELL_OPEN';
-          break;
-        case 'MeanReversion':
-          side = change < 0 ? 'BUY_OPEN' : 'SELL_OPEN';
-          break;
-        case 'Sentiment':
-        case 'Heikin Ashi':
-        case 'SMA Crossover':
-        default:
-          side = change >= 0 ? 'BUY_OPEN' : 'SELL_OPEN';
-      }
-
-      // Place a small market order (minimum volume)
-      await _api.placeOrder(
-        symbol: symbol,
-        side: side,
-        type: 'MARKET',
-        volume: 1,
-        leverage: 1,
-        openType: 'ISOLATED',
-      );
-
-      _lastSignal = side.contains('BUY') ? 'BUY' : 'SELL';
-      _lastSuccess = '✅ البوت: تم ${side.contains('BUY') ? 'شراء' : 'بيع'} $symbol تلقائياً (الاستراتيجية: $strategyName)';
-
-      _openTrades.add(TradeRecord(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        symbol: symbol,
-        side: side.contains('BUY') ? 'BUY' : 'SELL',
-        amount: 1,
-        entryPrice: price,
-        entryTime: DateTime.now(),
-        status: 'OPEN',
-        strategy: strategyName,
-      ));
-
-      await syncOrders();
-      await syncBalance();
+      final contract = EventContract(symbol: symbol, name: symbol, category: 'Spot', strikePrice: price, currentPrice: price, priceChangePercent: change, volume24h: _parseDouble(top['volume24h']), expiryDate: DateTime.now());
+      final ok = side == 'BUY' ? await executeBuy(contract, amount: 1.0) : await executeSell(contract, amount: 1.0);
+      if (ok) _lastSuccess = '✅ البوت Spot: تنفيذ $side بقيمة 1 USDT — $symbol — $strategyName';
     } catch (e) {
-      _lastError = '❌ فشل البوت: $e';
+      _lastError = '❌ فشل بوت Spot: $e';
       _consecutiveLosses++;
     } finally {
       _setLoading(false);
@@ -592,12 +317,8 @@ class TradingProvider with ChangeNotifier {
     }
   }
 
-  // ═════════════════════════════════════════════════════════════════
-  // HELPERS
-  // ═════════════════════════════════════════════════════════════════
-
-  void _setLoading(bool v) {
-    _isLoading = v;
+  void _setLoading(bool value) {
+    _isLoading = value;
     notifyListeners();
   }
 
@@ -607,10 +328,7 @@ class TradingProvider with ChangeNotifier {
   }
 
   double _parseDouble(dynamic value) {
-    if (value == null) return 0.0;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) return double.tryParse(value) ?? 0.0;
-    return 0.0;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? 0.0;
   }
 }

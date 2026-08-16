@@ -1,0 +1,109 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+
+      - name: Setup Visual Studio C++ Build Tools
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Generate Windows platform files
+        shell: pwsh
+        run: |
+          $tempDir = "${{ runner.temp }}\nor_app"
+          if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+          Copy-Item -Path "${{ github.workspace }}\*" -Destination $tempDir -Recurse -Force
+          Push-Location $tempDir
+          flutter create --platforms=windows --project-name=mexc_event_trader_app .
+          Pop-Location
+          Copy-Item -Path "$tempDir\windows" -Destination "${{ github.workspace }}\windows" -Recurse -Force
+
+      - name: Set binary name to Nor
+        shell: pwsh
+        run: |
+          $files = @(
+            "windows\CMakeLists.txt",
+            "windows\runner\CMakeLists.txt",
+            "windows\flutter\CMakeLists.txt"
+          )
+          foreach ($f in $files) {
+            if (Test-Path $f) {
+              (Get-Content $f -Raw) -replace 'mexc_event_trader_app', 'Nor' | Set-Content $f -NoNewline
+            }
+          }
+          $mainCpp = "windows\runner\main.cpp"
+          if (Test-Path $mainCpp) {
+            $content = Get-Content $mainCpp -Raw
+            $content = $content -replace 'mexc_event_trader_app', 'Nor - MEXC Event Trader'
+            Set-Content $mainCpp -Value $content -NoNewline
+          }
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Windows EXE
+        run: flutter build windows --release
+
+      - name: Bundle MSVC runtime DLLs
+        shell: pwsh
+        run: |
+          $buildDir = "build\windows\x64\runner\Release"
+          $dlls = @("MSVCP140.dll", "VCRUNTIME140.dll", "VCRUNTIME140_1.dll")
+          foreach ($dll in $dlls) {
+            $systemPath = "C:\Windows\System32\$dll"
+            if (Test-Path $systemPath) {
+              Copy-Item $systemPath -Destination $buildDir -Force
+            }
+          }
+
+      - name: Package as ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "Nor-Windows-x64.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nor-Windows-x64
+          path: Nor-Windows-x64.zip
+          retention-days: 90
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        with:
+          tag_name: windows-v1.8.0-${{ github.run_number }}
+          name: Nor Windows Build v1.8.0 (#${{ github.run_number }})
+          files: Nor-Windows-x64.zip
+          body: |
+            🖥️ Nor - MEXC Event Trader (Windows x64)
+            
+            📦 Direct Download: [Nor-Windows-x64.zip](https://github.com/${{ github.repository }}/releases/download/windows-v1.8.0-${{ github.run_number }}/Nor-Windows-x64.zip)
+            
+            1. Download Nor-Windows-x64.zip
+            2. Extract
+            3. Run Nor.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

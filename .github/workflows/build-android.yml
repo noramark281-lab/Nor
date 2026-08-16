@@ -28,24 +28,37 @@ jobs:
         pip install buildozer cython
         pip install -r requirements.txt
 
-    - name: Install Android SDK
+    - name: Install Android SDK & NDK
       run: |
-        echo "Downloading Android SDK..."
-        mkdir -p ~/android-sdk
-        cd ~/android-sdk
+        echo "Setting up Android environment..."
+        mkdir -p ~/android-sdk/cmdline-tools
+        cd ~/android-sdk/cmdline-tools
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
         unzip -q commandlinetools-linux-9477386_latest.zip
+        mv cmdline-tools latest
+        export ANDROID_HOME=~/android-sdk
+        export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
         echo "Android SDK installed"
 
-    - name: Set up Flutter
-      uses: subosito/flutter-action@v2
+    - name: Set up Java JDK
+      uses: actions/setup-java@v3
       with:
-        flutter-version: 'stable'
+        distribution: 'temurin'
+        java-version: '11'
 
-    - name: Build APK with Flutter
+    - name: Setup Flutter manually
       run: |
+        cd ~
+        git clone https://github.com/flutter/flutter.git -b stable --depth 1
+        echo "$HOME/flutter/bin" >> $GITHUB_PATH
+        flutter doctor
+
+    - name: Build APK with Gradle
+      run: |
+        cd /workspaces/Nor
+        export ANDROID_HOME=$HOME/android-sdk
         flutter pub get
-        flutter build apk --release --android-skip-build-dependency-validation
+        flutter build apk --release --no-tree-shake-icons 2>&1 || flutter build apk --release --android-skip-build-dependency-validation
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4

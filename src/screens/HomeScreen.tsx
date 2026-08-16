@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Wallet, TrendingUp, Bot, ArrowLeftRight, CircleAlert as AlertCircle, Zap } from 'lucide-react'
+import { Wallet, TrendingUp, Bot, ArrowLeftRight, CircleAlert as AlertCircle, Zap, Download, Smartphone, Monitor, ExternalLink } from 'lucide-react'
 import { mexcApi, db } from '../lib/supabase'
 import { SYMBOLS, COLORS, MAX_TRADE_AMOUNT } from '../lib/constants'
 import type { AppSettings, Screen } from '../App'
@@ -151,7 +151,7 @@ export default function HomeScreen({
         )}
       </div>
 
-      <div className="col gap-12">
+      <div className="col gap-12" style={{ marginBottom: 16 }}>
         <button
           className="btn btn-green"
           onClick={() => onNavigate('trading')}
@@ -168,6 +168,50 @@ export default function HomeScreen({
           <Bot size={20} />
           تشغيل البوت الآلي
         </button>
+      </div>
+
+      <div className="card" style={{ borderColor: 'rgba(0, 200, 130, 0.3)', background: 'rgba(0, 200, 130, 0.03)' }}>
+        <div className="row" style={{ marginBottom: 12 }}>
+          <div className="row gap-8">
+            <Download size={18} className="text-green" />
+            <span className="font-semibold">تحميل التطبيق الرسمي (v1.8.0)</span>
+          </div>
+          <span className="badge badge-green">جاهز</span>
+        </div>
+        <div className="col gap-8">
+          <a
+            href="https://github.com/noramark281-lab/Nor/releases/download/v43/app-release.apk"
+            target="_blank"
+            rel="noreferrer"
+            className="btn btn-green"
+            style={{ textDecoration: 'none', justifyContent: 'center', gap: 8 }}
+          >
+            <Smartphone size={18} />
+            <span>تحميل للأندرويد APK (46.87 MB)</span>
+          </a>
+
+          <a
+            href="https://github.com/noramark281-lab/Nor/releases/download/windows-v1.8.0-11/Nor-Windows-x64.zip"
+            target="_blank"
+            rel="noreferrer"
+            className="btn btn-outline"
+            style={{ textDecoration: 'none', justifyContent: 'center', gap: 8 }}
+          >
+            <Monitor size={18} />
+            <span>تحميل للويندوز Windows ZIP (11.37 MB)</span>
+          </a>
+
+          <a
+            href="https://github.com/noramark281-lab/Nor/releases"
+            target="_blank"
+            rel="noreferrer"
+            className="row gap-4 text-xs text-secondary"
+            style={{ justifyContent: 'center', marginTop: 4, textDecoration: 'none' }}
+          >
+            <span>جميع الإصدارات والمصادر على GitHub</span>
+            <ExternalLink size={12} />
+          </a>
+        </div>
       </div>
     </div>
   )

@@ -158,7 +158,8 @@ jobs:
       - name: Package as ZIP
         shell: pwsh
         run: |
-          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "Nor-Windows-x64.zip"
+          Copy-Item "build\windows\x64\runner\Release\Nor.exe" -Destination "Nor.exe" -Force
+          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "Nor-Windows-x64.zip" -Force
           Write-Host "ZIP created: Nor-Windows-x64.zip"
           $zipInfo = Get-Item "Nor-Windows-x64.zip"
           Write-Host "ZIP size: $($zipInfo.Length) bytes"
@@ -167,7 +168,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Nor-Windows-x64
-          path: Nor-Windows-x64.zip
+          path: |
+            Nor-Windows-x64.zip
+            Nor.exe
           retention-days: 90
 
       - name: Create Release
@@ -176,17 +179,22 @@ jobs:
         with:
           tag_name: windows-v1.8.0-${{ github.run_number }}
           name: Nor Windows Build v1.8.0 (#${{ github.run_number }})
-          files: Nor-Windows-x64.zip
+          files: |
+            Nor-Windows-x64.zip
+            Nor.exe
           body: |
-            🖥️ Nor - MEXC Event Trader (Windows x64)
+            🖥️ Nor - MEXC Event Trader (Windows x64 Desktop Application)
             
-            تحميل التطبيق:
-            1. حمّل Nor-Windows-x64.zip
-            2. فك الضغط
-            3. شغّل Nor.exe
+            📥 خيارات التحميل:
+            1. Nor-Windows-x64.zip: الحزمة الكاملة جاهزة للتشغيل مع كافة ملفات DLL اللازمة (موصى بها).
+            2. Nor.exe: الملف التنفيذي المباشر.
             
-            متطلبات: Windows 10/11 64-bit
-            ✅ يتضمن مكتبات MSVC اللازمة (لا حاجة لتثبيت VC++ Redist)
+            متطلبات التشغيل:
+            - نظام التشغيل: Windows 10 / Windows 11 (64-bit)
+            - المعالج: Intel / AMD x64
+            - الذاكرة: 4GB+ RAM
+            - دعم اللمس المتعدد: 2-Point Touch مدعوم بالكامل
+            ✅ يتضمن مكتبات MSVC اللازمة مسبقاً (MSVCP140.dll و VCRUNTIME140.dll)
           draft: false
           prerelease: false
         env:

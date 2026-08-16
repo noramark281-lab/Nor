@@ -37,14 +37,15 @@ jobs:
         unzip -q commandlinetools-linux-9477386_latest.zip
         echo "Android SDK installed"
 
-    - name: Set up Buildozer
-      run: |
-        mkdir -p ~/.buildozer/android/platform/build-{armeabi-v7a,arm64-v8a}
-        yes | sdkmanager --licenses 2>/dev/null || true
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: 'stable'
 
-    - name: Build APK with Buildozer
+    - name: Build APK with Flutter
       run: |
-        buildozer android release
+        flutter pub get
+        flutter build apk --release --android-skip-build-dependency-validation
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4

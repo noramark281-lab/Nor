@@ -15,6 +15,12 @@ source.dir = .
 # Source include patterns
 source.include_exts = py,png,jpg,kv,atlas,json
 
+# Exclude Flutter and unnecessary directories
+source.exclude_exts = exe,dll,so,so.1
+
+# Exclude patterns
+source.exclude_patterns = lib/*,flutter/*,ios/*,.git/*,.buildozer/*,build/*,dist/*
+
 # Version
 version = 1.0.0
 

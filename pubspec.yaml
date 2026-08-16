@@ -1,7 +1,7 @@
 name: mexc_event_trader_app
-description: تطبيق تداول عقود الحدث في MEXC
+description: تطبيق MEXC للتداول الفوري Spot الحقيقي عبر API V3
 publish_to: 'none'
-version: 1.8.0+19
+version: 2.0.0+20
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

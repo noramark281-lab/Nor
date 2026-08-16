@@ -37,8 +37,28 @@ jobs:
       - name: Static analysis
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
+      - name: Setup Keystore & Signing
+        run: |
+          if [ ! -f android/app/upload-keystore.jks ]; then
+            keytool -genkeypair -v \
+              -keystore android/app/upload-keystore.jks \
+              -alias mexckey \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass mexcpass123 \
+              -keypass mexcpass123 \
+              -dname "CN=MEXC Trader, OU=Trading, O=MEXC, L=Seychelles, C=SC"
+            cat << 'EOF' > android/key.properties
+          storePassword=mexcpass123
+          keyPassword=mexcpass123
+          keyAlias=mexckey
+          storeFile=upload-keystore.jks
+          EOF
+          fi
+
       - name: Build APK
-        run: flutter build apk --release --dart-define=MEXC_API_KEY="${{ secrets.MEXC_API_KEY || secrets.API_KEY }}" --dart-define=MEXC_SECRET_KEY="${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}" --dart-define=MEXC_API_SECRET="${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}" --dart-define=SERVER_IP="${{ secrets.SERVER_IP || secrets.HOST_IP }}"
+        run: flutter build apk --release --no-tree-shake-icons --dart-define=MEXC_API_KEY="${{ secrets.MEXC_API_KEY || secrets.API_KEY }}" --dart-define=MEXC_SECRET_KEY="${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}" --dart-define=MEXC_API_SECRET="${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}" --dart-define=SERVER_IP="${{ secrets.SERVER_IP || secrets.HOST_IP }}"
 
       - name: Verify APK output
         shell: bash

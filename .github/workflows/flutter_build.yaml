@@ -48,7 +48,7 @@ jobs:
               -validity 10000 \
               -storepass mexcpass123 \
               -keypass mexcpass123 \
-              -dname "CN=MEXC Trader, OU=Trading, O=MEXC, L=Seychelles, C=SC"
+              -dname "CN=MEXC Spot Trader, OU=Trading, O=MEXC, L=Seychelles, C=SC"
             cat << 'EOF' > android/key.properties
           storePassword=mexcpass123
           keyPassword=mexcpass123
@@ -57,8 +57,8 @@ jobs:
           EOF
           fi
 
-      - name: Build APK
-        run: flutter build apk --release --no-tree-shake-icons --dart-define=MEXC_API_KEY="${{ secrets.MEXC_API_KEY || secrets.API_KEY }}" --dart-define=MEXC_SECRET_KEY="${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}" --dart-define=MEXC_API_SECRET="${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}" --dart-define=SERVER_IP="${{ secrets.SERVER_IP || secrets.HOST_IP }}"
+      - name: Build real Spot APK
+        run: flutter build apk --release --no-tree-shake-icons
 
       - name: Verify APK output
         shell: bash
@@ -101,7 +101,7 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/json" \
             "https://api.github.com/repos/${{ github.repository }}/releases" \
-            -d "{\"tag_name\":\"$TAG\",\"name\":\"Release v$VERSION (build ${{ github.run_number }})\",\"body\":\"Verified Flutter release APK for version $VERSION\",\"draft\":true,\"prerelease\":false}")
+            -d "{\"tag_name\":\"$TAG\",\"name\":\"Release v$VERSION (build ${{ github.run_number }})\",\"body\":\"Verified Flutter release APK for MEXC Spot version $VERSION. API credentials are entered locally on the device.\",\"draft\":true,\"prerelease\":false}")
 
           RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.id // empty')
           UPLOAD_URL=$(echo "$RELEASE_JSON" | jq -r '.upload_url // empty' | sed 's/{?name,label}//')

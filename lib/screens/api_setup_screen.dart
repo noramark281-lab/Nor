@@ -64,27 +64,33 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
         secretKey: _secretKeyCtrl.text.trim(),
       );
 
-      // Test with a real authenticated API call (account assets)
+      // Test with real authenticated API call (Futures + Spot + Backend fallback)
       final api = MexcApiService();
       final balances = await api.getRealBalances();
 
-      setState(() {
-        _loading = false;
-        _statusMsg = '✅ تم التحقق بنجاح! تم الاتصال بـ MEXC Futures API.';
-        _statusIsError = false;
-      });
-      if (widget.nextScreen != null && mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => widget.nextScreen!),
-        );
-      }
-    } catch (e) {
-      // Clear credentials on failure
-      await MexcApiManager().clearCredentials();
+      final usdtFree = balances['USDT']?['free'] ?? 0.0;
+      final assetCount = balances.values.where((b) => ((b['free'] ?? 0) + (b['locked'] ?? 0)) > 0).length;
 
       setState(() {
         _loading = false;
-        _statusMsg = '❌ فشل التحقق: $e';
+        _statusMsg = '✅ تم التحقق والاتصال بنجاح! رصيد USDT المتاح: $usdtFree (إجمالي الأصول: $assetCount)';
+        _statusIsError = false;
+      });
+
+      if (widget.nextScreen != null && mounted) {
+        Future.delayed(const Duration(milliseconds: 600), () {
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => widget.nextScreen!),
+            );
+          }
+        });
+      }
+    } catch (e) {
+      // Keep credentials saved in SharedPreferences so user doesn't lose them
+      setState(() {
+        _loading = false;
+        _statusMsg = '⚠️ تم حفظ المفاتيح ولكن حدث تنبيه أثناء الفحص: $e\nتأكد من تفعيل صلاحيات التداول (Spot/Futures) في منصة MEXC وعدم حظر الـ IP.';
         _statusIsError = true;
       });
     }

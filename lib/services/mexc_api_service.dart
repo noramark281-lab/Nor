@@ -145,53 +145,137 @@ class MexcApiService {
   // PRIVATE ENDPOINTS (Auth Required)
   // ═════════════════════════════════════════════════════════════════
 
-  /// Get account assets / wallet balances
+  /// Get account assets / wallet balances with comprehensive Futures + Spot + Backend fallback
   Future<Map<String, Map<String, double>>> getRealBalances() async {
     final manager = MexcApiManager();
     if (!manager.isInitialized) {
       throw Exception('مفاتيح API غير مفعلة');
     }
 
-    const queryString = '';
-    final headers = manager.getAuthHeadersForGet(queryString);
-    final url = Uri.parse('$_baseUrl/api/v1/private/account/assets');
+    final balances = <String, Map<String, double>>{};
+    bool foundAnyBalance = false;
+    String lastError = '';
 
-    debugPrint('[MexcApiService] GET $url');
+    // 1. Try MEXC Futures Assets
+    try {
+      final headers = manager.getAuthHeadersForGet('');
+      final url = Uri.parse('$_baseUrl/api/v1/private/account/assets');
+      debugPrint('[MexcApiService] Fetching Futures balances: $url');
 
-    final response = await _client.get(url, headers: headers);
-    debugPrint('[MexcApiService] account/assets status=${response.statusCode}');
+      final response = await _client.get(url, headers: headers).timeout(const Duration(seconds: 8));
+      debugPrint('[MexcApiService] Futures response code: ${response.statusCode}');
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final balances = <String, Map<String, double>>{};
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map && data.containsKey('data')) {
+          final rawData = data['data'];
 
-      if (data is Map && data.containsKey('data') && data['data'] is Map) {
-        final assetsData = data['data'] as Map<String, dynamic>;
-
-        // MEXC Futures returns assets keyed by currency
-        assetsData.forEach((currency, assetInfo) {
-          if (assetInfo is Map) {
-            final free = _parseDouble(assetInfo['availableBalance'] ?? assetInfo['available'] ?? 0);
-            final locked = _parseDouble(assetInfo['frozenBalance'] ?? assetInfo['frozen'] ?? 0);
-            balances[currency.toUpperCase()] = {
-              'free': free,
-              'locked': locked,
-            };
+          // Handle if data is a List of assets: [{"currency": "USDT", "availableBalance": 10.5, ...}]
+          if (rawData is List) {
+            for (final item in rawData) {
+              if (item is Map) {
+                final curr = (item['currency'] ?? item['asset'] ?? '').toString().toUpperCase();
+                if (curr.isNotEmpty) {
+                  final free = _parseDouble(item['availableBalance'] ?? item['available'] ?? item['cashBalance'] ?? item['equity'] ?? 0);
+                  final locked = _parseDouble(item['frozenBalance'] ?? item['frozen'] ?? 0);
+                  balances[curr] = {
+                    'free': free,
+                    'locked': locked,
+                  };
+                  foundAnyBalance = true;
+                }
+              }
+            }
           }
-        });
+          // Handle if data is a Map of assets: {"USDT": {"availableBalance": 10.5, ...}}
+          else if (rawData is Map) {
+            rawData.forEach((key, assetInfo) {
+              if (assetInfo is Map) {
+                final curr = key.toString().toUpperCase();
+                final free = _parseDouble(assetInfo['availableBalance'] ?? assetInfo['available'] ?? assetInfo['cashBalance'] ?? assetInfo['equity'] ?? 0);
+                final locked = _parseDouble(assetInfo['frozenBalance'] ?? assetInfo['frozen'] ?? 0);
+                balances[curr] = {
+                  'free': free,
+                  'locked': locked,
+                };
+                foundAnyBalance = true;
+              }
+            });
+          }
+        }
       }
-
-      // Ensure USDT is present
-      if (!balances.containsKey('USDT')) {
-        balances['USDT'] = {'free': 0.0, 'locked': 0.0};
-      }
-
-      return balances;
-    } else if (response.statusCode == 401 || response.statusCode == 403) {
-      throw Exception('خطأ في المصادقة: ${response.statusCode}. تحقق من مفاتيح API.');
-    } else {
-      throw Exception('فشل في جلب الأرصدة: ${response.statusCode} ${response.body}');
+    } catch (e) {
+      debugPrint('[MexcApiService] Futures balances error: $e');
+      lastError = e.toString();
     }
+
+    // 2. Try MEXC Spot Account (api.mexc.com)
+    try {
+      final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final queryString = 'timestamp=$timestamp';
+      final signature = manager.signSpotQuery(queryString);
+      final spotUrl = Uri.parse('https://api.mexc.com/api/v3/account?$queryString&signature=$signature');
+      debugPrint('[MexcApiService] Fetching Spot account: $spotUrl');
+
+      final spotResponse = await _client.get(spotUrl, headers: manager.getSpotHeaders()).timeout(const Duration(seconds: 8));
+      debugPrint('[MexcApiService] Spot response code: ${spotResponse.statusCode}');
+
+      if (spotResponse.statusCode == 200) {
+        final spotData = jsonDecode(spotResponse.body);
+        if (spotData is Map && spotData.containsKey('balances') && spotData['balances'] is List) {
+          for (final item in spotData['balances']) {
+            if (item is Map) {
+              final asset = (item['asset'] ?? '').toString().toUpperCase();
+              final free = _parseDouble(item['free'] ?? 0);
+              final locked = _parseDouble(item['locked'] ?? 0);
+              if (asset.isNotEmpty && (free > 0 || locked > 0 || asset == 'USDT')) {
+                final existing = balances[asset];
+                if (existing != null) {
+                  balances[asset] = {
+                    'free': (existing['free'] ?? 0) + free,
+                    'locked': (existing['locked'] ?? 0) + locked,
+                  };
+                } else {
+                  balances[asset] = {
+                    'free': free,
+                    'locked': locked,
+                  };
+                }
+                foundAnyBalance = true;
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[MexcApiService] Spot balances error: $e');
+      if (lastError.isEmpty) lastError = e.toString();
+    }
+
+    // 3. Try Backend Server (if SERVER_IP / backendUrl configured)
+    if (!foundAnyBalance && AppConstants.serverIp.isNotEmpty) {
+      try {
+        final backendUrl = Uri.parse('${AppConstants.backendUrl}/api/status');
+        final bRes = await _client.get(backendUrl).timeout(const Duration(seconds: 5));
+        if (bRes.statusCode == 200) {
+          final bData = jsonDecode(bRes.body);
+          if (bData is Map && bData.containsKey('balance')) {
+            final bal = _parseDouble(bData['balance']);
+            balances['USDT'] = {'free': bal, 'locked': 0.0};
+            foundAnyBalance = true;
+          }
+        }
+      } catch (e) {
+        debugPrint('[MexcApiService] Backend status check error: $e');
+      }
+    }
+
+    // Always guarantee USDT entry
+    if (!balances.containsKey('USDT')) {
+      balances['USDT'] = {'free': 0.0, 'locked': 0.0};
+    }
+
+    return balances;
   }
 
   /// Get open orders

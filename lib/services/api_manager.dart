@@ -139,6 +139,26 @@ class MexcApiManager {
     return buildAuthHeaders(method: 'POST', bodyString: bodyString);
   }
 
+  // ── Spot API v3 Support ─────────────────────────────────────────
+  /// Sign Spot query string: HMAC-SHA256(secretKey, queryString)
+  String signSpotQuery(String queryString) {
+    if (_secretKey == null || _secretKey!.isEmpty) {
+      throw Exception('Secret key not available');
+    }
+    final hmac = Hmac(sha256, utf8.encode(_secretKey!));
+    final digest = hmac.convert(utf8.encode(queryString));
+    return digest.toString();
+  }
+
+  /// Get Spot request headers
+  Map<String, String> getSpotHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'X-MEXC-APIKEY': _apiKey ?? '',
+      'Accept': 'application/json',
+    };
+  }
+
   // ── Test Connectivity ───────────────────────────────────────────
   /// Quick validation: check if we can read account assets.
   /// Returns true if API call succeeds, false otherwise.

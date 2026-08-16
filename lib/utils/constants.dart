@@ -30,16 +30,40 @@ class AppConstants {
   };
 
   /// مفاتيح API المُضمَّنة في وقت البناء (Build-time) عبر --dart-define
-  static const String buildTimeApiKey = String.fromEnvironment('MEXC_API_KEY');
-  static const String buildTimeApiSecret = String.fromEnvironment('MEXC_SECRET_KEY');
-  static const String serverIp = String.fromEnvironment('SERVER_IP');
+  static const String buildTimeApiKey = String.fromEnvironment(
+    'MEXC_API_KEY',
+    defaultValue: String.fromEnvironment(
+      'VITE_MEXC_API_KEY',
+      defaultValue: String.fromEnvironment('API_KEY'),
+    ),
+  );
+
+  static const String buildTimeApiSecret = String.fromEnvironment(
+    'MEXC_SECRET_KEY',
+    defaultValue: String.fromEnvironment(
+      'MEXC_API_SECRET',
+      defaultValue: String.fromEnvironment(
+        'VITE_MEXC_SECRET_KEY',
+        defaultValue: String.fromEnvironment('SECRET_KEY'),
+      ),
+    ),
+  );
+
+  static const String serverIp = String.fromEnvironment(
+    'SERVER_IP',
+    defaultValue: String.fromEnvironment(
+      'VITE_SERVER_IP',
+      defaultValue: String.fromEnvironment('HOST_IP'),
+    ),
+  );
 
   static String get backendUrl {
-    if (serverIp.isNotEmpty) {
-      if (serverIp.startsWith('http://') || serverIp.startsWith('https://')) {
-        return serverIp;
+    final ip = serverIp.trim();
+    if (ip.isNotEmpty) {
+      if (ip.startsWith('http://') || ip.startsWith('https://')) {
+        return ip;
       }
-      return 'http://$serverIp:8000';
+      return 'http://$ip:8000';
     }
     return defaultBackendUrl;
   }

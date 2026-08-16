@@ -145,12 +145,17 @@ async function edgeFetch(action: string, params?: Record<string, string>, body?:
           const data = await res.json()
           if (data && data.data) {
             const assets = data.data
-            const usdt = assets.USDT || assets.usdt || {}
+            let usdt: any = {}
+            if (Array.isArray(assets)) {
+              usdt = assets.find((a: any) => (a.currency || a.asset || '').toUpperCase() === 'USDT') || {}
+            } else if (typeof assets === 'object') {
+              usdt = assets.USDT || assets.usdt || {}
+            }
             const free = parseFloat(usdt.availableBalance || usdt.available || usdt.cashBalance || '0')
             const locked = parseFloat(usdt.frozenBalance || usdt.frozen || '0')
             return {
               asset: 'USDT',
-              free: free > 0 ? free : 0.8327,
+              free,
               locked,
               total: free + locked,
               accountType: 'FUTURES',

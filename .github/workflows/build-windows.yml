@@ -77,7 +77,7 @@ jobs:
 
     - name: Build EXE with PyInstaller
       run: |
-        pyinstaller --onefile MEXCTradingBot.spec
+        pyinstaller MEXCTradingBot.spec
 
     - name: Create installer with NSIS
       uses: joncloud/makensis-action@v4

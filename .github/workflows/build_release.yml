@@ -17,10 +17,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
+          cache: gradle
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -93,25 +94,67 @@ jobs:
           path: build/app/outputs/bundle/release/app-release.aab
           retention-days: 30
 
-      - name: Create GitHub Release & Upload APK
+      - name: Create GitHub Draft Release, Upload Assets & Publish
         id: create_release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ github.run_number }}
-          name: "MEXC Spot Trader v${{ github.run_number }}"
-          body: |
-            🚀 إصدار تلقائي لتطبيق MEXC Spot Trader
-            - ✅ بناء مستقر (Stable Build)
-            - ✅ توقيع رقمي (Signed APK & AAB)
-            - ✅ جاهز للتثبيت على Android 5.0+ (API 21)
-            - ✅ AAB جاهز للرفع على Google Play
-            - ✅ رابط التحميل المباشر في الأسفل
-          files: |
-            build/app/outputs/flutter-apk/app-release.apk
-            build/app/outputs/bundle/release/app-release.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="android-v${{ github.run_number }}"
+          NAME="Nor Android Release #${{ github.run_number }}"
+          APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+          AAB_PATH="build/app/outputs/bundle/release/app-release.aab"
+
+          BODY="🚀 إصدار تلقائي لتطبيق Nor Android (Build #${{ github.run_number }})
+          - ✅ بناء مستقر وموقع رقمياً (Signed APK & AAB)
+          - ✅ متوافق مع Android 5.0+ (API 21+)
+          - ✅ AAB جاهز للنشر على متجر Google Play
+          - ✅ Commit: ${{ github.sha }}"
+
+          echo "Creating draft release with tag: $TAG..."
+          RELEASE_JSON=$(curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases" \
+            -d "{\"tag_name\":\"$TAG\",\"name\":\"$NAME\",\"body\":$(echo "$BODY" | jq -sR .),\"draft\":true,\"prerelease\":false}")
+
+          RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.id // empty')
+          UPLOAD_URL=$(echo "$RELEASE_JSON" | jq -r '.upload_url // empty' | sed 's/{?name,label}//')
+
+          if [ -z "$RELEASE_ID" ] || [ -z "$UPLOAD_URL" ]; then
+            echo "❌ Failed to create draft release"
+            echo "$RELEASE_JSON"
+            exit 1
+          fi
+
+          echo "Uploading APK asset to draft release..."
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            "${UPLOAD_URL}?name=app-release.apk" \
+            --data-binary "@$APK_PATH"
+
+          echo "Uploading AAB asset to draft release..."
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/octet-stream" \
+            "${UPLOAD_URL}?name=app-release.aab" \
+            --data-binary "@$AAB_PATH"
+
+          echo "Publishing release (draft: false)..."
+          curl --fail-with-body -sS -X PATCH \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID" \
+            -d '{"draft":false}'
+
+          echo "✅ Release successfully published: https://github.com/${{ github.repository }}/releases/tag/$TAG"
 
       - name: Print download link
         if: steps.create_release.outcome == 'success'
@@ -120,7 +163,7 @@ jobs:
           echo "========================================"
           echo "🎉 BUILD SUCCESSFUL!"
           echo "========================================"
-          echo "📦 Release URL: https://github.com/${{ github.repository }}/releases/tag/v${{ github.run_number }}"
-          echo "📥 Direct APK: https://github.com/${{ github.repository }}/releases/download/v${{ github.run_number }}/app-release.apk"
-          echo "📥 Direct AAB: https://github.com/${{ github.repository }}/releases/download/v${{ github.run_number }}/app-release.aab"
+          echo "📦 Release URL: https://github.com/${{ github.repository }}/releases/tag/android-v${{ github.run_number }}"
+          echo "📥 Direct APK: https://github.com/${{ github.repository }}/releases/download/android-v${{ github.run_number }}/app-release.apk"
+          echo "📥 Direct AAB: https://github.com/${{ github.repository }}/releases/download/android-v${{ github.run_number }}/app-release.aab"
           echo "========================================"

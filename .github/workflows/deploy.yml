@@ -81,10 +81,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
+          cache: gradle
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -195,42 +196,84 @@ jobs:
           name: mexc-trader-aab
           path: release-artifacts/
 
-      - name: Create GitHub Release
+      - name: Create GitHub Draft Release, Upload Assets & Publish
         id: create_release
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ github.run_number }}
-          name: "Nor - MEXC Trader Release v${{ github.run_number }}"
-          draft: false
-          prerelease: false
-          body: |
-            ## 🚀 Nor - MEXC Trading & Event Contract Platform v${{ github.run_number }}
-            
-            ### 📦 Build & Release Summary
-            - **Commit**: `${{ github.sha }}`
-            - **Branch**: `${{ github.ref_name }}`
-            - **Run Number**: `#${{ github.run_number }}`
-            - **Status**: ✅ **SUCCESSFUL BUILD**
-            
-            ### 📱 Downloads
-            - 📥 **APK (Direct Installation)**: [app-release.apk](https://github.com/${{ github.repository }}/releases/download/v${{ github.run_number }}/app-release.apk)
-            - 📦 **AAB (Google Play Store)**: [app-release.aab](https://github.com/${{ github.repository }}/releases/download/v${{ github.run_number }}/app-release.aab)
-            
-            ### 🛡️ Features Included
-            - Real-time MEXC Futures and Event Contract trading
-            - Real wallet balance reading & automated trade execution
-            - HMAC SHA-256 signed API security
-            - Dedicated backend proxy integration via `SERVER_IP`
-          files: |
-            release-artifacts/app-release.apk
-            release-artifacts/app-release.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v1.8.0-deploy-${{ github.run_number }}"
+          NAME="Nor - MEXC Trader Release v1.8.0 (#${{ github.run_number }})"
+          APK_PATH="release-artifacts/app-release.apk"
+          AAB_PATH="release-artifacts/app-release.aab"
+
+          BODY="## 🚀 Nor - MEXC Trading & Event Contract Platform v1.8.0 (#${{ github.run_number }})
+
+          ### 📦 Build & Release Summary
+          - **Commit**: \`${{ github.sha }}\`
+          - **Branch**: \`${{ github.ref_name }}\`
+          - **Run Number**: \`#${{ github.run_number }}\`
+          - **Status**: ✅ **SUCCESSFUL BUILD**
+
+          ### 📱 Downloads
+          - 📥 **APK (Direct Installation)**: [app-release.apk](https://github.com/${{ github.repository }}/releases/download/${TAG}/app-release.apk)
+          - 📦 **AAB (Google Play Store)**: [app-release.aab](https://github.com/${{ github.repository }}/releases/download/${TAG}/app-release.aab)
+
+          ### 🛡️ Features Included
+          - Real-time MEXC Futures and Event Contract trading
+          - Real wallet balance reading & automated trade execution
+          - HMAC SHA-256 signed API security
+          - Dedicated backend proxy integration via \`SERVER_IP\`"
+
+          echo "Creating draft release with tag: $TAG..."
+          RELEASE_JSON=$(curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases" \
+            -d "{\"tag_name\":\"$TAG\",\"name\":\"$NAME\",\"body\":$(echo "$BODY" | jq -sR .),\"draft\":true,\"prerelease\":false}")
+
+          RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.id // empty')
+          UPLOAD_URL=$(echo "$RELEASE_JSON" | jq -r '.upload_url // empty' | sed 's/{?name,label}//')
+
+          if [ -z "$RELEASE_ID" ] || [ -z "$UPLOAD_URL" ]; then
+            echo "❌ Failed to create draft release"
+            echo "$RELEASE_JSON"
+            exit 1
+          fi
+
+          echo "Uploading APK asset to draft release..."
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            "${UPLOAD_URL}?name=app-release.apk" \
+            --data-binary "@$APK_PATH"
+
+          echo "Uploading AAB asset to draft release..."
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/octet-stream" \
+            "${UPLOAD_URL}?name=app-release.aab" \
+            --data-binary "@$AAB_PATH"
+
+          echo "Publishing release (draft: false)..."
+          curl --fail-with-body -sS -X PATCH \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID" \
+            -d '{"draft":false}'
+
+          echo "release_tag=$TAG" >> $GITHUB_OUTPUT
+          echo "✅ Release published: https://github.com/${{ github.repository }}/releases/tag/$TAG"
 
       - name: Output Deployment Logs & Summary Table
         run: |
-          RELEASE_TAG="v${{ github.run_number }}"
+          RELEASE_TAG="v1.8.0-deploy-${{ github.run_number }}"
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${RELEASE_TAG}"
           APK_DOWNLOAD="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/app-release.apk"
           AAB_DOWNLOAD="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/app-release.aab"

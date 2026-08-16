@@ -28,18 +28,16 @@ class MyApp extends StatelessWidget {
       child: Consumer<ThemeProvider>(
         builder: (context, theme, _) {
           return MaterialApp(
-            title: 'MEXC Event Trader',
+            title: 'MEXC Spot Trader',
             debugShowCheckedModeBanner: false,
             themeMode: theme.themeMode,
             theme: theme.lightTheme,
             darkTheme: theme.darkTheme,
             locale: const Locale('ar', 'SA'),
-            builder: (context, child) {
-              return Directionality(
-                textDirection: TextDirection.rtl,
-                child: child!,
-              );
-            },
+            builder: (context, child) => Directionality(
+              textDirection: TextDirection.rtl,
+              child: child!,
+            ),
             home: const SplashScreen(),
           );
         },

@@ -92,13 +92,13 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         with:
-          tag_name: windows-v1.8.0-${{ github.run_number }}
-          name: Nor Windows Build v1.8.0 (#${{ github.run_number }})
+          tag_name: windows-v1.8.0-build${{ github.run_id }}
+          name: Nor Windows Build v1.8.0 (Run ${{ github.run_id }})
           files: Nor-Windows-x64.zip
           body: |
             🖥️ Nor - MEXC Event Trader (Windows x64)
             
-            📦 Direct Download: [Nor-Windows-x64.zip](https://github.com/${{ github.repository }}/releases/download/windows-v1.8.0-${{ github.run_number }}/Nor-Windows-x64.zip)
+            📦 Direct Download: [Nor-Windows-x64.zip](https://github.com/${{ github.repository }}/releases/download/windows-v1.8.0-build${{ github.run_id }}/Nor-Windows-x64.zip)
             
             1. Download Nor-Windows-x64.zip
             2. Extract

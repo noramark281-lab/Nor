@@ -180,7 +180,7 @@ export default function HomeScreen({
         </div>
         <div className="col gap-8">
           <a
-            href="https://github.com/noramark281-lab/Nor/releases/download/v43/app-release.apk"
+            href="https://github.com/noramark281-lab/Nor/releases/download/v1.8.0-deploy-10/app-release.apk"
             target="_blank"
             rel="noreferrer"
             className="btn btn-green"
@@ -213,13 +213,13 @@ export default function HomeScreen({
           </a>
 
           <a
-            href="https://github.com/noramark281-lab/Nor/releases"
+            href="https://github.com/noramark281-lab/Nor/releases/tag/v1.8.0-deploy-10"
             target="_blank"
             rel="noreferrer"
             className="row gap-4 text-xs text-secondary"
             style={{ justifyContent: 'center', marginTop: 4, textDecoration: 'none' }}
           >
-            <span>جميع الإصدارات والمصادر على GitHub</span>
+            <span>عرض تفاصيل ومرفقات الإصدار v1.8.0 على GitHub</span>
             <ExternalLink size={12} />
           </a>
         </div>

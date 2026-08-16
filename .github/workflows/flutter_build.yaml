@@ -38,7 +38,7 @@ jobs:
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Build APK
-        run: flutter build apk --release --dart-define=MEXC_API_KEY="${{ secrets.MEXC_API_KEY }}" --dart-define=MEXC_SECRET_KEY="${{ secrets.MEXC_SECRET_KEY }}" --dart-define=SERVER_IP="${{ secrets.SERVER_IP }}"
+        run: flutter build apk --release --dart-define=MEXC_API_KEY="${{ secrets.MEXC_API_KEY || secrets.API_KEY }}" --dart-define=MEXC_SECRET_KEY="${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}" --dart-define=MEXC_API_SECRET="${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}" --dart-define=SERVER_IP="${{ secrets.SERVER_IP || secrets.HOST_IP }}"
 
       - name: Verify APK output
         shell: bash

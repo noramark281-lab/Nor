@@ -56,11 +56,11 @@ jobs:
           ls -la android/app/upload-keystore.jks
 
       - name: Build Release APK
-        run: flutter build apk --release --no-tree-shake-icons --dart-define=MEXC_API_KEY="${{ secrets.MEXC_API_KEY }}" --dart-define=MEXC_SECRET_KEY="${{ secrets.MEXC_SECRET_KEY }}" --dart-define=SERVER_IP="${{ secrets.SERVER_IP }}"
+        run: flutter build apk --release --no-tree-shake-icons --dart-define=MEXC_API_KEY="${{ secrets.MEXC_API_KEY || secrets.API_KEY }}" --dart-define=MEXC_SECRET_KEY="${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}" --dart-define=MEXC_API_SECRET="${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}" --dart-define=SERVER_IP="${{ secrets.SERVER_IP || secrets.HOST_IP }}"
         timeout-minutes: 15
 
       - name: Build Release App Bundle (AAB)
-        run: flutter build appbundle --release --no-tree-shake-icons --dart-define=MEXC_API_KEY="${{ secrets.MEXC_API_KEY }}" --dart-define=MEXC_SECRET_KEY="${{ secrets.MEXC_SECRET_KEY }}" --dart-define=SERVER_IP="${{ secrets.SERVER_IP }}"
+        run: flutter build appbundle --release --no-tree-shake-icons --dart-define=MEXC_API_KEY="${{ secrets.MEXC_API_KEY || secrets.API_KEY }}" --dart-define=MEXC_SECRET_KEY="${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}" --dart-define=MEXC_API_SECRET="${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}" --dart-define=SERVER_IP="${{ secrets.SERVER_IP || secrets.HOST_IP }}"
         timeout-minutes: 15
 
       - name: Verify APK & AAB exist

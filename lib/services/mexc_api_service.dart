@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'api_manager.dart';
 import '../models/trading_pair.dart';
+import '../utils/constants.dart';
 
 /// ═══════════════════════════════════════════════════════════════════
 /// MEXC Futures API v1 Service

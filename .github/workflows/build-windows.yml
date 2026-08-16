@@ -86,7 +86,7 @@ jobs:
       continue-on-error: true
 
     - name: Upload EXE artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: mexc-trading-bot-windows
         path: dist/MEXCTradingBot.exe

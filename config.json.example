@@ -1,0 +1,43 @@
+{
+  "mexc": {
+    "api_key": "YOUR_API_KEY_HERE",
+    "api_secret": "YOUR_API_SECRET_HERE",
+    "base_url": "https://api.mexc.com/api/v3"
+  },
+  "trading": {
+    "default_allocation": 1.0,
+    "max_concurrent_trades": 5,
+    "risk_management": {
+      "trailing_stop_loss_percent": 1.5,
+      "dust_cleanup_enabled": true,
+      "min_notional_dust": 10.0
+    }
+  },
+  "pair_scanner": {
+    "min_volume_usdt": 1000000,
+    "max_spread_percent": 2.0,
+    "min_price_change_percent": 0.5,
+    "top_pairs_limit": 20
+  },
+  "sentiment_analysis": {
+    "enabled": true,
+    "cryptopanic_api_key": "YOUR_CRYPTOPANIC_API_KEY",
+    "min_confidence_threshold": 0.65,
+    "refresh_interval_seconds": 300
+  },
+  "websocket": {
+    "enabled": true,
+    "streams": ["ticker", "orderbook"],
+    "reconnect_interval_seconds": 5,
+    "max_retries": 3
+  },
+  "rate_limiting": {
+    "rest_delay_seconds": 1.0,
+    "batch_size": 5
+  },
+  "logging": {
+    "level": "INFO",
+    "log_file": "trading_bot.log",
+    "max_log_size_mb": 100
+  }
+}

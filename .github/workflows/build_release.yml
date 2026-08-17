@@ -37,12 +37,10 @@ jobs:
           mkdir -p android/app
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/upload-keystore.jks
-            cat << 'EOF' > android/key.properties
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          storeFile=upload-keystore.jks
-          EOF
+            echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
+            echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+            echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+            echo "storeFile=upload-keystore.jks" >> android/key.properties
           else
             echo "Generating consistent release keystore for reproducible signing..."
             rm -f android/app/upload-keystore.jks
@@ -53,12 +51,10 @@ jobs:
               -alias nor_release \
               -keyalg RSA -keysize 2048 -validity 10000 \
               -dname "CN=Nor,O=Nor,L=Nor,ST=Nor,C=US"
-            cat << 'EOF' > android/key.properties
-storePassword=norpass123
-keyPassword=norpass123
-keyAlias=nor_release
-storeFile=upload-keystore.jks
-EOF
+            echo "storePassword=norpass123" > android/key.properties
+            echo "keyPassword=norpass123" >> android/key.properties
+            echo "keyAlias=nor_release" >> android/key.properties
+            echo "storeFile=upload-keystore.jks" >> android/key.properties
           fi
           ls -la android/app/upload-keystore.jks
           cat android/key.properties

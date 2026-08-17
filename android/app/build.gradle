@@ -12,6 +12,14 @@ if (localPropertiesFile.exists()) {
     }
 }
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withReader('UTF-8') { reader ->
+        keystoreProperties.load(reader)
+    }
+}
+
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
 if (flutterVersionCode == null) {
     flutterVersionCode = '1'
@@ -24,7 +32,7 @@ if (flutterVersionName == null) {
 
 android {
     namespace = "com.nor.mexc_event_trader"
-    compileSdk = 36
+    compileSdk = 35
     ndkVersion = "26.1.10909125"
 
     compileOptions {
@@ -42,17 +50,48 @@ android {
 
     defaultConfig {
         applicationId = "com.nor.mexc_event_trader"
-        minSdk = 23
-        targetSdk = 36
+        minSdk = 21
+        targetSdk = 35
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName
     }
 
+    signingConfigs {
+        release {
+            def storeFileName = keystoreProperties.getProperty('storeFile')
+            def keyStoreFile = null
+            if (storeFileName) {
+                if (file(storeFileName).exists()) {
+                    keyStoreFile = file(storeFileName)
+                } else if (file("app/${storeFileName}").exists()) {
+                    keyStoreFile = file("app/${storeFileName}")
+                } else if (rootProject.file(storeFileName).exists()) {
+                    keyStoreFile = rootProject.file(storeFileName)
+                } else if (rootProject.file("app/${storeFileName}").exists()) {
+                    keyStoreFile = rootProject.file("app/${storeFileName}")
+                }
+            }
+            if (keyStoreFile != null && keyStoreFile.exists()) {
+                keyAlias keystoreProperties.getProperty('keyAlias')
+                keyPassword keystoreProperties.getProperty('keyPassword')
+                storeFile keyStoreFile
+                storePassword keystoreProperties.getProperty('storePassword')
+                v1SigningEnabled true
+                v2SigningEnabled true
+            } else {
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+                storeFile file("${System.properties['user.home']}/.android/debug.keystore")
+                storePassword 'android'
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.debug
-            minifyEnabled true
-            shrinkResources true
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

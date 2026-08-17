@@ -104,11 +104,11 @@ jobs:
             KEYSTORE_FILE="android/app/my-Albader-key.jks"
           fi
 
-          # Synchronize keystore across all expected file paths
-          cp -f "$KEYSTORE_FILE" android/app/my-Albader-key.jks
-          cp -f "$KEYSTORE_FILE" android/app/upload-keystore.jks
-          cp -f "$KEYSTORE_FILE" android/my-Albader-key.jks
-          cp -f "$KEYSTORE_FILE" android/upload-keystore.jks
+          # Synchronize keystore across all expected file paths safely
+          [ "$KEYSTORE_FILE" != "android/app/my-Albader-key.jks" ] && cp -f "$KEYSTORE_FILE" android/app/my-Albader-key.jks || true
+          [ "$KEYSTORE_FILE" != "android/app/upload-keystore.jks" ] && cp -f "$KEYSTORE_FILE" android/app/upload-keystore.jks || true
+          cp -f "$KEYSTORE_FILE" android/my-Albader-key.jks || true
+          cp -f "$KEYSTORE_FILE" android/upload-keystore.jks || true
 
           # Write key.properties cleanly without trailing whitespace
           printf "storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=my-Albader-key.jks\n" "$STORE_PASS" "$KEY_PASS" "$TARGET_ALIAS" > android/key.properties

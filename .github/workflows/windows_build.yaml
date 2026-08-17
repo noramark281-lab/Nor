@@ -7,6 +7,7 @@ on:
     paths:
       - 'pubspec.yaml'
       - 'lib/**'
+      - 'windows/**'
       - '.github/workflows/windows_build.yaml'
 
 jobs:
@@ -28,6 +29,7 @@ jobs:
         with:
           flutter-version: '3.24.5'
           channel: 'stable'
+          cache: true
 
       - name: Enable Windows desktop support
         run: flutter config --enable-windows-desktop
@@ -36,59 +38,20 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-          vsversion: '2022'
 
       - name: Verify Flutter installation
         run: |
           flutter --version
           flutter doctor -v
 
-      - name: Generate Windows platform files
+      - name: Setup Windows Platform Files
         shell: pwsh
         run: |
-          # Flutter create rejects directory names with uppercase letters.
-          # Solution: copy the entire project to a lowercase temp directory,
-          # run flutter create there, then copy the generated windows/ back.
-          $tempDir = "${{ runner.temp }}\nor_app"
-          if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
-          New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
-          Copy-Item -Path "${{ github.workspace }}\*" -Destination $tempDir -Recurse -Force
+          Write-Host "Ensuring Windows platform configuration is active..."
+          flutter create --platforms=windows --org=com.mexc.eventtrader --project-name=nor .
           
-          Push-Location $tempDir
-          flutter create --platforms=windows --project-name=mexc_event_trader_app .
-          Pop-Location
-          
-          # Copy the generated windows/ folder back
-          Copy-Item -Path "$tempDir\windows" -Destination "${{ github.workspace }}\windows" -Recurse -Force
-          
-          Write-Host "Generated windows files:"
-          Get-ChildItem -Path "${{ github.workspace }}\windows" -Recurse -Name
-
-      - name: Set binary name to Nor
-        shell: pwsh
-        run: |
-          # Replace default project name with "Nor" in CMake files
-          $files = @(
-            "windows\CMakeLists.txt",
-            "windows\runner\CMakeLists.txt",
-            "windows\flutter\CMakeLists.txt"
-          )
-          foreach ($f in $files) {
-            if (Test-Path $f) {
-              (Get-Content $f -Raw) -replace 'mexc_event_trader_app', 'Nor' | Set-Content $f -NoNewline
-              Write-Host "Updated: $f"
-            }
-          }
-          
-          # Update the window title in main.cpp
-          $mainCpp = "windows\runner\main.cpp"
-          if (Test-Path $mainCpp) {
-            $content = Get-Content $mainCpp -Raw
-            # Find the window title string and replace it
-            $content = $content -replace 'mexc_event_trader_app', 'Nor - MEXC Event Trader'
-            Set-Content $mainCpp -Value $content -NoNewline
-            Write-Host "Updated window title in main.cpp"
-          }
+          Write-Host "Windows platform files:"
+          Get-ChildItem -Path "windows" -Recurse -Name
 
       - name: Get dependencies
         run: flutter pub get
@@ -100,25 +63,23 @@ jobs:
         shell: pwsh
         run: |
           $buildDir = "build\windows\x64\runner\Release"
-          $exePath = "$buildDir\Nor.exe"
-          
-          if (Test-Path $exePath) {
-            Write-Host "SUCCESS: Nor.exe found!"
-            $fileInfo = Get-Item $exePath
-            Write-Host "File size: $($fileInfo.Length) bytes"
+          Write-Host "Listing build directory contents:"
+          if (Test-Path $buildDir) {
+            Get-ChildItem $buildDir | ForEach-Object { Write-Host "  $($_.Name) ($($_.Length) bytes)" }
           } else {
-            Write-Host "ERROR: Nor.exe not found at expected path"
-            Write-Host "Searching for any .exe in build directory:"
-            Get-ChildItem -Recurse "build\windows" -Filter "*.exe" -ErrorAction SilentlyContinue | ForEach-Object {
-              Write-Host "  Found: $($_.FullName)"
+            Get-ChildItem -Recurse "build\windows" | ForEach-Object { Write-Host "  $($_.FullName)" }
+          }
+          
+          # Locate the main EXE
+          $exe = Get-ChildItem -Path $buildDir -Filter "*.exe" | Select-Object -First 1
+          if ($exe) {
+            Write-Host "✅ Found executable: $($exe.FullName)"
+            if ($exe.Name -ne "Nor.exe") {
+              Copy-Item $exe.FullName "$buildDir\Nor.exe" -Force
+              Write-Host "Copied to $buildDir\Nor.exe"
             }
-            Write-Host "Full build directory listing:"
-            if (Test-Path $buildDir) {
-              Get-ChildItem -Recurse $buildDir | ForEach-Object { Write-Host "  $($_.FullName)" }
-            } else {
-              Write-Host "  Release directory does not exist"
-              Get-ChildItem -Recurse "build\windows" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $($_.FullName)" }
-            }
+          } else {
+            Write-Host "❌ No executable found in release folder!"
             exit 1
           }
 
@@ -127,61 +88,49 @@ jobs:
         run: |
           $buildDir = "build\windows\x64\runner\Release"
           
-          # These are the Visual C++ Redistributable DLLs that users need
-          # to have installed. We bundle them so the app works without
-          # requiring a separate VC++ Redist installation.
-          $dlls = @(
-            "MSVCP140.dll",
-            "VCRUNTIME140.dll",
-            "VCRUNTIME140_1.dll"
-          )
+          # Bundle the VC++ Redistributable DLLs so users do not encounter missing DLL errors
+          $dlls = @("MSVCP140.dll", "VCRUNTIME140.dll", "VCRUNTIME140_1.dll")
           
           foreach ($dll in $dlls) {
             $systemPath = "C:\Windows\System32\$dll"
             if (Test-Path $systemPath) {
               Copy-Item $systemPath -Destination $buildDir -Force
-              Write-Host "Bundled: $dll"
+              Write-Host "✅ Bundled: $dll"
             } else {
-              Write-Host "WARNING: $dll not found in System32 - searching VCToolsInstallDir"
-              # Try to find it from the MSVC toolchain
               $vctools = [System.Environment]::GetEnvironmentVariable("VCToolsInstallDir")
               if ($vctools) {
                 $altPath = Get-ChildItem -Path $vctools -Recurse -Filter $dll -ErrorAction SilentlyContinue | Select-Object -First 1
                 if ($altPath) {
                   Copy-Item $altPath.FullName -Destination $buildDir -Force
-                  Write-Host "Bundled from VCTools: $dll"
-                } else {
-                  Write-Host "ERROR: Could not find $dll anywhere!"
+                  Write-Host "✅ Bundled from VCTools: $dll"
                 }
-              } else {
-                Write-Host "ERROR: VCToolsInstallDir not set, could not find $dll"
               }
             }
           }
           
-          Write-Host ""
-          Write-Host "Final Release directory contents:"
-          Get-ChildItem $buildDir | ForEach-Object { Write-Host "  $($_.Name)  ($($_.Length) bytes)" }
+          Write-Host "`nFinal Release directory contents:"
+          Get-ChildItem $buildDir | ForEach-Object { Write-Host "  $($_.Name) ($($_.Length) bytes)" }
 
       - name: Build Windows Installer (NSIS)
         shell: pwsh
         run: |
-          if (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe") {
-            & "C:\Program Files (x86)\NSIS\makensis.exe" windows\installer.nsi
-            Write-Host "✅ Nor_Setup.exe installer generated successfully!"
-          } elseif (Test-Path "C:\Program Files\NSIS\makensis.exe") {
-            & "C:\Program Files\NSIS\makensis.exe" windows\installer.nsi
-            Write-Host "✅ Nor_Setup.exe installer generated successfully!"
-          } else {
-            Write-Host "makensis not found in standard path, trying PATH..."
-            makensis windows\installer.nsi
+          if (Test-Path "windows\installer.nsi") {
+            if (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe") {
+              & "C:\Program Files (x86)\NSIS\makensis.exe" windows\installer.nsi
+              Write-Host "✅ Nor_Setup.exe installer generated successfully!"
+            } elseif (Test-Path "C:\Program Files\NSIS\makensis.exe") {
+              & "C:\Program Files\NSIS\makensis.exe" windows\installer.nsi
+              Write-Host "✅ Nor_Setup.exe installer generated successfully!"
+            } else {
+              makensis windows\installer.nsi
+            }
           }
 
       - name: Package as ZIP
         shell: pwsh
         run: |
           Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "Nor-Windows-x64.zip" -Force
-          Write-Host "ZIP created: Nor-Windows-x64.zip"
+          Write-Host "✅ ZIP created: Nor-Windows-x64.zip"
           $zipInfo = Get-Item "Nor-Windows-x64.zip"
           Write-Host "ZIP size: $($zipInfo.Length) bytes"
 

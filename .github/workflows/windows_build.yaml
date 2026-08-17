@@ -174,8 +174,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
-          tag_name: windows-v1.8.0-${{ github.run_number }}
-          name: Nor Windows Build v1.8.0 (#${{ github.run_number }})
+          tag_name: windows-v1.8.0-run${{ github.run_id }}
+          name: Nor Windows Build v1.8.0 (Run ${{ github.run_id }})
           files: Nor-Windows-x64.zip
           body: |
             🖥️ Nor - MEXC Event Trader (Windows x64)

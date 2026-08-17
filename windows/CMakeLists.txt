@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
-project(Nor LANGUAGES CXX)
+project(mexc_event_trader_app LANGUAGES CXX)
 
+# Set the name of the executable created for the application.
 set(BINARY_NAME "Nor")
 
 cmake_policy(SET CMP0063 NEW)

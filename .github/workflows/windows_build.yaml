@@ -44,15 +44,6 @@ jobs:
           flutter --version
           flutter doctor -v
 
-      - name: Setup Windows Platform Files
-        shell: pwsh
-        run: |
-          Write-Host "Ensuring Windows platform configuration is active..."
-          flutter create --platforms=windows --org=com.mexc.eventtrader --project-name=nor .
-          
-          Write-Host "Windows platform files:"
-          Get-ChildItem -Path "windows" -Recurse -Name
-
       - name: Get dependencies
         run: flutter pub get
 

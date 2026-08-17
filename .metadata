@@ -4,7 +4,7 @@
 # This file should be version controlled and should not be manually edited.
 
 version:
-  revision: "b0850beeb25f6dffb0032496cd81236e1153ba98"
+  revision: "058e0af2c2b57e369d905a03ac9748b0ebf543c6"
   channel: "stable"
 
 project_type: app
@@ -13,18 +13,18 @@ project_type: app
 migration:
   platforms:
     - platform: root
-      create_revision: b0850beeb25f6dffb0032496cd81236e1153ba98
-      base_revision: b0850beeb25f6dffb0032496cd81236e1153ba98
-    - platform: android
-      create_revision: b0850beeb25f6dffb0032496cd81236e1153ba98
-      base_revision: b0850beeb25f6dffb0032496cd81236e1153ba98
-    - platform: ios
-      create_revision: b0850beeb25f6dffb0032496cd81236e1153ba98
-      base_revision: b0850beeb25f6dffb0032496cd81236e1153ba98
+      create_revision: 058e0af2c2b57e369d905a03ac9748b0ebf543c6
+      base_revision: 058e0af2c2b57e369d905a03ac9748b0ebf543c6
+    - platform: windows
+      create_revision: 058e0af2c2b57e369d905a03ac9748b0ebf543c6
+      base_revision: 058e0af2c2b57e369d905a03ac9748b0ebf543c6
 
   # User provided section
 
   # List of Local paths (relative to this file) that should be
   # ignored by the migrate tool.
-  local_path:
-    - path: android/app/src/main/kotlin/com/nor/mexc_event_trader/MainActivity.kt
+  #
+  # Files that are not part of the templates will be ignored by default.
+  unmanaged_files:
+    - 'lib/main.dart'
+    - 'ios/Runner.xcodeproj/project.pbxproj'

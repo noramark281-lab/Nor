@@ -163,10 +163,23 @@ jobs:
           Write-Host "Final Release directory contents:"
           Get-ChildItem $buildDir | ForEach-Object { Write-Host "  $($_.Name)  ($($_.Length) bytes)" }
 
+      - name: Build Windows Installer (NSIS)
+        shell: pwsh
+        run: |
+          if (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe") {
+            & "C:\Program Files (x86)\NSIS\makensis.exe" windows\installer.nsi
+            Write-Host "✅ Nor_Setup.exe installer generated successfully!"
+          } elseif (Test-Path "C:\Program Files\NSIS\makensis.exe") {
+            & "C:\Program Files\NSIS\makensis.exe" windows\installer.nsi
+            Write-Host "✅ Nor_Setup.exe installer generated successfully!"
+          } else {
+            Write-Host "makensis not found in standard path, trying PATH..."
+            makensis windows\installer.nsi
+          }
+
       - name: Package as ZIP
         shell: pwsh
         run: |
-          Copy-Item "build\windows\x64\runner\Release\Nor.exe" -Destination "Nor.exe" -Force
           Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "Nor-Windows-x64.zip" -Force
           Write-Host "ZIP created: Nor-Windows-x64.zip"
           $zipInfo = Get-Item "Nor-Windows-x64.zip"
@@ -178,7 +191,7 @@ jobs:
           name: Nor-Windows-x64
           path: |
             Nor-Windows-x64.zip
-            Nor.exe
+            Nor_Setup.exe
           retention-days: 90
 
       - name: Create Release
@@ -188,21 +201,23 @@ jobs:
           tag_name: windows-v1.8.0-${{ github.run_number }}
           name: Nor Windows Build v1.8.0 (#${{ github.run_number }})
           files: |
+            Nor_Setup.exe
             Nor-Windows-x64.zip
-            Nor.exe
           body: |
             🖥️ Nor - MEXC Event Trader (Windows x64 Desktop Application)
             
-            📥 خيارات التحميل:
-            1. Nor-Windows-x64.zip: الحزمة الكاملة جاهزة للتشغيل مع كافة ملفات DLL اللازمة (موصى بها).
-            2. Nor.exe: الملف التنفيذي المباشر.
+            📥 خيارات التحميل والتثبيت:
+            1. **Nor_Setup.exe (المثبت التلقائي - موصى به)**:
+               برنامج تثبيت متكامل يقوم بتثبيت التطبيق وكافة ملحقات Windows ومكتبات التشغيل ووضع اختصار على سطح المكتب.
+            
+            2. **Nor-Windows-x64.zip (النسخة المحمولة Portable)**:
+               ملف مضغوط يحتوي على التطبيق وكافة ملفات DLL. قم بفك الضغط أولاً عن المجلد بالكامل ثم شغل Nor.exe من داخل المجلد.
             
             متطلبات التشغيل:
             - نظام التشغيل: Windows 10 / Windows 11 (64-bit)
             - المعالج: Intel / AMD x64
             - الذاكرة: 4GB+ RAM
-            - دعم اللمس المتعدد: 2-Point Touch مدعوم بالكامل
-            ✅ يتضمن مكتبات MSVC اللازمة مسبقاً (MSVCP140.dll و VCRUNTIME140.dll)
+            ✅ يتضمن كافة مكتبات Flutter و MSVC Runtime اللازمة مسبقاً
           draft: false
           prerelease: false
         env:

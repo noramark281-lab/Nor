@@ -19,21 +19,29 @@ apply_standard_settings(${BINARY_NAME})
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
-# Run the Flutter tool backend to ensure proper asset packaging and bundle
-# compilation.
+# Run the Flutter tool backend to ensure proper asset packaging and bundle compilation.
 add_dependencies(${BINARY_NAME} flutter_assemble)
 
-# Only create bundle if this is top-level.
-if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-  # Copy the Flutter DLL and ICU data to the output directory.
-  add_custom_command(
-    TARGET ${BINARY_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "${FLUTTER_LIBRARY}"
-      "$<TARGET_FILE_DIR:${BINARY_NAME}>"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "${FLUTTER_ICU_DATA_FILE}"
-      "$<TARGET_FILE_DIR:${BINARY_NAME}>"
-    VERBATIM
-  )
+# === Installation ===
+set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
+set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")
+
+install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
+  COMPONENT Runtime)
+
+install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
+  COMPONENT Runtime)
+
+install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
+
+if(PLUGIN_BUNDLED_LIBRARIES)
+  install(FILES "${PLUGIN_BUNDLED_LIBRARIES}"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime)
 endif()
+
+# Fully-formed visual assets
+install(DIRECTORY "${PROJECT_BUILD_DIR}/flutter_assets"
+  DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
+  COMPONENT Runtime)

@@ -1,5 +1,4 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 import 'package:encrypt/encrypt.dart' as encrypt;
 
 /// خدمة التخزين الآمن - تعمل على جميع المنصات (Android, iOS, Windows, macOS, Linux)

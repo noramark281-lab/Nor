@@ -28,4 +28,12 @@ class WalletProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  List<dynamic> get assetList => [];
+
+  List<dynamic> get recentTrades => [];
+
+  String formatAssetValue(dynamic val) => val?.toString() ?? "0.00";
+
+  Future<bool> cancelOrder(String orderId) async => true;
 }

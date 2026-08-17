@@ -2,6 +2,7 @@ name: mexc_event_trader_app
 description: تطبيق تداول عقود الحدث في MEXC
 publish_to: 'none'
 version: 1.8.0+19
+# Windows Flutter build trigger: 2026-08-17
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

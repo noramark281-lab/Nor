@@ -37,27 +37,28 @@ jobs:
           mkdir -p android/app
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/upload-keystore.jks
-            cat > android/key.properties <<EOF
+            cat << 'EOF' > android/key.properties
           storePassword=${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword=${{ secrets.KEY_PASSWORD }}
           keyAlias=${{ secrets.KEY_ALIAS }}
           storeFile=upload-keystore.jks
           EOF
           else
-            echo "Generating temporary release keystore for build..."
+            echo "Generating consistent release keystore for reproducible signing..."
+            rm -f android/app/upload-keystore.jks
             keytool -genkeypair -v \
               -keystore android/app/upload-keystore.jks \
-              -storepass androidci \
-              -keypass androidci \
-              -alias ci_release \
+              -storepass norpass123 \
+              -keypass norpass123 \
+              -alias nor_release \
               -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=CI,O=CI,L=CI,ST=CI,C=CI"
-            cat > android/key.properties <<EOF
-          storePassword=androidci
-          keyPassword=androidci
-          keyAlias=ci_release
-          storeFile=upload-keystore.jks
-          EOF
+              -dname "CN=Nor,O=Nor,L=Nor,ST=Nor,C=US"
+            cat << 'EOF' > android/key.properties
+storePassword=norpass123
+keyPassword=norpass123
+keyAlias=nor_release
+storeFile=upload-keystore.jks
+EOF
           fi
           ls -la android/app/upload-keystore.jks
           cat android/key.properties

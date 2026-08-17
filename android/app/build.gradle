@@ -58,7 +58,7 @@ android {
 
     signingConfigs {
         release {
-            def storeFileName = keystoreProperties.getProperty('storeFile')
+            def storeFileName = keystoreProperties.getProperty('storeFile')?.trim()
             def keyStoreFile = null
             if (storeFileName) {
                 if (file(storeFileName).exists()) {
@@ -72,10 +72,13 @@ android {
                 }
             }
             if (keyStoreFile != null && keyStoreFile.exists()) {
-                keyAlias keystoreProperties.getProperty('keyAlias')
-                keyPassword keystoreProperties.getProperty('keyPassword')
+                def alias = keystoreProperties.getProperty('keyAlias')?.trim() ?: 'nor_release'
+                def keyPass = keystoreProperties.getProperty('keyPassword')?.trim() ?: 'norpass123'
+                def storePass = keystoreProperties.getProperty('storePassword')?.trim() ?: 'norpass123'
+                keyAlias alias
+                keyPassword keyPass
                 storeFile keyStoreFile
-                storePassword keystoreProperties.getProperty('storePassword')
+                storePassword storePass
                 v1SigningEnabled true
                 v2SigningEnabled true
             } else {

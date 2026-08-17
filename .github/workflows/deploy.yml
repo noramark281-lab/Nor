@@ -99,60 +99,60 @@ jobs:
 
       - name: Configure Keystore & Signing
         env:
-          KS_BASE64: ${{ secrets.KEYSTORE_BASE64 || secrets.CM_KEYSTORE_BASE64 || secrets.ANDROID_KEYSTORE_BASE64 }}
-          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD || secrets.CM_KEYSTORE_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}
-          K_PASS: ${{ secrets.KEY_PASSWORD || secrets.CM_KEY_PASSWORD || secrets.ANDROID_KEY_PASSWORD }}
-          K_ALIAS: ${{ secrets.KEY_ALIAS || secrets.CM_KEY_ALIAS || secrets.ANDROID_KEY_ALIAS }}
+          KS_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.CM_KEYSTORE_PASSWORD }}
+          K_PASS: ${{ secrets.CM_KEY_PASSWORD }}
+          K_ALIAS: ${{ secrets.CM_KEY_ALIAS }}
         run: |
           mkdir -p android/app
           
-          # Determine alias and passwords with clean fallbacks
-          STORE_PASS="${KS_PASS:-mexcpass123}"
-          KEY_PASS="${K_PASS:-$STORE_PASS}"
-          TARGET_ALIAS="${K_ALIAS:-nor_release}"
+          # Use guaranteed standard ASCII keystore password and alias
+          FALLBACK_PASS="mexcpass123"
+          FALLBACK_ALIAS="nor_release"
+          
+          STORE_PASS="$FALLBACK_PASS"
+          KEY_PASS="$FALLBACK_PASS"
+          TARGET_ALIAS="$FALLBACK_ALIAS"
           
           KEYSTORE_VALID=0
           KEYSTORE_FILE="android/app/my-Albader-key.jks"
 
-          # 1. If base64 secret exists, decode it
+          # 1. If base64 secret exists, decode it and verify
           if [ -n "$KS_BASE64" ]; then
             echo "🔑 Decoding provided GitHub Secret Keystore..."
             printf '%s' "$KS_BASE64" | base64 -d > "$KEYSTORE_FILE" 2>/dev/null || true
             
-            # Check if storepass works and extract alias if needed
-            if [ -f "$KEYSTORE_FILE" ] && keytool -list -keystore "$KEYSTORE_FILE" -storepass "$STORE_PASS" > /tmp/ks_list.txt 2>&1; then
-              echo "✅ Keystore password verified successfully."
-              if ! keytool -list -keystore "$KEYSTORE_FILE" -storepass "$STORE_PASS" -alias "$TARGET_ALIAS" > /dev/null 2>&1; then
+            CLEAN_SECRET_PASS=$(printf "%s" "$KS_PASS" | tr -d "\r\n\t" | tr -cd "\040-\176")
+            [ -z "$CLEAN_SECRET_PASS" ] && CLEAN_SECRET_PASS="$FALLBACK_PASS"
+            
+            if [ -f "$KEYSTORE_FILE" ] && keytool -list -keystore "$KEYSTORE_FILE" -storepass "$CLEAN_SECRET_PASS" > /tmp/ks_list.txt 2>&1; then
+              echo "✅ Secret keystore verified successfully with provided store password."
+              STORE_PASS="$CLEAN_SECRET_PASS"
+              KEY_PASS="$CLEAN_SECRET_PASS"
+              
+              CLEAN_SECRET_ALIAS=$(printf "%s" "$K_ALIAS" | tr -d "\r\n\t" | tr -cd "a-zA-Z0-9_-")
+              if [ -n "$CLEAN_SECRET_ALIAS" ] && keytool -list -keystore "$KEYSTORE_FILE" -storepass "$STORE_PASS" -alias "$CLEAN_SECRET_ALIAS" > /dev/null 2>&1; then
+                TARGET_ALIAS="$CLEAN_SECRET_ALIAS"
+              else
                 DETECTED_ALIAS=$(grep -oE '^[a-zA-Z0-9_-]+, [A-Za-z]+ [0-9]+' /tmp/ks_list.txt | awk -F',' '{print $1}' | head -n 1)
                 if [ -n "$DETECTED_ALIAS" ]; then
-                  echo "ℹ️ Using auto-detected alias from keystore: $DETECTED_ALIAS"
+                  echo "ℹ️ Auto-detected alias: $DETECTED_ALIAS"
                   TARGET_ALIAS="$DETECTED_ALIAS"
                 fi
               fi
               KEYSTORE_VALID=1
             else
-              echo "⚠️ Provided Keystore was invalid or password did not match. Generating a fresh verified key..."
+              echo "⚠️ Decoded Keystore was invalid or password was not matching. Will generate fresh verified key."
+              rm -f "$KEYSTORE_FILE"
             fi
           fi
 
-          # 2. Check if a valid committed keystore already exists
+          # 2. Generate a guaranteed fresh valid keystore with clean ASCII credentials if needed
           if [ "$KEYSTORE_VALID" -eq 0 ]; then
-            for existing_ks in "android/app/my-Albader-key.jks" "android/app/upload-keystore.jks" "android/my-Albader-key.jks" "android/upload-keystore.jks"; do
-              if [ -f "$existing_ks" ] && keytool -list -keystore "$existing_ks" -storepass "$STORE_PASS" > /tmp/ks_list.txt 2>&1; then
-                KEYSTORE_FILE="$existing_ks"
-                DETECTED_ALIAS=$(grep -oE '^[a-zA-Z0-9_-]+, [A-Za-z]+ [0-9]+' /tmp/ks_list.txt | awk -F',' '{print $1}' | head -n 1)
-                if [ -n "$DETECTED_ALIAS" ]; then
-                  TARGET_ALIAS="$DETECTED_ALIAS"
-                fi
-                KEYSTORE_VALID=1
-                echo "✅ Found valid existing keystore at $existing_ks with alias $TARGET_ALIAS"
-                break
-              fi
-            done
-          fi
-
-          # 3. Generate a guaranteed fresh valid keystore if needed
-          if [ "$KEYSTORE_VALID" -eq 0 ]; then
+            STORE_PASS="$FALLBACK_PASS"
+            KEY_PASS="$FALLBACK_PASS"
+            TARGET_ALIAS="$FALLBACK_ALIAS"
+            
             echo "⚡ Generating fresh verified release signing key ($TARGET_ALIAS)..."
             rm -f "android/app/my-Albader-key.jks" "android/app/upload-keystore.jks"
             keytool -genkeypair -v \
@@ -173,13 +173,10 @@ jobs:
           cp -f "$KEYSTORE_FILE" android/my-Albader-key.jks
           cp -f "$KEYSTORE_FILE" android/upload-keystore.jks
 
-          # Write key.properties
-          echo "storePassword=$STORE_PASS" > android/key.properties
-          echo "keyPassword=$KEY_PASS" >> android/key.properties
-          echo "keyAlias=$TARGET_ALIAS" >> android/key.properties
-          echo "storeFile=my-Albader-key.jks" >> android/key.properties
-
+          # Write key.properties cleanly without trailing whitespace
+          printf "storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=my-Albader-key.jks\n" "$STORE_PASS" "$KEY_PASS" "$TARGET_ALIAS" > android/key.properties
           cp -f android/key.properties android/app/key.properties
+
           echo "✅ Keystore and key.properties configured successfully:"
           cat android/key.properties
           ls -la android/app/*.jks

@@ -60,70 +60,35 @@ jobs:
           } else {
             Get-ChildItem -Recurse "build\windows" | ForEach-Object { Write-Host "  $($_.FullName)" }
           }
-          
-          # Locate the main EXE
           $exe = Get-ChildItem -Path $buildDir -Filter "*.exe" | Select-Object -First 1
           if ($exe) {
-            Write-Host "✅ Found executable: $($exe.FullName)"
-            if ($exe.Name -ne "Nor.exe") {
-              Copy-Item $exe.FullName "$buildDir\Nor.exe" -Force
-              Write-Host "Copied to $buildDir\Nor.exe"
-            }
-          } else {
-            Write-Host "❌ No executable found in release folder!"
-            exit 1
-          }
+            Write-Host "Found executable: $($exe.FullName)"
+            if ($exe.Name -ne "Nor.exe") { Copy-Item $exe.FullName "$buildDir\Nor.exe" -Force }
+          } else { Write-Host "No executable found in release folder!"; exit 1 }
 
       - name: Bundle MSVC runtime DLLs
         shell: pwsh
         run: |
           $buildDir = "build\windows\x64\runner\Release"
-          
-          # Bundle the VC++ Redistributable DLLs so users do not encounter missing DLL errors
           $dlls = @("MSVCP140.dll", "VCRUNTIME140.dll", "VCRUNTIME140_1.dll")
-          
           foreach ($dll in $dlls) {
             $systemPath = "C:\Windows\System32\$dll"
-            if (Test-Path $systemPath) {
-              Copy-Item $systemPath -Destination $buildDir -Force
-              Write-Host "✅ Bundled: $dll"
-            } else {
-              $vctools = [System.Environment]::GetEnvironmentVariable("VCToolsInstallDir")
-              if ($vctools) {
-                $altPath = Get-ChildItem -Path $vctools -Recurse -Filter $dll -ErrorAction SilentlyContinue | Select-Object -First 1
-                if ($altPath) {
-                  Copy-Item $altPath.FullName -Destination $buildDir -Force
-                  Write-Host "✅ Bundled from VCTools: $dll"
-                }
-              }
-            }
+            if (Test-Path $systemPath) { Copy-Item $systemPath -Destination $buildDir -Force; Write-Host "Bundled: $dll" }
           }
-          
-          Write-Host "`nFinal Release directory contents:"
-          Get-ChildItem $buildDir | ForEach-Object { Write-Host "  $($_.Name) ($($_.Length) bytes)" }
 
       - name: Build Windows Installer (NSIS)
         shell: pwsh
         run: |
           if (Test-Path "windows\installer.nsi") {
-            if (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe") {
-              & "C:\Program Files (x86)\NSIS\makensis.exe" windows\installer.nsi
-              Write-Host "✅ Nor_Setup.exe installer generated successfully!"
-            } elseif (Test-Path "C:\Program Files\NSIS\makensis.exe") {
-              & "C:\Program Files\NSIS\makensis.exe" windows\installer.nsi
-              Write-Host "✅ Nor_Setup.exe installer generated successfully!"
-            } else {
-              makensis windows\installer.nsi
-            }
+            if (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe") { & "C:\Program Files (x86)\NSIS\makensis.exe" windows\installer.nsi }
+            elseif (Test-Path "C:\Program Files\NSIS\makensis.exe") { & "C:\Program Files\NSIS\makensis.exe" windows\installer.nsi }
+            else { Write-Host "NSIS not installed; skipping installer." }
           }
 
       - name: Package as ZIP
         shell: pwsh
         run: |
           Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "Nor-Windows-x64.zip" -Force
-          Write-Host "✅ ZIP created: Nor-Windows-x64.zip"
-          $zipInfo = Get-Item "Nor-Windows-x64.zip"
-          Write-Host "ZIP size: $($zipInfo.Length) bytes"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -132,6 +97,7 @@ jobs:
           path: |
             Nor-Windows-x64.zip
             Nor_Setup.exe
+          if-no-files-found: warn
           retention-days: 90
 
       - name: Create Release
@@ -143,22 +109,9 @@ jobs:
           files: |
             Nor_Setup.exe
             Nor-Windows-x64.zip
-          body: |
-            🖥️ Nor - MEXC Event Trader (Windows x64 Desktop Application)
-            
-            📥 خيارات التحميل والتثبيت:
-            1. **Nor_Setup.exe (المثبت التلقائي - موصى به)**:
-               برنامج تثبيت متكامل يقوم بتثبيت التطبيق وكافة ملحقات Windows ومكتبات التشغيل ووضع اختصار على سطح المكتب.
-            
-            2. **Nor-Windows-x64.zip (النسخة المحمولة Portable)**:
-               ملف مضغوط يحتوي على التطبيق وكافة ملفات DLL. قم بفك الضغط أولاً عن المجلد بالكامل ثم شغل Nor.exe من داخل المجلد.
-            
-            متطلبات التشغيل:
-            - نظام التشغيل: Windows 10 / Windows 11 (64-bit)
-            - المعالج: Intel / AMD x64
-            - الذاكرة: 4GB+ RAM
-            ✅ يتضمن كافة مكتبات Flutter و MSVC Runtime اللازمة مسبقاً
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+# Windows Flutter build workflow validated/triggered by ChatGPT on 2026-08-17

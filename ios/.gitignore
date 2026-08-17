@@ -1,0 +1,45 @@
+# OS X files
+.DS_Store
+
+# Xcode build files
+build/
+DerivedData/
+
+# Xcode settings
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+
+# Flutter/Dart/Pub
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+
+# App signing
+**/ios/Flutter/ephemeral
+**/ios/.generated/
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/flutter.podspec
+**/ios/Flutter/Flutter.podspec
+**/ios/ServiceDefinitions.json
+
+# Pod-related
+Podfile.lock
+Pods/
+
+# Build artifacts
+*.ipa
+*.dSYM.zip
+*.dSYM

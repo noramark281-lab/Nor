@@ -21,6 +21,13 @@ set(FLUTTER_ICU_DATA_FILE "${EPHEMERAL_DIR}/icudtl.dat" PARENT_SCOPE)
 set(PROJECT_BUILD_DIR "${CMAKE_SOURCE_DIR}/../build" PARENT_SCOPE)
 set(NUM_PROC $ENV{NUMBER_OF_PROCESSORS})
 
+add_library(flutter INTERFACE)
+target_include_directories(flutter INTERFACE
+  "${EPHEMERAL_DIR}"
+)
+target_link_libraries(flutter INTERFACE "${EPHEMERAL_DIR}/flutter_windows.dll.lib")
+add_dependencies(flutter flutter_assemble)
+
 # === Wrapper ===
 list(APPEND CPP_WRAPPER_SOURCES_CORE
   "${WRAPPER_ROOT}/core_implementations.cc"
@@ -43,9 +50,10 @@ set_target_properties(flutter_wrapper_core PROPERTIES
   POSITION_INDEPENDENT_CODE ON)
 set_target_properties(flutter_wrapper_core PROPERTIES
   CXX_VISIBILITY_PRESET "hidden")
-target_link_libraries(flutter_wrapper_core PUBLIC "${EPHEMERAL_DIR}/flutter_windows.dll.lib")
+target_link_libraries(flutter_wrapper_core PUBLIC flutter)
 target_include_directories(flutter_wrapper_core PUBLIC
   "${WRAPPER_ROOT}/include"
+  "${EPHEMERAL_DIR}"
 )
 add_dependencies(flutter_wrapper_core flutter_assemble)
 
@@ -58,9 +66,10 @@ set_target_properties(flutter_wrapper_app PROPERTIES
   POSITION_INDEPENDENT_CODE ON)
 set_target_properties(flutter_wrapper_app PROPERTIES
   CXX_VISIBILITY_PRESET "hidden")
-target_link_libraries(flutter_wrapper_app PUBLIC "${EPHEMERAL_DIR}/flutter_windows.dll.lib")
+target_link_libraries(flutter_wrapper_app PUBLIC flutter)
 target_include_directories(flutter_wrapper_app PUBLIC
   "${WRAPPER_ROOT}/include"
+  "${EPHEMERAL_DIR}"
 )
 add_dependencies(flutter_wrapper_app flutter_assemble)
 

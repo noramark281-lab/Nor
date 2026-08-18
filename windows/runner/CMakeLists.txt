@@ -17,7 +17,10 @@ apply_standard_settings(${BINARY_NAME})
 
 # Add dependency libraries and include directories.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
-target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
+target_include_directories(${BINARY_NAME} PRIVATE
+  "${CMAKE_SOURCE_DIR}"
+  "${CMAKE_SOURCE_DIR}/flutter/ephemeral"
+)
 
 # Run the Flutter tool backend to ensure proper asset packaging and bundle compilation.
 add_dependencies(${BINARY_NAME} flutter_assemble)

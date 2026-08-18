@@ -29,6 +29,11 @@ void EnableFullDpiSupportIfAvailable(HWND hwnd) {
   FreeLibrary(user32_module);
 }
 
+// Converts logical pixels to physical pixels using the current monitor scale.
+int Scale(int value, double scale_factor) {
+  return static_cast<int>(value * scale_factor);
+}
+
 }  // namespace
 
 // Manages the Win32Window's window class registration.
@@ -140,10 +145,8 @@ void Win32Window::SetChildContent(HWND content) {
   child_content_ = content;
   SetParent(content, window_handle_);
   RECT frame = GetClientArea();
-
   MoveWindow(content, frame.left, frame.top, frame.right - frame.left,
              frame.bottom - frame.top, true);
-
   SetFocus(child_content_);
 }
 

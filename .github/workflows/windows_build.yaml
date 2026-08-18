@@ -21,15 +21,24 @@ jobs:
       CMAKE_GENERATOR_PLATFORM: "x64"
     
     steps:
+      - name: Configure Git for Windows (Long Paths & Safe Directory)
+        shell: pwsh
+        run: |
+          git config --system core.longpaths true
+          git config --global core.longpaths true
+          git config --global --add safe.directory "*"
+
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.24.5'
           channel: 'stable'
-          cache: true
+          cache: false
 
       - name: Enable Windows desktop support
         run: flutter config --enable-windows-desktop

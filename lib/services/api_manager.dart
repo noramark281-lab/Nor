@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:crypto/crypto.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/constants.dart';
 
@@ -34,6 +35,7 @@ class MexcApiManager {
   bool get isInitialized => _isInitialized;
   String? get apiKey => _apiKey;
   String? get secretKey => _secretKey;
+  String? get apiSecret => _secretKey;
 
   // ── Initialization ──────────────────────────────────────────────
   Future<void> initialize() async {
@@ -78,49 +80,169 @@ class MexcApiManager {
   /// Generates MEXC Futures v1 signature.
   /// Signature = HMAC-SHA256(secretKey, accessKey + timestamp + paramString)
   String _generateSignature({
-    required String apiKey,
-    required String secretKey,
-    required int timestamp,
+    required String timestamp,
     required String paramString,
   }) {
-    final message = '$apiKey$timestamp$paramString';
-    final hmac = Hmac(sha256, utf8.encode(secretKey));
-    final digest = hmac.convert(utf8.encode(message));
+    if (_secretKey == null || _secretKey!.isEmpty) {
+      throw Exception('Secret key not available');
+    }
+    final payload = '$_apiKey$timestamp$paramString';
+    final hmac = Hmac(sha256, utf8.encode(_secretKey!));
+    final digest = hmac.convert(utf8.encode(payload));
     return digest.toString();
   }
 
-  // ── Header Builder ──────────────────────────────────────────────
+  // ── Headers Builder ─────────────────────────────────────────────
+  /// Builds authenticated headers for MEXC Futures v1 API requests.
   Map<String, String> buildAuthHeaders({
-    String method = 'GET',
-    String? paramString,
+    required String method,
+    String? queryString,
+    String? bodyString,
   }) {
     if (!_isInitialized) {
-      debugPrint('[MexcApiManager] WARNING: Not initialized, returning empty headers');
-      return {'Content-Type': 'application/json'};
+      throw Exception('API keys not initialized. Please configure API credentials first.');
     }
 
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final param = paramString ?? '';
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+
+    // Determine paramString based on method
+    String paramString;
+    if (method.toUpperCase() == 'GET') {
+      paramString = queryString ?? '';
+    } else {
+      paramString = bodyString ?? '';
+    }
 
     final signature = _generateSignature(
-      apiKey: _apiKey!,
-      secretKey: _secretKey!,
       timestamp: timestamp,
-      paramString: param,
+      paramString: paramString,
     );
 
-    return {
+    final headers = {
       'ApiKey': _apiKey!,
-      'Request-Time': timestamp.toString(),
+      'Request-Time': timestamp,
       'Signature': signature,
+      'Accept': 'application/json',
+    };
+    if (method.toUpperCase() == 'POST') {
+      headers['Content-Type'] = 'application/json';
+    }
+    return headers;
+  }
+
+  // ── Convenience: GET Auth Headers ───────────────────────────────
+  Map<String, String> getAuthHeadersForGet(String queryString) {
+    return buildAuthHeaders(method: 'GET', queryString: queryString);
+  }
+
+  // ── Convenience: POST Auth Headers ──────────────────────────────
+  Map<String, String> getAuthHeadersForPost(String bodyString) {
+    return buildAuthHeaders(method: 'POST', bodyString: bodyString);
+  }
+
+  // ── Spot API v3 Support ─────────────────────────────────────────
+  /// Sign Spot query string: HMAC-SHA256(secretKey, queryString)
+  String signSpotQuery(String queryString) {
+    if (_secretKey == null || _secretKey!.isEmpty) {
+      throw Exception('Secret key not available');
+    }
+    final hmac = Hmac(sha256, utf8.encode(_secretKey!));
+    final digest = hmac.convert(utf8.encode(queryString));
+    return digest.toString();
+  }
+
+  /// Get Spot request headers
+  Map<String, String> getSpotHeaders() {
+    return {
       'Content-Type': 'application/json',
+      'X-MEXC-APIKEY': _apiKey ?? '',
+      'Accept': 'application/json',
     };
   }
 
-  // ── Convenience Methods ─────────────────────────────────────────
-  Map<String, String> getHeaders({String? query}) =>
-      buildAuthHeaders(method: 'GET', paramString: query);
+  // ── Test Connectivity ───────────────────────────────────────────
+  /// Quick validation: check if we can read account assets.
+  /// Returns true if API call succeeds, false otherwise.
+  Future<bool> testConnection() async {
+    try {
+      final headers = buildAuthHeaders(method: 'GET', queryString: '');
+      debugPrint('[MexcApiManager] Test connection headers ready.');
+      return headers.isNotEmpty;
+    } catch (e) {
+      debugPrint('[MexcApiManager] testConnection error: $e');
+      return false;
+    }
+  }
 
-  Map<String, String> getPostHeaders({String? body}) =>
-      buildAuthHeaders(method: 'POST', paramString: body);
+  // ── Public & Signed Request Helpers ─────────────────────────────
+  static const String _defaultBaseUrl = 'https://contract.mexc.com';
+
+  /// Execute public HTTP GET request
+  Future<dynamic> publicGet(
+    String endpoint, {
+    Map<String, dynamic>? queryParameters,
+    String baseUrl = _defaultBaseUrl,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl$endpoint').replace(
+        queryParameters: queryParameters?.map((key, value) => MapEntry(key, value.toString())),
+      );
+      final response = await http.get(uri, headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      });
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {'success': false, 'code': response.statusCode, 'message': response.body};
+    } catch (e) {
+      debugPrint('[MexcApiManager] publicGet error: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Execute signed HTTP GET request
+  Future<dynamic> signedGet(
+    String endpoint, {
+    Map<String, dynamic>? queryParameters,
+    String baseUrl = _defaultBaseUrl,
+  }) async {
+    try {
+      final queryPairs = queryParameters?.entries.map((e) => '${e.key}=${e.value}').toList() ?? [];
+      final queryString = queryPairs.join('&');
+      final uri = Uri.parse('$baseUrl$endpoint${queryString.isNotEmpty ? '?$queryString' : ''}');
+      final headers = buildAuthHeaders(method: 'GET', queryString: queryString);
+
+      final response = await http.get(uri, headers: headers);
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {'success': false, 'code': response.statusCode, 'message': response.body};
+    } catch (e) {
+      debugPrint('[MexcApiManager] signedGet error: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Execute signed HTTP POST request
+  Future<dynamic> signedPost(
+    String endpoint, {
+    Map<String, dynamic>? body,
+    String baseUrl = _defaultBaseUrl,
+  }) async {
+    try {
+      final bodyString = body != null ? jsonEncode(body) : '';
+      final uri = Uri.parse('$baseUrl$endpoint');
+      final headers = buildAuthHeaders(method: 'POST', bodyString: bodyString);
+
+      final response = await http.post(uri, headers: headers, body: bodyString.isNotEmpty ? bodyString : null);
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {'success': false, 'code': response.statusCode, 'message': response.body};
+    } catch (e) {
+      debugPrint('[MexcApiManager] signedPost error: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
 }

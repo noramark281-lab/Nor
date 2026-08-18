@@ -51,7 +51,11 @@ class _AnimatedLogoState extends State<AnimatedLogo>
               ),
             ],
           ),
-          child: const Icon(Icons.trending_up, size: 60, color: Colors.white),
+          child: const Icon(
+            Icons.trending_up,
+            size: 60,
+            color: Colors.white,
+          ),
         );
       },
     );

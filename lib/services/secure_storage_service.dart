@@ -26,6 +26,7 @@ class SecureStorageService {
   }
 
   void _initEncryption() {
+    // Fixed device-specific key for AES-256 encryption
     const deviceKey = 'mexc_trader_encryption_key_2024_32b';
     final key = encrypt.Key.fromUtf8(deviceKey.padRight(32).substring(0, 32));
     _iv = encrypt.IV.fromLength(16);
@@ -44,9 +45,12 @@ class SecureStorageService {
       final encrypted = encrypt.Encrypted.fromBase64(encryptedText);
       return _encrypter!.decrypt(encrypted, iv: _iv!);
     } catch (e) {
+      // If decryption fails, return raw value (might be unencrypted from old version)
       return encryptedText;
     }
   }
+
+  // ── API Key Storage ──────────────────────────────────────────────
 
   Future<void> saveApiKey(String apiKey) async {
     await init();
@@ -62,8 +66,10 @@ class SecureStorageService {
     await init();
     final encrypted = _prefs!.getString('mexc_api_key_enc');
     if (encrypted != null) return _decrypt(encrypted);
+    // Fallback: check for unencrypted key (migration from old version)
     final raw = _prefs!.getString('mexc_api_key');
     if (raw != null) {
+      // Migrate to encrypted storage
       await saveApiKey(raw);
       await _prefs!.remove('mexc_api_key');
       return raw;
@@ -75,8 +81,10 @@ class SecureStorageService {
     await init();
     final encrypted = _prefs!.getString('mexc_api_secret_enc');
     if (encrypted != null) return _decrypt(encrypted);
+    // Fallback: check for unencrypted key (migration from old version)
     final raw = _prefs!.getString('mexc_api_secret');
     if (raw != null) {
+      // Migrate to encrypted storage
       await saveApiSecret(raw);
       await _prefs!.remove('mexc_api_secret');
       return raw;
@@ -107,5 +115,19 @@ class SecureStorageService {
       'apiKey': await getApiKey(),
       'apiSecret': await getApiSecret(),
     };
+  }
+
+  // ── Backend URL Storage ──────────────────────────────────────────
+
+  static Future<void> saveBackendUrl(String url) async {
+    final s = instance;
+    await s.init();
+    await s._prefs!.setString('backend_url', url);
+  }
+
+  static Future<String?> getBackendUrl() async {
+    final s = instance;
+    await s.init();
+    return s._prefs!.getString('backend_url');
   }
 }

@@ -22,10 +22,25 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (!keystorePropertiesFile.exists()) {
+    keystorePropertiesFile = file('key.properties')
+}
+if (keystorePropertiesFile.exists()) {
+    try {
+        keystorePropertiesFile.withReader('UTF-8') { reader ->
+            keystoreProperties.load(reader)
+        }
+    } catch (Exception e) {
+        println("Warning loading key.properties: " + e.message)
+    }
+}
+
 android {
     namespace = "com.nor.mexc_event_trader"
     compileSdk = 36
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "26.1.10909125"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -42,17 +57,46 @@ android {
 
     defaultConfig {
         applicationId = "com.nor.mexc_event_trader"
-        minSdkVersion = flutter.minSdkVersion
+        minSdk = 23
         targetSdk = 36
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName
     }
 
+    signingConfigs {
+        release {
+            def sPassword = keystoreProperties.getProperty('storePassword')?.trim()
+            def kPassword = keystoreProperties.getProperty('keyPassword')?.trim()
+            def kAlias = keystoreProperties.getProperty('keyAlias')?.trim()
+            def sFile = keystoreProperties.getProperty('storeFile')?.trim()
+
+            if (sPassword && kPassword && kAlias) {
+                def candidateFiles = [
+                    sFile ? file(sFile) : null,
+                    sFile ? rootProject.file(sFile) : null,
+                    file("my-Albader-key.jks"),
+                    rootProject.file("my-Albader-key.jks"),
+                    rootProject.file("app/my-Albader-key.jks"),
+                    file("upload-keystore.jks"),
+                    rootProject.file("upload-keystore.jks"),
+                    rootProject.file("app/upload-keystore.jks")
+                ].findAll { it != null && it.exists() }
+
+                if (!candidateFiles.isEmpty()) {
+                    keyAlias = kAlias
+                    keyPassword = kPassword
+                    storeFile = candidateFiles.first()
+                    storePassword = sPassword
+                }
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.debug
-            minifyEnabled true
-            shrinkResources true
+            signingConfig = (signingConfigs.release.storeFile != null && signingConfigs.release.storeFile.exists()) ? signingConfigs.release : signingConfigs.debug
+            minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

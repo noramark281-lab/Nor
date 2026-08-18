@@ -1,0 +1,8 @@
+{
+  "name": "Nor",
+  "description": "MEXC Spot Trading & AI Smart Bot with Live News Sentiment, Active Liquidity Scanner, and Anti-Freeze Liquidation Engine",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

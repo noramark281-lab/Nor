@@ -1,0 +1,355 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Registered user profile details",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Unique Firebase Auth UID"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User email address"
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "User display name"
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "User avatar photo URL"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when profile was created"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when profile was last updated"
+        }
+      },
+      "required": ["userId", "email"]
+    },
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "User trading bot preferences and configuration",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "User UID"
+        },
+        "trade_amount": {
+          "type": "number",
+          "description": "Default trade amount in USDT"
+        },
+        "selected_symbol": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Selected trading symbol"
+        },
+        "bot_strategy": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Active bot trading strategy identifier"
+        },
+        "bot_running": {
+          "type": "boolean",
+          "description": "Whether automated trading bot is actively running"
+        },
+        "trailing_stop_percent": {
+          "type": "number",
+          "description": "Trailing stop loss trigger percentage"
+        },
+        "min_volume_usdt": {
+          "type": "number",
+          "description": "Minimum 24h volume threshold in USDT"
+        },
+        "auto_dust_sweep": {
+          "type": "boolean",
+          "description": "Whether auto dust liquidation is enabled"
+        },
+        "cooldown_seconds": {
+          "type": "number",
+          "description": "Cooldown between trades in seconds"
+        },
+        "api_key": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "MEXC API Key (masked or stored securely)"
+        },
+        "api_secret": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "MEXC Secret Key"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last updated timestamp"
+        }
+      },
+      "required": ["userId", "trade_amount", "selected_symbol", "bot_running"]
+    },
+    "TradeRecord": {
+      "title": "TradeRecord",
+      "description": "Executed spot trading order history record",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Trade ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "symbol": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Trading pair symbol"
+        },
+        "side": {
+          "type": "string",
+          "enum": ["BUY", "SELL"],
+          "description": "Order side"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Total order value in USDT"
+        },
+        "price": {
+          "type": "number",
+          "description": "Execution unit price"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Quantity of base asset transacted"
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Order status"
+        },
+        "isReal": {
+          "type": "boolean",
+          "description": "Whether trade was executed on live MEXC or test simulator"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["id", "userId", "symbol", "side", "amount", "price", "status"]
+    },
+    "BotTradeRecord": {
+      "title": "BotTradeRecord",
+      "description": "Automated algorithmic bot execution log",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Trade ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "symbol": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Trading pair symbol"
+        },
+        "side": {
+          "type": "string",
+          "enum": ["BUY", "SELL"],
+          "description": "Order side"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Order value in USDT"
+        },
+        "price": {
+          "type": "number",
+          "description": "Execution unit price"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Quantity executed"
+        },
+        "strategy": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "Bot algorithm strategy used"
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Order status"
+        },
+        "isReal": {
+          "type": "boolean",
+          "description": "Real MEXC or simulated"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Execution timestamp"
+        }
+      },
+      "required": ["id", "userId", "symbol", "side", "amount", "strategy", "status"]
+    },
+    "ActivePosition": {
+      "title": "ActivePosition",
+      "description": "Open spot position actively tracked for Trailing Stop-Loss",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Position ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "symbol": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Trading pair symbol"
+        },
+        "baseAsset": {
+          "type": "string",
+          "maxLength": 15,
+          "description": "Base crypto asset ticker"
+        },
+        "entryPrice": {
+          "type": "number",
+          "description": "Initial purchase price"
+        },
+        "highestPrice": {
+          "type": "number",
+          "description": "Highest peak price observed"
+        },
+        "currentPrice": {
+          "type": "number",
+          "description": "Live spot price"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Open asset amount"
+        },
+        "costUsd": {
+          "type": "number",
+          "description": "Total purchase cost in USDT"
+        },
+        "currentValueUsd": {
+          "type": "number",
+          "description": "Current market valuation in USDT"
+        },
+        "trailingStopPercent": {
+          "type": "number",
+          "description": "Dynamic stop threshold percent"
+        },
+        "stopPrice": {
+          "type": "number",
+          "description": "Calculated stop loss exit price"
+        },
+        "unrealizedPnl": {
+          "type": "number",
+          "description": "Unrealized profit/loss in USDT"
+        },
+        "unrealizedPnlPercent": {
+          "type": "number",
+          "description": "Unrealized profit/loss percentage"
+        },
+        "openedAt": {
+          "type": "string",
+          "description": "Position open timestamp"
+        },
+        "isStuck": {
+          "type": "boolean",
+          "description": "Whether position is flagged as frozen/stuck"
+        }
+      },
+      "required": ["id", "userId", "symbol", "entryPrice", "quantity", "costUsd"]
+    },
+    "DustLog": {
+      "title": "DustLog",
+      "description": "Small asset dust recovery and consolidation log",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Dust log ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "recoveredUsdt": {
+          "type": "number",
+          "description": "Total USDT equivalent recovered"
+        },
+        "assetsCount": {
+          "type": "number",
+          "description": "Number of fractional assets converted"
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Summary result message"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Operation timestamp"
+        }
+      },
+      "required": ["id", "userId", "recoveredUsdt", "assetsCount", "message"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Stores user account profile details"
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": {
+        "$ref": "#/entities/UserSettings"
+      },
+      "description": "Stores user bot settings and preferences"
+    },
+    "/users/{userId}/trades/{tradeId}": {
+      "schema": {
+        "$ref": "#/entities/TradeRecord"
+      },
+      "description": "User spot execution trade history"
+    },
+    "/users/{userId}/bot_trades/{botTradeId}": {
+      "schema": {
+        "$ref": "#/entities/BotTradeRecord"
+      },
+      "description": "Algorithmic bot trade execution history"
+    },
+    "/users/{userId}/positions/{positionId}": {
+      "schema": {
+        "$ref": "#/entities/ActivePosition"
+      },
+      "description": "Active tracked open positions for trailing stop-loss"
+    },
+    "/users/{userId}/dust_logs/{logId}": {
+      "schema": {
+        "$ref": "#/entities/DustLog"
+      },
+      "description": "Records of dust liquidation operations"
+    }
+  }
+}

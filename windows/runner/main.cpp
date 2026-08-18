@@ -13,8 +13,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     CreateAndAttachConsole();
   }
 
-  // Initialize COM, so that it is available for use in the library and/or
-  // plugins.
+  // Initialize COM, so that it is available for plugins that require it.
   ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
   flutter::DartProject project(L"data");
@@ -26,8 +25,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
-  Win32Window::Size size(1280, 720);
-  if (!window.Create(L"mexc_event_trader_app", origin, size)) {
+  Win32Window::Size size(1280, 800);
+  if (!window.Create(L"Nor - MEXC Trader", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);

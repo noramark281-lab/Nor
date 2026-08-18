@@ -1,10 +1,10 @@
 # MEXC Event Trader
 
-تطبيق تداول عقود الحدث في منصة MEXC (MEXC Event Contracts Trading App).
+تطبيق تداول العقود المستقبلية في منصة MEXC (MEXC Futures Trading App).
 
 ## المميزات
 
-- ✅ تداول **حقيقي** مباشر على منصة MEXC (صرف حقيقي - Real Trading)
+- ✅ تداول **حقيقي** مباشر على منصة MEXC (عقود مستقبلية - Futures Trading)
 - ✅ تنفيذ أوامر السوق (Market Orders) والأوامر المحددة (Limit Orders)
 - ✅ رصيد USDT حقيقي مباشر من حسابك
 - ✅ تحديث فوري للأسعار والأرباح/الخسائر (PnL)
@@ -56,9 +56,9 @@ flutter build apk --release \
 ## الحصول على مفاتيح API من MEXC
 
 1. سجل الدخول إلى [MEXC](https://www.mexc.com).
-2. اذهب إلى **API Management** (إدارة API).
+2. اذهب إلى **API Management** (إدارة API) ← اختر **Futures API**.
 3. أنشئ مفتاح جديد.
-4. فعّل صلاحيات **Spot Trading** فقط.
+4. فعّل صلاحيات **Futures/Contract Trading** فقط.
 5. احفظ الـ `API Key` و `Secret Key` في مكان آمن (لن يُعرض الـ Secret مرة أخرى).
 
 ---

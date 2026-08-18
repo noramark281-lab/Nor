@@ -43,9 +43,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) => hasApi
-            ? const HomeScreen()
-            : const ApiSetupScreen(nextScreen: HomeScreen()),
+        builder: (_) => hasApi ? const HomeScreen() : const ApiSetupScreen(nextScreen: HomeScreen()),
       ),
     );
   }

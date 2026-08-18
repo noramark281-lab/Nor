@@ -1,0 +1,170 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 0. Default Deny Catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 1. User Profile Validation
+    function isValidUserProfile(data, userId) {
+      return data.userId is string && data.userId == userId &&
+        data.email is string && data.email.size() > 3 && data.email.size() <= 254 &&
+        (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+        (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500)) &&
+        (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 60)) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 60));
+    }
+
+    // 2. User Settings Validation
+    function isValidUserSettings(data, userId) {
+      return data.userId is string && data.userId == userId &&
+        data.trade_amount is number && data.trade_amount > 0 && data.trade_amount <= 1000000 &&
+        data.selected_symbol is string && data.selected_symbol.size() > 0 && data.selected_symbol.size() <= 20 &&
+        data.bot_running is bool &&
+        (!('bot_strategy' in data) || (data.bot_strategy is string && data.bot_strategy.size() <= 50)) &&
+        (!('trailing_stop_percent' in data) || (data.trailing_stop_percent is number && data.trailing_stop_percent >= 0 && data.trailing_stop_percent <= 100)) &&
+        (!('min_volume_usdt' in data) || (data.min_volume_usdt is number && data.min_volume_usdt >= 0)) &&
+        (!('auto_dust_sweep' in data) || (data.auto_dust_sweep is bool)) &&
+        (!('cooldown_seconds' in data) || (data.cooldown_seconds is number && data.cooldown_seconds >= 0 && data.cooldown_seconds <= 300)) &&
+        (!('api_key' in data) || data.api_key == null || (data.api_key is string && data.api_key.size() <= 200)) &&
+        (!('api_secret' in data) || data.api_secret == null || (data.api_secret is string && data.api_secret.size() <= 200)) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 60));
+    }
+
+    // 3. Trade Record Validation
+    function isValidTrade(data, userId) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+        data.userId is string && data.userId == userId &&
+        data.symbol is string && data.symbol.size() > 0 && data.symbol.size() <= 20 &&
+        data.side is string && (data.side == 'BUY' || data.side == 'SELL') &&
+        data.amount is number && data.amount > 0 &&
+        data.price is number && data.price > 0 &&
+        data.status is string && data.status.size() > 0 && data.status.size() <= 30 &&
+        (!('quantity' in data) || (data.quantity is number && data.quantity >= 0)) &&
+        (!('isReal' in data) || (data.isReal is bool)) &&
+        (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 60));
+    }
+
+    // 4. Bot Trade Record Validation
+    function isValidBotTrade(data, userId) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+        data.userId is string && data.userId == userId &&
+        data.symbol is string && data.symbol.size() > 0 && data.symbol.size() <= 20 &&
+        data.side is string && (data.side == 'BUY' || data.side == 'SELL') &&
+        data.amount is number && data.amount > 0 &&
+        data.strategy is string && data.strategy.size() > 0 && data.strategy.size() <= 60 &&
+        data.status is string && data.status.size() > 0 && data.status.size() <= 30 &&
+        (!('price' in data) || (data.price is number && data.price >= 0)) &&
+        (!('quantity' in data) || (data.quantity is number && data.quantity >= 0)) &&
+        (!('isReal' in data) || (data.isReal is bool)) &&
+        (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 60));
+    }
+
+    // 5. Active Position Validation
+    function isValidPosition(data, userId) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+        data.userId is string && data.userId == userId &&
+        data.symbol is string && data.symbol.size() > 0 && data.symbol.size() <= 20 &&
+        data.entryPrice is number && data.entryPrice > 0 &&
+        data.quantity is number && data.quantity > 0 &&
+        data.costUsd is number && data.costUsd > 0 &&
+        (!('baseAsset' in data) || (data.baseAsset is string && data.baseAsset.size() <= 15)) &&
+        (!('highestPrice' in data) || (data.highestPrice is number && data.highestPrice >= 0)) &&
+        (!('currentPrice' in data) || (data.currentPrice is number && data.currentPrice >= 0)) &&
+        (!('currentValueUsd' in data) || (data.currentValueUsd is number && data.currentValueUsd >= 0)) &&
+        (!('trailingStopPercent' in data) || (data.trailingStopPercent is number && data.trailingStopPercent >= 0)) &&
+        (!('stopPrice' in data) || (data.stopPrice is number && data.stopPrice >= 0)) &&
+        (!('unrealizedPnl' in data) || (data.unrealizedPnl is number)) &&
+        (!('unrealizedPnlPercent' in data) || (data.unrealizedPnlPercent is number)) &&
+        (!('openedAt' in data) || (data.openedAt is string && data.openedAt.size() <= 60)) &&
+        (!('isStuck' in data) || (data.isStuck is bool));
+    }
+
+    // 6. Dust Log Validation
+    function isValidDustLog(data, userId) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+        data.userId is string && data.userId == userId &&
+        data.recoveredUsdt is number && data.recoveredUsdt >= 0 &&
+        data.assetsCount is number && data.assetsCount >= 0 &&
+        data.message is string && data.message.size() <= 300 &&
+        (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 60));
+    }
+
+    // Users Collection Root
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false; // Blanket queries forbidden
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming(), userId) && incoming().userId == existing().userId;
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // Settings subcollection
+      match /settings/{settingId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(settingId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(settingId) && isValidUserSettings(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(settingId) && isValidUserSettings(incoming(), userId) && incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(settingId);
+      }
+
+      // Trades subcollection
+      match /trades/{tradeId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(tradeId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(tradeId) && isValidTrade(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(tradeId) && isValidTrade(incoming(), userId) && incoming().userId == existing().userId && incoming().id == existing().id;
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(tradeId);
+      }
+
+      // Bot Trades subcollection
+      match /bot_trades/{botTradeId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(botTradeId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(botTradeId) && isValidBotTrade(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(botTradeId) && isValidBotTrade(incoming(), userId) && incoming().userId == existing().userId && incoming().id == existing().id;
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(botTradeId);
+      }
+
+      // Positions subcollection
+      match /positions/{positionId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(positionId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(positionId) && isValidPosition(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(positionId) && isValidPosition(incoming(), userId) && incoming().userId == existing().userId && incoming().id == existing().id;
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(positionId);
+      }
+
+      // Dust Logs subcollection
+      match /dust_logs/{logId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(logId);
+        allow list: if isOwner(userId) && isValidId(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(logId) && isValidDustLog(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(logId) && isValidDustLog(incoming(), userId) && incoming().userId == existing().userId && incoming().id == existing().id;
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(logId);
+      }
+    }
+  }
+}

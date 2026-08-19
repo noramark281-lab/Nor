@@ -68,11 +68,54 @@ app.get('/api/mexc/klines', async (req, res) => {
   }
 })
 
-// 5. MEXC Account & Balances (Authenticated)
+// Helper to resolve Trading Bot API credentials
+function getBotCredentials(req: express.Request) {
+  const apiKey =
+    (req.headers['x-mexc-bot-apikey'] as string) ||
+    (req.headers['x-mexc-apikey'] as string) ||
+    (req.body?.apiKey as string) ||
+    process.env.BOT_MEXC_API_KEY ||
+    process.env.MEXC_API_KEY ||
+    ''
+
+  const apiSecret =
+    (req.headers['x-mexc-bot-secret'] as string) ||
+    (req.headers['x-mexc-secret'] as string) ||
+    (req.body?.apiSecret as string) ||
+    process.env.BOT_MEXC_SECRET_KEY ||
+    process.env.MEXC_SECRET_KEY ||
+    process.env.MEXC_API_SECRET ||
+    ''
+
+  return { apiKey, apiSecret }
+}
+
+// Helper to resolve Blockpit Read-Only Audit credentials
+function getBlockpitCredentials(req: express.Request) {
+  const apiKey =
+    (req.headers['x-mexc-blockpit-apikey'] as string) ||
+    (req.query.apiKey as string) ||
+    process.env.BLOCKPIT_MEXC_API_KEY ||
+    process.env.BOT_MEXC_API_KEY ||
+    process.env.MEXC_API_KEY ||
+    ''
+
+  const apiSecret =
+    (req.headers['x-mexc-blockpit-secret'] as string) ||
+    (req.query.apiSecret as string) ||
+    process.env.BLOCKPIT_MEXC_SECRET_KEY ||
+    process.env.BOT_MEXC_SECRET_KEY ||
+    process.env.MEXC_SECRET_KEY ||
+    process.env.MEXC_API_SECRET ||
+    ''
+
+  return { apiKey, apiSecret }
+}
+
+// 5. MEXC Account & Balances (Authenticated Read-Only)
 app.all('/api/mexc/account', async (req, res) => {
   try {
-    const apiKey = (req.headers['x-mexc-apikey'] as string) || (req.query.apiKey as string) || (req.body?.apiKey as string) || process.env.MEXC_API_KEY || ''
-    const apiSecret = (req.headers['x-mexc-secret'] as string) || (req.query.apiSecret as string) || (req.body?.apiSecret as string) || process.env.MEXC_API_SECRET || ''
+    const { apiKey, apiSecret } = getBlockpitCredentials(req)
 
     if (!apiKey || !apiSecret) {
       return res.status(400).json({
@@ -99,15 +142,58 @@ app.all('/api/mexc/account', async (req, res) => {
   }
 })
 
-// 6. MEXC Spot Order (Authenticated POST)
-app.post('/api/mexc/order', async (req, res) => {
+// 6. Blockpit Read-Only Audit & Tax History (Strictly Read-Only)
+app.get('/api/mexc/blockpit/audit', async (req, res) => {
   try {
-    const apiKey = (req.headers['x-mexc-apikey'] as string) || (req.body?.apiKey as string) || process.env.MEXC_API_KEY || ''
-    const apiSecret = (req.headers['x-mexc-secret'] as string) || (req.body?.apiSecret as string) || process.env.MEXC_API_SECRET || ''
+    const { apiKey, apiSecret } = getBlockpitCredentials(req)
 
     if (!apiKey || !apiSecret) {
       return res.status(400).json({
-        error: 'API Key and Secret Key are required to place spot orders on MEXC.',
+        error: 'Blockpit API Key and Secret Key are required for read-only audit.',
+      })
+    }
+
+    const symbol = (req.query.symbol as string) || 'BTCUSDT'
+    const limit = (req.query.limit as string) || '100'
+    const timestamp = Date.now().toString()
+    const queryString = `symbol=${encodeURIComponent(symbol)}&limit=${encodeURIComponent(limit)}&timestamp=${timestamp}`
+    const signature = signMexcQuery(apiSecret, queryString)
+
+    const mexcRes = await fetch(`${MEXC_API_BASE}/api/v3/myTrades?${queryString}&signature=${signature}`, {
+      headers: {
+        'X-MEXC-APIKEY': apiKey,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    const data = await mexcRes.json()
+    res.status(mexcRes.status).json({
+      auditSource: 'Blockpit Read-Only Sync',
+      symbol,
+      tradesCount: Array.isArray(data) ? data.length : 0,
+      trades: data,
+    })
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to fetch audit history' })
+  }
+})
+
+// 7. MEXC Trading Engine / Murum-BOT Order Execution (Authenticated POST)
+app.post('/api/mexc/order', async (req, res) => {
+  try {
+    // Explicit security check: Prevent using Blockpit keys for trade execution
+    const requestedKey = (req.headers['x-mexc-apikey'] as string) || ''
+    if (process.env.BLOCKPIT_MEXC_API_KEY && requestedKey === process.env.BLOCKPIT_MEXC_API_KEY) {
+      return res.status(403).json({
+        error: 'Security Error: Blockpit API Key is configured strictly for read-only audit. Order execution is forbidden.',
+      })
+    }
+
+    const { apiKey, apiSecret } = getBotCredentials(req)
+
+    if (!apiKey || !apiSecret) {
+      return res.status(400).json({
+        error: 'Bot API Key and Secret Key are required to place spot orders on MEXC.',
       })
     }
 
@@ -138,7 +224,11 @@ app.post('/api/mexc/order', async (req, res) => {
     })
 
     const data = await mexcRes.json()
-    res.status(mexcRes.status).json(data)
+    res.status(mexcRes.status).json({
+      ...data,
+      accountType: process.env.MEXC_ACCOUNT_TYPE || 'SUB_ACCOUNT',
+      executionEngine: 'Murum-BOT',
+    })
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to execute order on MEXC' })
   }

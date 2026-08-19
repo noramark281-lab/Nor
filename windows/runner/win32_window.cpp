@@ -145,8 +145,10 @@ void Win32Window::SetChildContent(HWND content) {
   child_content_ = content;
   SetParent(content, window_handle_);
   RECT frame = GetClientArea();
+
   MoveWindow(content, frame.left, frame.top, frame.right - frame.left,
              frame.bottom - frame.top, true);
+
   SetFocus(child_content_);
 }
 

@@ -22,6 +22,8 @@ dist/
 .vite/
 .env
 *.env
+windows/flutter/ephemeral/
+ios/Flutter/ephemeral/
 android/app/upload-keystore.jks
 android/app/*.jks
 android/app/*.keystore

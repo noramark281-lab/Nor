@@ -26,9 +26,13 @@ class MexcApiManager {
   // ── SharedPreferences (cross-platform including Windows) ────────
   static const _kApiKey = 'mexc_api_key';
   static const _kSecretKey = 'mexc_secret_key';
+  static const _kBlockpitApiKey = 'blockpit_mexc_api_key';
+  static const _kBlockpitSecretKey = 'blockpit_mexc_secret_key';
 
   String? _apiKey;
   String? _secretKey;
+  String? _blockpitApiKey;
+  String? _blockpitSecretKey;
   bool _isInitialized = false;
 
   // ── Getters ─────────────────────────────────────────────────────
@@ -36,23 +40,39 @@ class MexcApiManager {
   String? get apiKey => _apiKey;
   String? get secretKey => _secretKey;
   String? get apiSecret => _secretKey;
+  String? get blockpitApiKey => _blockpitApiKey;
+  String? get blockpitSecretKey => _blockpitSecretKey;
+  bool get hasBlockpitCredentials => (_blockpitApiKey?.isNotEmpty ?? false) && (_blockpitSecretKey?.isNotEmpty ?? false);
 
   // ── Initialization ──────────────────────────────────────────────
   Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
     _apiKey = prefs.getString(_kApiKey);
     _secretKey = prefs.getString(_kSecretKey);
+    _blockpitApiKey = prefs.getString(_kBlockpitApiKey);
+    _blockpitSecretKey = prefs.getString(_kBlockpitSecretKey);
 
     // Fallback to build-time dart-define values (CI/CD / GitHub Actions)
     if (_apiKey == null || _apiKey!.isEmpty) {
-      _apiKey = AppConstants.buildTimeApiKey.isNotEmpty ? AppConstants.buildTimeApiKey : null;
+      _apiKey = AppConstants.botApiKey.isNotEmpty
+          ? AppConstants.botApiKey
+          : (AppConstants.buildTimeApiKey.isNotEmpty ? AppConstants.buildTimeApiKey : null);
     }
     if (_secretKey == null || _secretKey!.isEmpty) {
-      _secretKey = AppConstants.buildTimeApiSecret.isNotEmpty ? AppConstants.buildTimeApiSecret : null;
+      _secretKey = AppConstants.botSecretKey.isNotEmpty
+          ? AppConstants.botSecretKey
+          : (AppConstants.buildTimeApiSecret.isNotEmpty ? AppConstants.buildTimeApiSecret : null);
+    }
+
+    if (_blockpitApiKey == null || _blockpitApiKey!.isEmpty) {
+      _blockpitApiKey = AppConstants.blockpitApiKey.isNotEmpty ? AppConstants.blockpitApiKey : null;
+    }
+    if (_blockpitSecretKey == null || _blockpitSecretKey!.isEmpty) {
+      _blockpitSecretKey = AppConstants.blockpitSecretKey.isNotEmpty ? AppConstants.blockpitSecretKey : null;
     }
 
     _isInitialized = (_apiKey?.isNotEmpty ?? false) && (_secretKey?.isNotEmpty ?? false);
-    debugPrint('[MexcApiManager] initialized=$_isInitialized');
+    debugPrint('[MexcApiManager] initialized=$_isInitialized, hasBlockpit=$hasBlockpitCredentials');
   }
 
   // ── Key Management ──────────────────────────────────────────────
@@ -63,17 +83,30 @@ class MexcApiManager {
     await prefs.setString(_kApiKey, _apiKey!);
     await prefs.setString(_kSecretKey, _secretKey!);
     _isInitialized = true;
-    debugPrint('[MexcApiManager] Credentials saved.');
+    debugPrint('[MexcApiManager] Trading Bot Credentials saved.');
+  }
+
+  Future<void> setBlockpitCredentials({required String apiKey, required String secretKey}) async {
+    _blockpitApiKey = apiKey.trim();
+    _blockpitSecretKey = secretKey.trim();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kBlockpitApiKey, _blockpitApiKey!);
+    await prefs.setString(_kBlockpitSecretKey, _blockpitSecretKey!);
+    debugPrint('[MexcApiManager] Blockpit Read-Only Audit Credentials saved.');
   }
 
   Future<void> clearCredentials() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kApiKey);
     await prefs.remove(_kSecretKey);
+    await prefs.remove(_kBlockpitApiKey);
+    await prefs.remove(_kBlockpitSecretKey);
     _apiKey = null;
     _secretKey = null;
+    _blockpitApiKey = null;
+    _blockpitSecretKey = null;
     _isInitialized = false;
-    debugPrint('[MexcApiManager] Credentials cleared.');
+    debugPrint('[MexcApiManager] All credentials cleared.');
   }
 
   // ── Signature Generation (Futures v1) ───────────────────────────

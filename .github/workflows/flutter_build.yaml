@@ -122,7 +122,17 @@ jobs:
           ls -la android/app/*.jks
 
       - name: Build APK
-        run: flutter build apk --release --no-tree-shake-icons --dart-define=MEXC_API_KEY="${{ secrets.MEXC_API_KEY || secrets.API_KEY }}" --dart-define=MEXC_SECRET_KEY="${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}" --dart-define=MEXC_API_SECRET="${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}" --dart-define=SERVER_IP="${{ secrets.SERVER_IP || secrets.HOST_IP }}"
+        run: >-
+          flutter build apk --release --no-tree-shake-icons
+          --dart-define=BLOCKPIT_MEXC_API_KEY="${{ secrets.BLOCKPIT_MEXC_API_KEY || secrets.BLOCKPIT_API_KEY }}"
+          --dart-define=BLOCKPIT_MEXC_SECRET_KEY="${{ secrets.BLOCKPIT_MEXC_SECRET_KEY || secrets.BLOCKPIT_SECRET_KEY }}"
+          --dart-define=BOT_MEXC_API_KEY="${{ secrets.BOT_MEXC_API_KEY || secrets.BOT_API_KEY || secrets.MEXC_API_KEY || secrets.API_KEY }}"
+          --dart-define=BOT_MEXC_SECRET_KEY="${{ secrets.BOT_MEXC_SECRET_KEY || secrets.BOT_SECRET_KEY || secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}"
+          --dart-define=MEXC_ACCOUNT_TYPE="SUB_ACCOUNT"
+          --dart-define=MEXC_API_KEY="${{ secrets.BOT_MEXC_API_KEY || secrets.MEXC_API_KEY || secrets.API_KEY }}"
+          --dart-define=MEXC_SECRET_KEY="${{ secrets.BOT_MEXC_SECRET_KEY || secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}"
+          --dart-define=MEXC_API_SECRET="${{ secrets.BOT_MEXC_SECRET_KEY || secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}"
+          --dart-define=SERVER_IP="${{ secrets.SERVER_IP || secrets.HOST_IP }}"
 
       - name: Verify APK output
         shell: bash

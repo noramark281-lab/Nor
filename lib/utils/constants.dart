@@ -30,21 +30,57 @@ class AppConstants {
   };
 
   /// مفاتيح API المُضمَّنة في وقت البناء (Build-time) عبر --dart-define
+
+  /// Blockpit Read-Only API Integration (Audit, balances, order history)
+  static const String blockpitApiKey = String.fromEnvironment(
+    'BLOCKPIT_MEXC_API_KEY',
+    defaultValue: String.fromEnvironment('BLOCKPIT_API_KEY'),
+  );
+
+  static const String blockpitSecretKey = String.fromEnvironment(
+    'BLOCKPIT_MEXC_SECRET_KEY',
+    defaultValue: String.fromEnvironment('BLOCKPIT_SECRET_KEY'),
+  );
+
+  /// Trading Engine Integration (Murum-BOT order execution)
+  static const String botApiKey = String.fromEnvironment(
+    'BOT_MEXC_API_KEY',
+    defaultValue: String.fromEnvironment('BOT_API_KEY'),
+  );
+
+  static const String botSecretKey = String.fromEnvironment(
+    'BOT_MEXC_SECRET_KEY',
+    defaultValue: String.fromEnvironment('BOT_SECRET_KEY'),
+  );
+
+  /// نوع الحساب الافتراضي (SUB_ACCOUNT أو MAIN)
+  static const String mexcAccountType = String.fromEnvironment(
+    'MEXC_ACCOUNT_TYPE',
+    defaultValue: 'SUB_ACCOUNT',
+  );
+
+  /// المفاتيح العامة المتوافقة مع الإصدارات السابقة (Trading fallback to BOT then generic)
   static const String buildTimeApiKey = String.fromEnvironment(
-    'MEXC_API_KEY',
+    'BOT_MEXC_API_KEY',
     defaultValue: String.fromEnvironment(
-      'VITE_MEXC_API_KEY',
-      defaultValue: String.fromEnvironment('API_KEY'),
+      'MEXC_API_KEY',
+      defaultValue: String.fromEnvironment(
+        'VITE_MEXC_API_KEY',
+        defaultValue: String.fromEnvironment('API_KEY'),
+      ),
     ),
   );
 
   static const String buildTimeApiSecret = String.fromEnvironment(
-    'MEXC_SECRET_KEY',
+    'BOT_MEXC_SECRET_KEY',
     defaultValue: String.fromEnvironment(
-      'MEXC_API_SECRET',
+      'MEXC_SECRET_KEY',
       defaultValue: String.fromEnvironment(
-        'VITE_MEXC_SECRET_KEY',
-        defaultValue: String.fromEnvironment('SECRET_KEY'),
+        'MEXC_API_SECRET',
+        defaultValue: String.fromEnvironment(
+          'VITE_MEXC_SECRET_KEY',
+          defaultValue: String.fromEnvironment('SECRET_KEY'),
+        ),
       ),
     ),
   );

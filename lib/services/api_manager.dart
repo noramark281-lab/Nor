@@ -28,7 +28,9 @@ class MexcApiManager {
   String? get apiSecret => _secretKey;
   String? get blockpitApiKey => _blockpitApiKey;
   String? get blockpitSecretKey => _blockpitSecretKey;
-  bool get hasBlockpitCredentials => (_blockpitApiKey?.isNotEmpty ?? false) && (_blockpitSecretKey?.isNotEmpty ?? false);
+  bool get hasBlockpitCredentials =>
+      (_blockpitApiKey?.isNotEmpty ?? false) &&
+      (_blockpitSecretKey?.isNotEmpty ?? false);
 
   Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
@@ -36,15 +38,41 @@ class MexcApiManager {
     _secretKey = prefs.getString(_kSecretKey);
     _blockpitApiKey = prefs.getString(_kBlockpitApiKey);
     _blockpitSecretKey = prefs.getString(_kBlockpitSecretKey);
-    _apiKey ??= AppConstants.botApiKey.isNotEmpty ? AppConstants.botApiKey : (AppConstants.buildTimeApiKey.isNotEmpty ? AppConstants.buildTimeApiKey : null);
-    _secretKey ??= AppConstants.botSecretKey.isNotEmpty ? AppConstants.botSecretKey : (AppConstants.buildTimeApiSecret.isNotEmpty ? AppConstants.buildTimeApiSecret : null);
-    _blockpitApiKey ??= AppConstants.blockpitApiKey.isNotEmpty ? AppConstants.blockpitApiKey : null;
-    _blockpitSecretKey ??= AppConstants.blockpitSecretKey.isNotEmpty ? AppConstants.blockpitSecretKey : null;
-    _isInitialized = (_apiKey?.isNotEmpty ?? false) && (_secretKey?.isNotEmpty ?? false);
-    debugPrint('[MexcApiManager] initialized=$_isInitialized, hasBlockpit=$hasBlockpitCredentials');
+
+    if (_apiKey == null || _apiKey!.isEmpty) {
+      _apiKey = AppConstants.botApiKey.isNotEmpty
+          ? AppConstants.botApiKey
+          : (AppConstants.buildTimeApiKey.isNotEmpty
+              ? AppConstants.buildTimeApiKey
+              : null);
+    }
+    if (_secretKey == null || _secretKey!.isEmpty) {
+      _secretKey = AppConstants.botSecretKey.isNotEmpty
+          ? AppConstants.botSecretKey
+          : (AppConstants.buildTimeApiSecret.isNotEmpty
+              ? AppConstants.buildTimeApiSecret
+              : null);
+    }
+    if (_blockpitApiKey == null || _blockpitApiKey!.isEmpty) {
+      _blockpitApiKey = AppConstants.blockpitApiKey.isNotEmpty
+          ? AppConstants.blockpitApiKey
+          : null;
+    }
+    if (_blockpitSecretKey == null || _blockpitSecretKey!.isEmpty) {
+      _blockpitSecretKey = AppConstants.blockpitSecretKey.isNotEmpty
+          ? AppConstants.blockpitSecretKey
+          : null;
+    }
+
+    _isInitialized = (_apiKey?.isNotEmpty ?? false) &&
+        (_secretKey?.isNotEmpty ?? false);
+    debugPrint('[MexcApiManager] initialized=$_isInitialized');
   }
 
-  Future<void> setCredentials({required String apiKey, required String secretKey}) async {
+  Future<void> setCredentials({
+    required String apiKey,
+    required String secretKey,
+  }) async {
     _apiKey = apiKey.trim();
     _secretKey = secretKey.trim();
     final prefs = await SharedPreferences.getInstance();
@@ -53,7 +81,10 @@ class MexcApiManager {
     _isInitialized = true;
   }
 
-  Future<void> setBlockpitCredentials({required String apiKey, required String secretKey}) async {
+  Future<void> setBlockpitCredentials({
+    required String apiKey,
+    required String secretKey,
+  }) async {
     _blockpitApiKey = apiKey.trim();
     _blockpitSecretKey = secretKey.trim();
     final prefs = await SharedPreferences.getInstance();
@@ -67,44 +98,90 @@ class MexcApiManager {
     await prefs.remove(_kSecretKey);
     await prefs.remove(_kBlockpitApiKey);
     await prefs.remove(_kBlockpitSecretKey);
-    _apiKey = _secretKey = _blockpitApiKey = _blockpitSecretKey = null;
+    _apiKey = null;
+    _secretKey = null;
+    _blockpitApiKey = null;
+    _blockpitSecretKey = null;
     _isInitialized = false;
   }
 
-  String _generateSignature({required String timestamp, required String paramString}) {
-    if (_secretKey == null || _secretKey!.isEmpty || _apiKey == null || _apiKey!.isEmpty) {
+  String _generateSignature({
+    required String timestamp,
+    required String paramString,
+  }) {
+    if (_secretKey == null || _secretKey!.isEmpty ||
+        _apiKey == null || _apiKey!.isEmpty) {
       throw StateError('API credentials are not available');
     }
     final payload = '$_apiKey$timestamp$paramString';
-    return Hmac(sha256, utf8.encode(_secretKey!)).convert(utf8.encode(payload)).toString();
+    return Hmac(sha256, utf8.encode(_secretKey!))
+        .convert(utf8.encode(payload))
+        .toString();
   }
 
-  Map<String, String> buildAuthHeaders({required String method, String? queryString, String? bodyString}) {
-    if (!_isInitialized) throw StateError('API keys not initialized');
+  Map<String, String> buildAuthHeaders({
+    required String method,
+    String? queryString,
+    String? bodyString,
+  }) {
+    if (!_isInitialized) {
+      throw StateError('API keys not initialized');
+    }
     final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-    final paramString = method.toUpperCase() == 'GET' ? (queryString ?? '') : (bodyString ?? '');
-    final signature = _generateSignature(timestamp: timestamp, paramString: paramString);
+    final paramString = method.toUpperCase() == 'GET'
+        ? (queryString ?? '')
+        : (bodyString ?? '');
+    final signature =
+        _generateSignature(timestamp: timestamp, paramString: paramString);
     final headers = <String, String>{
       'ApiKey': _apiKey!,
       'Request-Time': timestamp,
       'Signature': signature,
       'Accept': 'application/json',
     };
-    if (method.toUpperCase() == 'POST') headers['Content-Type'] = 'application/json';
+    if (method.toUpperCase() == 'POST') {
+      headers['Content-Type'] = 'application/json';
+    }
     return headers;
   }
 
-  Map<String, String> getAuthHeadersForGet(String queryString) => buildAuthHeaders(method: 'GET', queryString: queryString);
-  Map<String, String> getAuthHeadersForPost(String bodyString) => buildAuthHeaders(method: 'POST', bodyString: bodyString);
+  Map<String, String> getAuthHeadersForGet(String queryString) =>
+      buildAuthHeaders(method: 'GET', queryString: queryString);
 
-  /// اتصال حقيقي بحساب العقود: لا يعتبر نجاحاً إلا إذا أعاد الخادم استجابة حساب صحيحة.
+  Map<String, String> getAuthHeadersForPost(String bodyString) =>
+      buildAuthHeaders(method: 'POST', bodyString: bodyString);
+
+  // Kept for existing services that still consume MEXC spot-compatible calls.
+  String signSpotQuery(String queryString) {
+    if (_secretKey == null || _secretKey!.isEmpty) {
+      throw StateError('Secret key not available');
+    }
+    return Hmac(sha256, utf8.encode(_secretKey!))
+        .convert(utf8.encode(queryString))
+        .toString();
+  }
+
+  Map<String, String> getSpotHeaders() => <String, String>{
+        'Content-Type': 'application/json',
+        'X-MEXC-APIKEY': _apiKey ?? '',
+        'Accept': 'application/json',
+      };
+
+  /// اتصال حقيقي بحساب العقود: لا يعتبر نجاحاً إلا إذا أعاد الخادم
+  /// استجابة حساب صحيحة، وليس بمجرد تكوين رؤوس المصادقة.
   Future<bool> testConnection() async {
     if (!_isInitialized) return false;
     try {
-      final response = await signedGet('/api/v1/private/account/assets').timeout(const Duration(seconds: 15));
+      final response = await signedGet('/api/v1/private/account/assets')
+          .timeout(const Duration(seconds: 15));
       if (response is! Map) return false;
       final success = response['success'] == true;
-      if (!success) debugPrint('[MexcApiManager] account connection rejected: ${response['code']} ${response['message']}');
+      if (!success) {
+        debugPrint(
+          '[MexcApiManager] account connection rejected: '
+          '${response['code']} ${response['message']}',
+        );
+      }
       return success;
     } catch (e) {
       debugPrint('[MexcApiManager] real testConnection error: $e');
@@ -112,36 +189,88 @@ class MexcApiManager {
     }
   }
 
-  Future<dynamic> publicGet(String endpoint, {Map<String, dynamic>? queryParameters, String baseUrl = _defaultBaseUrl}) async {
+  Future<dynamic> publicGet(
+    String endpoint, {
+    Map<String, dynamic>? queryParameters,
+    String baseUrl = _defaultBaseUrl,
+  }) async {
     try {
-      final uri = Uri.parse('$baseUrl$endpoint').replace(queryParameters: queryParameters?.map((k, v) => MapEntry(k, v.toString())));
-      final response = await http.get(uri, headers: const {'Accept': 'application/json'}).timeout(const Duration(seconds: 20));
+      final uri = Uri.parse('$baseUrl$endpoint').replace(
+        queryParameters: queryParameters?.map(
+          (k, v) => MapEntry(k, v.toString()),
+        ),
+      );
+      final response = await http
+          .get(uri, headers: const {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 20));
       if (response.statusCode == 200) return jsonDecode(response.body);
-      return {'success': false, 'code': response.statusCode, 'message': response.body};
+      return {
+        'success': false,
+        'code': response.statusCode,
+        'message': response.body,
+      };
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
   }
 
-  Future<dynamic> signedGet(String endpoint, {Map<String, dynamic>? queryParameters, String baseUrl = _defaultBaseUrl}) async {
+  Future<dynamic> signedGet(
+    String endpoint, {
+    Map<String, dynamic>? queryParameters,
+    String baseUrl = _defaultBaseUrl,
+  }) async {
     try {
-      final pairs = queryParameters?.entries.map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value.toString())}').toList() ?? const <String>[];
+      final pairs = queryParameters?.entries
+              .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value.toString())}')
+              .toList() ??
+          <String>[];
       final queryString = pairs.join('&');
-      final uri = Uri.parse('$baseUrl$endpoint${queryString.isEmpty ? '' : '?$queryString'}');
-      final response = await http.get(uri, headers: buildAuthHeaders(method: 'GET', queryString: queryString)).timeout(const Duration(seconds: 20));
+      final uri = Uri.parse(
+        '$baseUrl$endpoint${queryString.isEmpty ? '' : '?$queryString'}',
+      );
+      final response = await http
+          .get(
+            uri,
+            headers: buildAuthHeaders(
+              method: 'GET',
+              queryString: queryString,
+            ),
+          )
+          .timeout(const Duration(seconds: 20));
       if (response.statusCode == 200) return jsonDecode(response.body);
-      return {'success': false, 'code': response.statusCode, 'message': response.body};
+      return {
+        'success': false,
+        'code': response.statusCode,
+        'message': response.body,
+      };
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
   }
 
-  Future<dynamic> signedPost(String endpoint, {Map<String, dynamic>? body, String baseUrl = _defaultBaseUrl}) async {
+  Future<dynamic> signedPost(
+    String endpoint, {
+    Map<String, dynamic>? body,
+    String baseUrl = _defaultBaseUrl,
+  }) async {
     try {
       final bodyString = body == null ? '' : jsonEncode(body);
-      final response = await http.post(Uri.parse('$baseUrl$endpoint'), headers: buildAuthHeaders(method: 'POST', bodyString: bodyString), body: bodyString.isEmpty ? null : bodyString).timeout(const Duration(seconds: 20));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl$endpoint'),
+            headers: buildAuthHeaders(
+              method: 'POST',
+              bodyString: bodyString,
+            ),
+            body: bodyString.isEmpty ? null : bodyString,
+          )
+          .timeout(const Duration(seconds: 20));
       if (response.statusCode == 200) return jsonDecode(response.body);
-      return {'success': false, 'code': response.statusCode, 'message': response.body};
+      return {
+        'success': false,
+        'code': response.statusCode,
+        'message': response.body,
+      };
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }

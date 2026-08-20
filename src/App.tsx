@@ -15,47 +15,54 @@ import { AutoTradePanel } from './components/AutoTradePanel'
 import { PositionsPanel } from './components/PositionsPanel'
 import { BottomNav } from './components/BottomNav'
 import { WalletsView } from './components/WalletsView'
-import { Sparkles, Activity, ShieldAlert, CheckCircle2 } from 'lucide-react'
+import { NewsModal } from './components/NewsModal'
+import { CheckCircle2, AlertCircle } from 'lucide-react'
 
 export default function App() {
-  // Localization state: Arabic by default, with one-tap toggle to English
+  // Localization state
   const [language, setLanguage] = useState<Language>('ar')
   const t = getT(language)
 
   // Navigation tab
   const [currentTab, setCurrentTab] = useState<'futures' | 'wallets'>('futures')
 
-  // Auto-Trade Configuration Parameters
+  // News Modal state
+  const [isNewsOpen, setIsNewsOpen] = useState<boolean>(false)
+
+  // Chart & Trade Parameters
+  const [timeframe, setTimeframe] = useState<string>('15m')
   const [duration, setDuration] = useState<TradeDuration>('10m')
   const [candle, setCandle] = useState<AnalysisCandle>('1m')
   const [payoutFilter, setPayoutFilter] = useState<PayoutFilter>(80)
-  const [amount, setAmount] = useState<number>(100)
+  const [amount, setAmount] = useState<number | string>(100)
   const [availBalance, setAvailBalance] = useState<number>(1250.0005)
-  const [currentPrice, setCurrentPrice] = useState<number>(68023.5)
+  const [currentPrice, setCurrentPrice] = useState<number>(69503.5)
   const [isAutoRunning, setIsAutoRunning] = useState<boolean>(false)
 
-  // Payout Ratios
+  // Payout Ratios matching live exchange states
   const [upPayout, setUpPayout] = useState<number>(80)
   const [downPayout, setDownPayout] = useState<number>(80)
 
-  // AI Sentiment & News States
+  // AI Sentiment State
   const [sentiment, setSentiment] = useState<AISentimentState>({
     score: 84,
-    confidence: 'HIGH EVENT PROBABILITY [75% CONFIDENCE]',
-    confidenceAr: 'تفاؤل عالي: احتمال حدث صعودي قوي [تأكيد ٨٤%]',
+    confidence: 'BULLISH EVENT CONFIRMED [84% AI SCORE]',
+    confidenceAr: 'تأكيد حدث صعودي قوي [نسبة تطابق الذكاء الاصطناعي ٨٤%]',
     direction: 'BULLISH',
     riskLevel: 'LOW_RISK',
   })
+
+  // Live News Feeds
   const [newsList, setNewsList] = useState<NewsItem[]>([
     {
       id: 'news-1',
       title: 'FED Rate Decision Live: Macro Liquidity Inflow Accelerates Crypto Surge',
-      titleAr: 'قرار الفيدرالي بث مباشر: تدفق السيولة النقدية يعزز صعود أسواق الكريبتو',
+      titleAr: 'قرار الفيدرالي بث مباشر: تدفقات السيولة النقدية الكلية تسرع وتيرة صعود البيتكوين',
       source: 'CoinDesk / Bloomberg',
       sentiment: 'BULLISH',
       score: 84,
       time: '2m ago',
-      category: 'Macro / FED',
+      category: 'Macro / Liquidity',
     },
     {
       id: 'news-2',
@@ -67,18 +74,28 @@ export default function App() {
       time: '8m ago',
       category: 'Institutional Flows',
     },
+    {
+      id: 'news-3',
+      title: 'MEXC Event Futures Volume Hits Record as Options Settlement Approaches',
+      titleAr: 'حجم تداول عقود الأحداث في MEXC يسجل رقماً قياسياً مع اقتراب وقت التسوية',
+      source: 'MEXC Market Wire',
+      sentiment: 'BULLISH',
+      score: 88,
+      time: '14m ago',
+      category: 'Exchange Vol',
+    },
   ])
 
-  // Positions
+  // Open & Closed Positions
   const [openPositions, setOpenPositions] = useState<EventPosition[]>([])
   const [closedPositions, setClosedPositions] = useState<EventPosition[]>([
     {
       id: 'pos-hist-1',
-      symbol: 'BTC/USDT',
+      symbol: 'BTCUSDT',
       direction: 'LONG',
       amount: 100,
-      entryPrice: 67850.0,
-      settlementPrice: 68120.0,
+      entryPrice: 69450.0,
+      settlementPrice: 69520.0,
       payoutRatio: 80,
       minRequiredPayout: 75,
       duration: '10m',
@@ -89,16 +106,16 @@ export default function App() {
       isAuto: true,
       status: 'WON',
       pnl: 80.0,
-      engine: 'AI Sentiment + Technical Indicator Engine',
+      engine: 'AI Sentiment + Indicator Engine',
     },
     {
       id: 'pos-hist-2',
-      symbol: 'BTC/USDT',
+      symbol: 'BTCUSDT',
       direction: 'SHORT',
       amount: 50,
-      entryPrice: 68400.0,
-      settlementPrice: 68250.0,
-      payoutRatio: 85,
+      entryPrice: 69600.0,
+      settlementPrice: 69480.0,
+      payoutRatio: 89,
       minRequiredPayout: 80,
       duration: '30m',
       analysisCandle: '15m',
@@ -107,23 +124,22 @@ export default function App() {
       expiryMinutes: 30,
       isAuto: true,
       status: 'WON',
-      pnl: 42.5,
-      engine: 'AI Sentiment + Technical Indicator Engine',
+      pnl: 44.5,
+      engine: 'AI Sentiment + Indicator Engine',
     },
   ])
 
-  // Banner Notification
-  const [notification, setNotification] = useState<string | null>(null)
+  // Toast Notification
+  const [notification, setNotification] = useState<{ msg: string; type: 'success' | 'warn' } | null>(null)
 
   // Toggle Language Handler
   const toggleLanguage = () => {
     setLanguage((prev) => (prev === 'en' ? 'ar' : 'en'))
   }
 
-  // Fetch initial contract & news data
+  // Fetch initial contract & news data from backend
   const fetchData = useCallback(async () => {
     try {
-      // 1. Contract & Price
       const cRes = await fetch('/api/mexc/events/contract?symbol=BTCUSDT')
       if (cRes.ok) {
         const cData = await cRes.json()
@@ -132,7 +148,6 @@ export default function App() {
         if (cData.downPayout) setDownPayout(cData.downPayout)
       }
 
-      // 2. News & Sentiment
       const nRes = await fetch('/api/mexc/news')
       if (nRes.ok) {
         const nData = await nRes.json()
@@ -142,7 +157,6 @@ export default function App() {
         }
       }
 
-      // 3. Positions
       const pRes = await fetch('/api/mexc/events/positions')
       if (pRes.ok) {
         const pData = await pRes.json()
@@ -152,7 +166,7 @@ export default function App() {
         }
       }
     } catch (e) {
-      console.warn('Network sync notice:', e)
+      console.warn('Backend sync poll:', e)
     }
   }, [])
 
@@ -162,36 +176,26 @@ export default function App() {
     return () => clearInterval(interval)
   }, [fetchData])
 
-  // Live Price Ticker simulation between polls
+  // Live Price micro-movements
   useEffect(() => {
     const pInterval = setInterval(() => {
       setCurrentPrice((prev) => {
-        const delta = (Math.random() - 0.49) * 4.5
-        return Math.max(64000, Math.min(72000, prev + delta))
+        const delta = (Math.random() - 0.49) * 2.5
+        return Math.max(68000, Math.min(72000, prev + delta))
       })
-    }, 1500)
+    }, 1200)
     return () => clearInterval(pInterval)
   }, [])
 
   // Order Execution Function
   const executeOrder = async (direction: 'LONG' | 'SHORT', isAuto: boolean = false) => {
     const currentPayoutVal = direction === 'LONG' ? upPayout : downPayout
+    const tradeAmount = typeof amount === 'number' ? amount : parseFloat(amount) || 100
 
-    // Payout Ratio Gatekeeper Check
-    if (currentPayoutVal < payoutFilter) {
-      const msg =
-        language === 'ar'
-          ? `تم استبعاد الصفقة بواسطة الفلتر: نسبة العائد (${currentPayoutVal}%) أقل من الشرط المطلوب (${payoutFilter}%).`
-          : `Trade Dropped by Gatekeeper: Current Payout (${currentPayoutVal}%) is lower than threshold (${payoutFilter}%).`
-      setNotification(msg)
-      setTimeout(() => setNotification(null), 4000)
-      return
-    }
-
-    if (availBalance < amount) {
-      const msg = language === 'ar' ? 'الرصيد المتاح غير كافٍ لتنفيذ الصفقة' : 'Insufficient available balance'
-      setNotification(msg)
-      setTimeout(() => setNotification(null), 4000)
+    if (availBalance < tradeAmount) {
+      const msg = language === 'ar' ? 'الرصيد المتاح غير كافٍ لفتح المركز' : 'Insufficient balance'
+      setNotification({ msg, type: 'warn' })
+      setTimeout(() => setNotification(null), 3500)
       return
     }
 
@@ -200,9 +204,9 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          symbol: 'BTC/USDT',
+          symbol: 'BTCUSDT',
           direction,
-          amount,
+          amount: tradeAmount,
           duration,
           analysisCandle: candle,
           payoutRatio: currentPayoutVal,
@@ -214,24 +218,24 @@ export default function App() {
       const data = await res.json()
       if (res.ok && data.position) {
         setOpenPositions((prev) => [data.position, ...prev])
-        setAvailBalance((prev) => Math.max(0, prev - amount))
+        setAvailBalance((prev) => Math.max(0, prev - tradeAmount))
         const msg =
           language === 'ar'
-            ? `✓ تم فتح مركز ${direction === 'LONG' ? 'صعود (LONG)' : 'هبوط (SHORT)'} بقيمة $${amount} بنجاح!`
-            : `✓ Opened ${direction} position for $${amount} successfully!`
-        setNotification(msg)
+            ? `✓ تم فتح مركز ${direction === 'LONG' ? 'صعود (Up)' : 'هبوط (Down)'} بقيمة $${tradeAmount} بنجاح!`
+            : `✓ Opened ${direction} order for $${tradeAmount} successfully!`
+        setNotification({ msg, type: 'success' })
         setTimeout(() => setNotification(null), 4000)
       } else {
-        setNotification(data.error || 'Failed to place order')
-        setTimeout(() => setNotification(null), 4000)
+        setNotification({ msg: data.error || 'Order placement rejected', type: 'warn' })
+        setTimeout(() => setNotification(null), 3500)
       }
     } catch (e: any) {
-      setNotification(e.message || 'Execution error')
-      setTimeout(() => setNotification(null), 4000)
+      setNotification({ msg: e.message || 'Execution failed', type: 'warn' })
+      setTimeout(() => setNotification(null), 3500)
     }
   }
 
-  // Auto-Trading background loop simulation
+  // Auto-Trading background loop
   const autoTradeRef = useRef<boolean>(isAutoRunning)
   autoTradeRef.current = isAutoRunning
 
@@ -240,9 +244,6 @@ export default function App() {
 
     const loop = setInterval(() => {
       if (!autoTradeRef.current) return
-
-      // AI Trading Logic:
-      // Executes only if Payout >= filter AND Sentiment matches
       const isBullish = sentiment.score >= 70
       const direction: 'LONG' | 'SHORT' = isBullish ? 'LONG' : 'SHORT'
       const payoutVal = direction === 'LONG' ? upPayout : downPayout
@@ -250,7 +251,7 @@ export default function App() {
       if (payoutVal >= payoutFilter) {
         executeOrder(direction, true)
       }
-    }, 18000)
+    }, 15000)
 
     return () => clearInterval(loop)
   }, [isAutoRunning, sentiment, upPayout, downPayout, payoutFilter, amount, availBalance, duration, candle])
@@ -260,13 +261,13 @@ export default function App() {
       const next = !prev
       const msg = next
         ? language === 'ar'
-          ? '▶ تم تشغيل نظام التداول التلقائي السحابي على مدار الساعة'
+          ? '▶ تم تشغيل المتداول الآلي بالذكاء الاصطناعي على مدار 24 ساعة'
           : '▶ Automated 24/7 Cloud Trading Engine Activated'
         : language === 'ar'
-        ? '⏹ تم إيقاف التداول التلقائي'
+        ? '⏹ تم إيقاف المتداول الآلي'
         : '⏹ Automated Trading Paused'
-      setNotification(msg)
-      setTimeout(() => setNotification(null), 3500)
+      setNotification({ msg, type: 'success' })
+      setTimeout(() => setNotification(null), 3000)
       return next
     })
   }
@@ -274,27 +275,35 @@ export default function App() {
   return (
     <div
       dir={language === 'ar' ? 'rtl' : 'ltr'}
-      className="min-h-screen bg-[#07090e] text-[#eaecef] font-sans antialiased flex justify-center selection:bg-[#00c087] selection:text-black"
+      className="min-h-screen bg-black text-[#eaecef] font-sans antialiased flex justify-center selection:bg-[#2962ff] selection:text-white"
     >
-      <div className="w-full max-w-[480px] min-h-screen bg-[#090c12] flex flex-col border-x border-[#1a202c] shadow-2xl relative">
+      <div className="w-full max-w-[480px] min-h-screen bg-black flex flex-col border-x border-[#1a1e26] shadow-2xl relative">
         {/* Main Content Area */}
-        <main className="flex-1 flex flex-col gap-2.5 p-3 overflow-y-auto">
-          {/* Top Status & Language Bar */}
+        <main className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto">
+          {/* Top Status & Language Bar matching screenshot */}
           <TopHeader
             language={language}
             onToggleLanguage={toggleLanguage}
-            currentNews={newsList[0]}
-            sentiment={sentiment}
+            onOpenNews={() => setIsNewsOpen(true)}
           />
 
           {/* Toast Notification Banner */}
           {notification && (
-            <div className="w-full bg-[#182520] border border-[#00c087]/70 text-[#00c087] px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-between shadow-[0_0_12px_rgba(0,192,135,0.25)] animate-in fade-in slide-in-from-top-2 duration-300">
+            <div
+              className={`w-full px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between shadow-lg animate-in fade-in duration-200 ${
+                notification.type === 'success'
+                  ? 'bg-[#0f2e22] border border-[#00c087] text-[#00c087]'
+                  : 'bg-[#2e1419] border border-[#f6465d] text-[#f6465d]'
+              }`}
+            >
               <div className="flex items-center gap-2">
-                <CheckCircle2 size={15} />
-                <span>{notification}</span>
+                {notification.type === 'success' ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
+                <span>{notification.msg}</span>
               </div>
-              <button onClick={() => setNotification(null)} className="text-gray-400 hover:text-white text-xs">
+              <button
+                onClick={() => setNotification(null)}
+                className="text-gray-400 hover:text-white text-xs cursor-pointer ml-2"
+              >
                 ✕
               </button>
             </div>
@@ -308,95 +317,61 @@ export default function App() {
             />
           ) : (
             <>
-              {/* Pair Title & AI Auto-Trader Toggle Sub-header */}
-              <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-1.5 cursor-pointer">
-                  <span className="text-base font-bold text-white tracking-wide">
-                    {language === 'ar' ? 'BTCUSDT ▾' : 'BTCUSDT ▾'}
-                  </span>
-                  <span className="text-[10px] text-gray-400 font-mono">
-                    ({language === 'ar' ? 'بيتكوين-تيدر' : 'Bitcoin'})
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div
-                    onClick={toggleAutoTrading}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full cursor-pointer border transition-all text-xs font-bold ${
-                      isAutoRunning
-                        ? 'bg-[#00c087]/20 border-[#00c087] text-[#00c087] shadow-[0_0_10px_rgba(0,192,135,0.3)]'
-                        : 'bg-[#18202c] border-[#2c3748] text-gray-400'
-                    }`}
-                  >
-                    <Sparkles size={13} className={isAutoRunning ? 'animate-spin' : ''} />
-                    <span className="text-[11px]">{t.aiAutoTrader}</span>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
-                        isAutoRunning ? 'bg-[#00c087] text-black' : 'bg-[#2b3544] text-gray-300'
-                      }`}
-                    >
-                      {isAutoRunning ? t.on : t.off}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* AI Sentiment Banner */}
-              <div className="w-full bg-[#101923] border border-[#1b2b3a] rounded-lg px-3 py-1.5 flex items-center justify-between text-xs shadow-inner">
-                <div className="flex items-center gap-2">
-                  <Activity size={14} className="text-[#00c087] animate-pulse" />
-                  <span className="text-[#00c087] font-semibold text-[11px]">
-                    {language === 'ar' ? sentiment.confidenceAr : sentiment.confidence}
-                  </span>
-                </div>
-                <span className="text-[10px] text-gray-400 font-mono">
-                  {language === 'ar' ? 'تأكيد ٨٤%' : '84% Match'}
-                </span>
-              </div>
-
-              {/* Candlestick & Indicator Chart */}
+              {/* Candlestick & Price Chart */}
               <EventFuturesChart
                 language={language}
-                timeframe={candle}
+                timeframe={timeframe}
+                setTimeframe={setTimeframe}
                 currentPrice={currentPrice}
                 upPayout={upPayout}
                 downPayout={downPayout}
+                onOpenSettings={() => setIsNewsOpen(true)}
               />
 
-              {/* Auto-Trade Configuration & Action Panel */}
+              {/* Time Unit, Amount & Order Action Panel */}
               <AutoTradePanel
                 language={language}
                 duration={duration}
                 setDuration={setDuration}
-                candle={candle}
-                setCandle={setCandle}
-                payoutFilter={payoutFilter}
-                setPayoutFilter={setPayoutFilter}
                 amount={amount}
                 setAmount={setAmount}
                 availBalance={availBalance}
                 isAutoRunning={isAutoRunning}
                 onToggleAutoTrading={toggleAutoTrading}
-                onManualTrade={(dir) => executeOrder(dir, false)}
-                currentPayout={upPayout}
+                onTrade={(dir) => executeOrder(dir, false)}
+                upPayout={upPayout}
+                downPayout={downPayout}
+                payoutFilter={payoutFilter}
+                setPayoutFilter={setPayoutFilter}
+                candle={candle}
+                setCandle={setCandle}
               />
 
-              {/* Positions & News Feeds */}
+              {/* Positions Panel matching screenshot tabs */}
               <PositionsPanel
                 language={language}
                 openPositions={openPositions}
                 closedPositions={closedPositions}
-                newsList={newsList}
+                onOpenHistoryModal={() => setIsNewsOpen(true)}
               />
             </>
           )}
         </main>
 
-        {/* Persistent Bottom Bar */}
+        {/* Persistent Bottom Bar matching screenshot */}
         <BottomNav
           language={language}
           currentTab={currentTab}
           onSelectTab={setCurrentTab}
+        />
+
+        {/* Trading News & AI Sentiment Radar Modal */}
+        <NewsModal
+          isOpen={isNewsOpen}
+          onClose={() => setIsNewsOpen(false)}
+          language={language}
+          newsList={newsList}
+          sentiment={sentiment}
         />
       </div>
     </div>

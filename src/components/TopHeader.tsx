@@ -1,70 +1,48 @@
 import React from 'react'
-import { Globe, Radio, TrendingUp, Sparkles, CheckCircle2 } from 'lucide-react'
-import { Language, NewsItem, AISentimentState } from '../types'
-import { getT } from '../lib/translations'
+import { Language } from '../types'
 
 interface TopHeaderProps {
   language: Language
   onToggleLanguage: () => void
-  currentNews?: NewsItem
-  sentiment: AISentimentState
+  onOpenNews: () => void
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
   language,
   onToggleLanguage,
-  currentNews,
-  sentiment,
+  onOpenNews,
 }) => {
-  const t = getT(language)
-
   return (
-    <header className="flex flex-col gap-2 w-full pt-1 pb-1">
-      {/* Top Main Status Bar matching Screenshot */}
-      <div className="flex items-center justify-between gap-2 px-1">
-        {/* Brand & Glowing Golden Tab Pill */}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#161a22] border border-[#2b313a]">
-            <span className="w-2 h-2 rounded-full bg-[#00c087] animate-pulse"></span>
-            <span className="font-extrabold text-xs tracking-wider text-white">MEXC</span>
-          </div>
+    <header className="flex items-center justify-between w-full pt-1 pb-1.5 px-2 select-none">
+      {/* Left: Trading News */}
+      <button
+        onClick={onOpenNews}
+        className="text-[#9ea3ae] hover:text-white text-sm font-medium transition-colors flex items-center gap-1 cursor-pointer"
+      >
+        <span>{language === 'ar' ? 'أخبار التداول' : 'Trading News'}</span>
+      </button>
 
-          {/* Event Futures Golden Pill Badge */}
-          <div className="flex items-center px-3 py-1 rounded-full bg-[#1c1a14] border border-[#d4af37]/60 text-[#f5e6a3] shadow-[0_0_10px_rgba(212,175,55,0.2)]">
-            <span className="font-bold text-xs">
-              {language === 'ar' ? 'العقود الآجلة' : 'Event Futures'}
-            </span>
-          </div>
-        </div>
-
-        {/* Dynamic Language Switcher Button [ Language (EN | AR) ] with Globe */}
-        <button
-          onClick={onToggleLanguage}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#141a24] hover:bg-[#1a2332] border border-[#00c087]/50 text-[#00c087] text-[11px] font-bold transition-all shadow-[0_0_10px_rgba(0,192,135,0.2)] active:scale-95 cursor-pointer"
-          title="Switch Language (EN / AR)"
-        >
-          <Globe size={13} className="text-[#00c087]" />
-          <span>{language === 'ar' ? 'اختيار اللغة (عربي | English)' : 'Language (EN | عربي)'}</span>
-        </button>
-      </div>
-
-      {/* Mini Live News Box matching Screenshot */}
-      <div className="w-full bg-[#0e131d] border border-[#1e2736] rounded-lg px-2.5 py-1.5 flex items-center justify-between gap-2 shadow-inner">
-        <div className="flex items-center gap-1.5 overflow-hidden flex-1">
-          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-800/60 text-[9px] text-emerald-300 font-bold shrink-0">
-            <CheckCircle2 size={10} className="text-emerald-400" />
-            <span>{language === 'ar' ? 'شاشة مصغرة للأخبار' : 'Live News Radar'}</span>
-          </div>
-          <p className="text-[11px] text-gray-200 truncate font-medium">
-            ⚡ {language === 'ar'
-              ? currentNews?.titleAr || 'أخبار عاجلة: قرار الفيدرالي بث مباشر... | قطاع التكنولوجيا يُظهر قوة... صعودي...'
-              : currentNews?.title || 'FED Rate Decision Live: Macro liquidity inflow accelerates BTC surge...'}
-          </p>
-        </div>
-        <span className="text-[9px] text-gray-400 font-mono shrink-0">
-          [{currentNews?.source || 'CoinDesk, Bloomberg, Reuters'}]
+      {/* Center: Event Futures Active Tab Title */}
+      <div className="relative py-1">
+        <span className="text-white text-sm font-bold tracking-tight">
+          {language === 'ar' ? 'Event Futures' : 'Event Futures'}
         </span>
+        {/* Subtle active underline indicator */}
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-[2px] bg-[#2962ff] rounded-full"></div>
       </div>
+
+      {/* Right: Language Switcher with Blue Diamond Icon matching screenshot */}
+      <button
+        onClick={onToggleLanguage}
+        className="flex items-center gap-1 text-xs text-[#9ea3ae] hover:text-white transition-colors cursor-pointer"
+        title="Toggle Language"
+      >
+        <span className="text-sm font-medium">{language === 'ar' ? 'اللغة' : 'Language'}</span>
+        {/* Blue Diamond polygon matching the screenshot */}
+        <div className="w-3.5 h-3.5 bg-[#2962ff] transform rotate-45 rounded-[1px] shadow-[0_0_6px_rgba(41,98,255,0.6)] flex items-center justify-center">
+          <div className="w-1.5 h-1.5 bg-[#70a6ff] rounded-[0.5px]"></div>
+        </div>
+      </button>
     </header>
   )
 }

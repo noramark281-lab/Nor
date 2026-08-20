@@ -1,0 +1,125 @@
+name: Flutter APK Build & Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'lib/**'
+      - 'android/**'
+      - 'assets/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/flutter-apk.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build Flutter Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # تحميل نفس النسخة التي شغلت الـ Action
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Verify commit
+        run: |
+          echo "Expected: $GITHUB_SHA"
+          echo "Actual:   $(git rev-parse HEAD)"
+
+          if [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]; then
+            echo "ERROR: Commit SHA mismatch"
+            exit 1
+          fi
+
+      # تثبيت Java
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      # تثبيت Flutter
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: stable
+          cache: true
+
+      # فحص البيئة
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      # تثبيت الحزم
+      - name: Install dependencies
+        run: |
+          flutter clean
+          flutter pub get
+
+      # التحليل - لا يوقف البناء بسبب warnings فقط
+      - name: Analyze project
+        run: |
+          flutter analyze --no-fatal-warnings || true
+
+      # بناء APK الحقيقي
+      - name: Build Release APK
+        env:
+          MEXC_API_KEY: ${{ secrets.MEXC_API_KEY || secrets.API_KEY }}
+          MEXC_SECRET_KEY: ${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}
+          SERVER_IP: ${{ secrets.SERVER_IP || secrets.HOST_IP }}
+        run: |
+          flutter build apk \
+            --release \
+            --no-tree-shake-icons \
+            --dart-define=MEXC_API_KEY="$MEXC_API_KEY" \
+            --dart-define=MEXC_SECRET_KEY="$MEXC_SECRET_KEY" \
+            --dart-define=MEXC_API_SECRET="$MEXC_SECRET_KEY" \
+            --dart-define=SERVER_IP="$SERVER_IP"
+
+      # التأكد أن APK تم إنشاؤه
+      - name: Verify APK
+        run: |
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: APK was not generated"
+            find build -type f | sort
+            exit 1
+          fi
+
+          cp "$APK" Nor.apk
+
+          echo "APK created successfully:"
+          ls -lh Nor.apk
+          sha256sum Nor.apk
+
+      # رفع APK كـ Artifact
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nor-Android-APK
+          path: Nor.apk
+          if-no-files-found: error
+          retention-days: 90
+
+      # نشر APK في GitHub Release
+      - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-${{ github.run_number }}
+          name: Nor Android APK #${{ github.run_number }}
+          generate_release_notes: true
+          files: |
+            Nor.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

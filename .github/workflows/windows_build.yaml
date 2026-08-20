@@ -6,168 +6,121 @@ on:
     branches: [ main ]
     paths:
       - 'pubspec.yaml'
+      - 'pubspec.lock'
       - 'lib/**'
       - 'windows/**'
       - '.github/workflows/windows_build.yaml'
 
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     runs-on: windows-2022
-    permissions:
-      contents: write
-    
     env:
-      CMAKE_GENERATOR: "Visual Studio 17 2022"
-      CMAKE_GENERATOR_PLATFORM: "x64"
-    
+      CMAKE_GENERATOR: Visual Studio 17 2022
+      CMAKE_GENERATOR_PLATFORM: x64
     steps:
-      - name: Configure Git for Windows (Long Paths & Safe Directory)
-        shell: pwsh
-        run: |
-          git config --system core.longpaths true
-          git config --global core.longpaths true
-          git config --global --add safe.directory "*"
-
-      - name: Checkout code
+      - name: Checkout exact triggering commit
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Verify checkout
+        shell: pwsh
+        run: |
+          Write-Host "Expected: $env:GITHUB_SHA"
+          Write-Host "Actual:   $(git rev-parse HEAD)"
+          if ((git rev-parse HEAD) -ne $env:GITHUB_SHA) { throw 'Checkout SHA mismatch' }
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.24.5'
-          channel: 'stable'
-          cache: false
+          channel: stable
+          cache: true
 
-      - name: Enable Windows desktop support
-        run: flutter config --enable-windows-desktop
-
-      - name: Setup Visual Studio C++ Build Tools
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
-      - name: Verify Flutter installation
+      - name: Configure Windows toolchain
+        shell: pwsh
         run: |
-          flutter --version
+          flutter config --enable-windows-desktop
           flutter doctor -v
 
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Build Windows EXE
-        run: flutter build windows --release --verbose --dart-define=MEXC_API_KEY="${{ secrets.MEXC_API_KEY || secrets.API_KEY }}" --dart-define=MEXC_SECRET_KEY="${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}" --dart-define=MEXC_API_SECRET="${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}" --dart-define=SERVER_IP="${{ secrets.SERVER_IP || secrets.HOST_IP }}"
-
-      - name: Verify build output
+      - name: Install dependencies
         shell: pwsh
         run: |
-          $buildDir = "build\windows\x64\runner\Release"
-          Write-Host "Listing build directory contents:"
-          if (Test-Path $buildDir) {
-            Get-ChildItem $buildDir | ForEach-Object { Write-Host "  $($_.Name) ($($_.Length) bytes)" }
-          } else {
-            Get-ChildItem -Recurse "build\windows" | ForEach-Object { Write-Host "  $($_.FullName)" }
-          }
-          
-          # Locate the main EXE
-          $exe = Get-ChildItem -Path $buildDir -Filter "*.exe" | Select-Object -First 1
-          if ($exe) {
-            Write-Host "✅ Found executable: $($exe.FullName)"
-            if ($exe.Name -ne "Nor.exe") {
-              Copy-Item $exe.FullName "$buildDir\Nor.exe" -Force
-              Write-Host "Copied to $buildDir\Nor.exe"
-            }
-          } else {
-            Write-Host "❌ No executable found in release folder!"
-            exit 1
-          }
+          flutter clean
+          flutter pub get
 
-      - name: Bundle MSVC runtime DLLs
+      - name: Analyze project
+        shell: pwsh
+        run: flutter analyze --no-fatal-warnings
+
+      - name: Build Windows release
+        shell: pwsh
+        env:
+          MEXC_API_KEY: ${{ secrets.MEXC_API_KEY || secrets.API_KEY }}
+          MEXC_SECRET_KEY: ${{ secrets.MEXC_SECRET_KEY || secrets.MEXC_API_SECRET || secrets.SECRET_KEY }}
+          SERVER_IP: ${{ secrets.SERVER_IP || secrets.HOST_IP }}
+        run: |
+          flutter build windows --release --verbose `
+            --dart-define=MEXC_API_KEY="$env:MEXC_API_KEY" `
+            --dart-define=MEXC_SECRET_KEY="$env:MEXC_SECRET_KEY" `
+            --dart-define=MEXC_API_SECRET="$env:MEXC_SECRET_KEY" `
+            --dart-define=SERVER_IP="$env:SERVER_IP"
+
+      - name: Verify exact executable
         shell: pwsh
         run: |
-          $buildDir = "build\windows\x64\runner\Release"
-          
-          # Bundle the VC++ Redistributable DLLs so users do not encounter missing DLL errors
-          $dlls = @("MSVCP140.dll", "VCRUNTIME140.dll", "VCRUNTIME140_1.dll")
-          
-          foreach ($dll in $dlls) {
-            $systemPath = "C:\Windows\System32\$dll"
-            if (Test-Path $systemPath) {
-              Copy-Item $systemPath -Destination $buildDir -Force
-              Write-Host "✅ Bundled: $dll"
-            } else {
-              $vctools = [System.Environment]::GetEnvironmentVariable("VCToolsInstallDir")
-              if ($vctools) {
-                $altPath = Get-ChildItem -Path $vctools -Recurse -Filter $dll -ErrorAction SilentlyContinue | Select-Object -First 1
-                if ($altPath) {
-                  Copy-Item $altPath.FullName -Destination $buildDir -Force
-                  Write-Host "✅ Bundled from VCTools: $dll"
-                }
-              }
-            }
+          $buildDir = 'build\windows\x64\runner\Release'
+          $expected = Join-Path $buildDir 'mexc_event_trader_app.exe'
+          if (!(Test-Path $expected)) {
+            Get-ChildItem -Recurse 'build\windows' | ForEach-Object { Write-Host $_.FullName }
+            throw "Expected executable not found: $expected"
           }
-          
-          Write-Host "`nFinal Release directory contents:"
-          Get-ChildItem $buildDir | ForEach-Object { Write-Host "  $($_.Name) ($($_.Length) bytes)" }
+          Copy-Item $expected (Join-Path $buildDir 'Nor.exe') -Force
+          Get-ChildItem $buildDir | Format-Table Name,Length
 
-      - name: Build Windows Installer (NSIS)
+      - name: Build NSIS installer
         shell: pwsh
         run: |
-          if (Test-Path "windows\installer.nsi") {
-            if (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe") {
-              & "C:\Program Files (x86)\NSIS\makensis.exe" windows\installer.nsi
-              Write-Host "✅ Nor_Setup.exe installer generated successfully!"
-            } elseif (Test-Path "C:\Program Files\NSIS\makensis.exe") {
-              & "C:\Program Files\NSIS\makensis.exe" windows\installer.nsi
-              Write-Host "✅ Nor_Setup.exe installer generated successfully!"
-            } else {
-              makensis windows\installer.nsi
-            }
-          }
+          $makensis = @(
+            'C:\Program Files (x86)\NSIS\makensis.exe',
+            'C:\Program Files\NSIS\makensis.exe'
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (!$makensis) { throw 'NSIS makensis.exe was not found on the runner' }
+          & $makensis 'windows\installer.nsi'
+          if ($LASTEXITCODE -ne 0) { throw "NSIS failed with exit code $LASTEXITCODE" }
+          if (!(Test-Path 'Nor_Setup.exe')) { throw 'Nor_Setup.exe was not generated' }
 
-      - name: Package as ZIP
+      - name: Package portable Windows build
         shell: pwsh
         run: |
-          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "Nor-Windows-x64.zip" -Force
-          Write-Host "✅ ZIP created: Nor-Windows-x64.zip"
-          $zipInfo = Get-Item "Nor-Windows-x64.zip"
-          Write-Host "ZIP size: $($zipInfo.Length) bytes"
+          $buildDir = 'build\windows\x64\runner\Release'
+          Compress-Archive -Path "$buildDir\*" -DestinationPath 'Nor-Windows-x64.zip' -Force
+          if (!(Test-Path 'Nor-Windows-x64.zip')) { throw 'ZIP was not generated' }
+          Get-FileHash 'Nor_Setup.exe','Nor-Windows-x64.zip' -Algorithm SHA256 | Format-Table
 
-      - name: Upload artifact
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Nor-Windows-x64
+          if-no-files-found: error
           path: |
-            Nor-Windows-x64.zip
             Nor_Setup.exe
+            Nor-Windows-x64.zip
           retention-days: 90
 
-      - name: Create Release
+      - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
-          tag_name: windows-v1.8.0-${{ github.run_number }}
-          name: Nor Windows Build v1.8.0 (#${{ github.run_number }})
+          tag_name: windows-${{ github.run_number }}
+          name: Nor Windows Build #${{ github.run_number }}
+          generate_release_notes: true
           files: |
             Nor_Setup.exe
             Nor-Windows-x64.zip
-          body: |
-            🖥️ Nor - MEXC Event Trader (Windows x64 Desktop Application)
-            
-            📥 خيارات التحميل والتثبيت:
-            1. **Nor_Setup.exe (المثبت التلقائي - موصى به)**:
-               برنامج تثبيت متكامل يقوم بتثبيت التطبيق وكافة ملحقات Windows ومكتبات التشغيل ووضع اختصار على سطح المكتب.
-            
-            2. **Nor-Windows-x64.zip (النسخة المحمولة Portable)**:
-               ملف مضغوط يحتوي على التطبيق وكافة ملفات DLL. قم بفك الضغط أولاً عن المجلد بالكامل ثم شغل Nor.exe من داخل المجلد.
-            
-            متطلبات التشغيل:
-            - نظام التشغيل: Windows 10 / Windows 11 (64-bit)
-            - المعالج: Intel / AMD x64
-            - الذاكرة: 4GB+ RAM
-            ✅ يتضمن كافة مكتبات Flutter و MSVC Runtime اللازمة مسبقاً
-          draft: false
-          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

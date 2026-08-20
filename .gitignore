@@ -1,31 +1,8 @@
-# Flutter
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.packages
-.pub-cache/
-.pub/
-build/
-
-# Android
-*.iml
-.gradle/
-/local.properties
-/.idea/workspace.xml
-/.idea/libraries
-.DS_Store
-captures/
-
-# Dependencies & Build
 node_modules/
+build/
 dist/
-.vite/
-.env
-*.env
-android/app/upload-keystore.jks
-android/app/*.jks
-android/app/*.keystore
-android/app/my_keystore_base64.txt
-android/key.properties
-
-out/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example

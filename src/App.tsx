@@ -8,7 +8,11 @@ import {
   NewsItem,
   AISentimentState,
   WalletBalance,
+  AppSettings,
+  Screen,
 } from './types'
+
+export type { AppSettings, Screen }
 import { TopHeader } from './components/TopHeader'
 import { EventFuturesChart } from './components/EventFuturesChart'
 import { AutoTradePanel } from './components/AutoTradePanel'

@@ -51,3 +51,19 @@ export interface WalletBalance {
   locked: string
   usdValue: number
 }
+
+export interface AppSettings {
+  api_key?: string | null
+  api_secret?: string | null
+  trade_amount: number
+  selected_symbol: string
+  bot_strategy: string
+  bot_running: boolean
+  trailing_stop_percent: number
+  min_volume_usdt: number
+  auto_dust_sweep: boolean
+  cooldown_seconds: number
+}
+
+export type Screen = 'home' | 'trading' | 'bot' | 'scanner' | 'history' | 'settings' | 'futures' | 'wallets'
+

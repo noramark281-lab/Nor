@@ -1,6 +1,6 @@
 {
   "name": "Nor",
-  "description": "MEXC Spot Trading & AI Smart Bot with Live News Sentiment, Active Liquidity Scanner, and Anti-Freeze Liquidation Engine",
+  "description": "MEXC Event Futures Auto-Trading System with Gemini AI News Sentiment, Dynamic Payout Gatekeeper, and Android 15 SDK 35 UI",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

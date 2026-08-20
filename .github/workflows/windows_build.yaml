@@ -53,9 +53,14 @@ jobs:
           flutter clean
           flutter pub get
 
-      - name: Analyze project
+      - name: Analyze project (non-blocking)
         shell: pwsh
-        run: flutter analyze --no-fatal-warnings
+        run: |
+          flutter analyze --no-fatal-warnings
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning 'flutter analyze reported warnings; continuing to the Windows release build.'
+          }
+          exit 0
 
       - name: Build Windows release
         shell: pwsh

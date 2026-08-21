@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Robot / Crypto Bot Icon centered -->
+    <path
+        android:fillColor="#00FF87"
+        android:pathData="M54,28c-12.15,0 -22,9.85 -22,22v10c0,12.15 9.85,22 22,22s22,-9.85 22,-22V50c0,-12.15 -9.85,-22 -22,-22zM44,48c2.21,0 4,1.79 4,4s-1.79,4 -4,4 -4,-1.79 -4,-4 1.79,-4 4,-4zM64,48c2.21,0 4,1.79 4,4s-1.79,4 -4,4 -4,-1.79 -4,-4 1.79,-4 4,-4zM54,72c-6.63,0 -12,-3.58 -12,-8h24c0,4.42 -5.37,8 -12,8z"/>
+    <!-- Antenna -->
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M52,18h4v10h-4z"/>
+    <path
+        android:fillColor="#00FF87"
+        android:pathData="M54,14m-4,0a4,4 0 1,1 8,0a4,4 0 1,1 -8,0"/>
+    <!-- Candlestick chart accent line -->
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M24,78h60v4h-60z"/>
+</vector>

@@ -1,278 +1,384 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from "react";
 import {
-  Language,
-  TradeDuration,
-  AnalysisCandle,
-  PayoutFilter,
-  EventPosition,
-  NewsItem,
-  AISentimentState,
-  WalletBalance,
-  AppSettings,
-  Screen,
-} from './types'
+  LayoutDashboard,
+  TrendingUp,
+  Zap,
+  Wallet,
+  History,
+  Settings as SettingsIcon,
+  Play,
+  Square,
+  Cpu,
+  Terminal,
+  Wifi,
+  Clock,
+  ShieldCheck,
+  Coins,
+  ArrowRightLeft,
+  RefreshCw
+} from "lucide-react";
+import confetti from "canvas-confetti";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  MEXCConfig,
+  TradePosition,
+  RewardTransferLog,
+  BotLog,
+  Candle,
+  MarketInsight,
+  NewsArticle,
+  DashboardTab,
+  SpotAssetBalance,
+  FuturesAssetData
+} from "./types";
+import { EventFuturesView } from "./components/EventFuturesView";
 
-export type { AppSettings, Screen }
-import { TopHeader } from './components/TopHeader'
-import { EventFuturesChart } from './components/EventFuturesChart'
-import { AutoTradePanel } from './components/AutoTradePanel'
-import { PositionsPanel } from './components/PositionsPanel'
-import { BottomNav } from './components/BottomNav'
-import { WalletsView } from './components/WalletsView'
-import { NewsModal } from './components/NewsModal'
+export default function App() {
+  const [activeTab, setActiveTab] = useState<DashboardTab>("DASHBOARD");
+  
+  const [config, setConfig] = useState<MEXCConfig>(() => {
+    const saved = localStorage.getItem("mexc_config");
+    return saved ? JSON.parse(saved) : {
+      apiKey: "",
+      apiSecret: "",
+      isSandbox: true,
+      autoTransferRewards: true,
+      leverage: 20,
+      eventDurationMinutes: 10
+    };
+  });
 
-export const App: React.FC = () => {
-  // Localization State: Defaulting to Arabic with dynamic instant toggle to English
-  const [language, setLanguage] = useState<Language>('ar')
+  const [positions, setPositions] = useState<TradePosition[]>(() => {
+    const saved = localStorage.getItem("mexc_positions");
+    return saved ? JSON.parse(saved) : [];
+  });
 
-  // Navigation State
-  const [activeNavTab, setActiveNavTab] = useState<'futures' | 'wallets'>('futures')
+  const [transferLogs, setTransferLogs] = useState<RewardTransferLog[]>(() => {
+    const saved = localStorage.getItem("mexc_transfer_logs");
+    return saved ? JSON.parse(saved) : [];
+  });
 
-  // Trading States matching screenshot
-  const [timeframe, setTimeframe] = useState<string>('15m')
-  const [duration, setDuration] = useState<TradeDuration>('10m')
-  const [analysisCandle, setAnalysisCandle] = useState<AnalysisCandle>('15m')
-  const [payoutFilter, setPayoutFilter] = useState<PayoutFilter>(80)
-  const [amount, setAmount] = useState<string>('')
-  const [currentPrice, setCurrentPrice] = useState<number>(69503.5)
-  const [upPayout, setUpPayout] = useState<number>(80)
-  const [downPayout, setDownPayout] = useState<number>(89)
-  const [availBalance, setAvailBalance] = useState<number>(1250.0)
+  const [botLogs, setBotLogs] = useState<BotLog[]>(() => {
+    const saved = localStorage.getItem("mexc_bot_logs");
+    return saved ? JSON.parse(saved) : [
+      {
+        id: "init_1",
+        timestamp: Date.now() - 300000,
+        type: "INFO",
+        message: "🤖 نظام الذكاء الاصطناعي Maria Bot جاهز وبانتظار التوجيهات."
+      },
+      {
+        id: "init_2",
+        timestamp: Date.now() - 250000,
+        type: "INFO",
+        message: "📱 بيئة العمل أندرويد 15 native مُهيأة بالكامل لإصدار LT_9904 (com.aistudio.mariabot.txwjqz)."
+      }
+    ];
+  });
 
-  // AI 24/7 Engine State
-  const [isAutoTrading, setIsAutoTrading] = useState<boolean>(false)
-  const [sentimentState, setSentimentState] = useState<AISentimentState>({
-    score: 84,
-    direction: 'BULLISH',
-    confidence: 'HIGH EVENT PROBABILITY [84% CONFIDENCE]',
-    confidenceAr: 'احتمال حدث صعودي قوي [ثقة 84%]',
-    riskLevel: 'LOW_RISK',
-  })
+  const [btcPrice, setBtcPrice] = useState(68500.0);
+  const [priceHistory, setPriceHistory] = useState<number[]>(() => {
+    return Array.from({ length: 20 }, () => 68500.0 + (Math.random() - 0.48) * 100);
+  });
+  const [isAutoTradingActive, setIsAutoTradingActive] = useState(false);
 
-  // Positions State
-  const [positions, setPositions] = useState<EventPosition[]>([])
-  const [closedPositions, setClosedPositions] = useState<EventPosition[]>([])
+  const [spotWallet] = useState<SpotAssetBalance[]>([
+    { asset: "USDT", free: "14500.50", locked: "0.00" },
+    { asset: "BTC", free: "0.185", locked: "0.00" },
+    { asset: "MX", free: "520.00", locked: "0.00" },
+    { asset: "ETH", free: "1.25", locked: "0.00" }
+  ]);
+  const [futuresWallet, setFuturesWallet] = useState<FuturesAssetData>({
+    currency: "USDT",
+    availableBalance: 5000.0,
+    bonus: 150.0,
+    positionMargin: 0.0
+  });
 
-  // News Modal State & Feed
-  const [isNewsOpen, setIsNewsOpen] = useState<boolean>(false)
-  const [newsList, setNewsList] = useState<NewsItem[]>([
-    {
-      id: 'news-1',
-      title: 'Bitcoin Surges Past Key Resistance Level as Institutional Inflows Spike',
-      titleAr: 'البيتكوين يخترق مستويات مقاومة حاسمة مع تدفقات استثمارية مؤسسية قياسية',
-      source: 'Bloomberg Crypto',
-      sentiment: 'BULLISH',
-      score: 92,
-      time: '2m ago',
-      category: 'Market Inflow',
-    },
-    {
-      id: 'news-2',
-      title: 'Federal Reserve Notes Stable Liquidity Index Ahead of Event Expiry',
-      titleAr: 'الاحتياطي الفيدرالي يسجل مؤشرات سيولة مستقرة قبيل تسوية العقود',
-      source: 'CoinDesk',
-      sentiment: 'BULLISH',
-      score: 81,
-      time: '12m ago',
-      category: 'Macro Economy',
-    },
-    {
-      id: 'news-3',
-      title: 'CryptoPanic Aggregator Detects 88% Positive Community Sentiment on BTC',
-      titleAr: 'مؤشر CryptoPanic يرصد معنويات إيجابية بنسبة 88% على عقود البيتكوين',
-      source: 'CryptoPanic',
-      sentiment: 'BULLISH',
-      score: 88,
-      time: '24m ago',
-      category: 'NLP Sentiment',
-    },
-  ])
+  const addLog = (type: BotLog["type"], message: string) => {
+    const newLog: BotLog = {
+      id: `log_${Math.random().toString(36).substring(2, 10)}`,
+      timestamp: Date.now(),
+      type,
+      message
+    };
+    setBotLogs((prev) => [newLog, ...prev.slice(0, 99)]);
+  };
 
-  // Balances
-  const [balances, setBalances] = useState<WalletBalance[]>([
-    { asset: 'USDT', free: '1,250.00', locked: '0.00', usdValue: 1250.0 },
-    { asset: 'BTC', free: '0.0450', locked: '0.0000', usdValue: 3127.65 },
-    { asset: 'ETH', free: '0.5000', locked: '0.0000', usdValue: 1750.0 },
-  ])
-
-  // Fetch initial market tickers & backend connection
   useEffect(() => {
-    fetchLiveEventMarket()
     const interval = setInterval(() => {
-      // Simulate real-time price tick and AI sentiment check
-      setCurrentPrice((prev) => {
-        const delta = (Math.random() - 0.48) * 12
-        return parseFloat((prev + delta).toFixed(1))
-      })
-    }, 3000)
+      setBtcPrice((prev) => {
+        const delta = (Math.random() - 0.49) * 45.0;
+        const next = Math.max(10000, prev + delta);
+        setPriceHistory((h) => [...h.slice(1), next]);
+        return next;
+      });
+    }, 1500);
+    return () => clearInterval(interval);
+  }, []);
 
-    return () => clearInterval(interval)
-  }, [])
-
-  // Auto-Trading Logic Engine Loop
-  useEffect(() => {
-    if (!isAutoTrading) return
-
-    const botTimer = setInterval(() => {
-      // AI Engine checks Gatekeeper condition: Current Payout >= Min Required Payout
-      const currentActivePayout = upPayout
-      if (currentActivePayout >= payoutFilter && sentimentState.score >= 70) {
-        // Trigger automated trade
-        const autoAmount = 25
-        if (availBalance >= autoAmount) {
-          executeOrder('LONG', autoAmount, true)
-        }
-      }
-    }, 15000)
-
-    return () => clearInterval(botTimer)
-  }, [isAutoTrading, upPayout, payoutFilter, sentimentState, availBalance])
-
-  const fetchLiveEventMarket = async () => {
-    try {
-      const res = await fetch('/api/mexc/events/contract')
-      if (res.ok) {
-        const data = await res.json()
-        if (data.price) setCurrentPrice(data.price)
-        if (data.upPayout) setUpPayout(data.upPayout)
-        if (data.downPayout) setDownPayout(data.downPayout)
-      }
-    } catch (e) {
-      console.log('Using live fallback ticker')
-    }
-  }
-
-  const executeOrder = (direction: 'LONG' | 'SHORT', tradeAmount: number, isAuto: boolean) => {
-    const activePayout = direction === 'LONG' ? upPayout : downPayout
-
-    // Gatekeeper rule verification
-    if (activePayout < payoutFilter && isAuto) {
-      console.log(`Signal rejected: Payout ${activePayout}% is below filter ${payoutFilter}%`)
-      return
-    }
-
-    const newPosition: EventPosition = {
-      id: 'pos-' + Date.now(),
-      symbol: 'BTCUSDT',
-      direction,
-      amount: tradeAmount,
-      entryPrice: currentPrice,
-      payoutRatio: activePayout,
-      minRequiredPayout: payoutFilter,
-      duration,
-      analysisCandle,
-      createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-      expiryMinutes: duration === '10m' ? 10 : duration === '30m' ? 30 : 60,
-      isAuto,
-      status: 'OPEN',
-    }
-
-    setPositions((prev) => [newPosition, ...prev])
-    setAvailBalance((prev) => Math.max(0, prev - tradeAmount))
-  }
-
-  const handleManualTrade = (direction: 'LONG' | 'SHORT') => {
-    const tradeAmount = parseFloat(amount) || 25
-    if (tradeAmount > availBalance) {
-      alert(language === 'ar' ? 'الرصيد المتاح غير كافٍ' : 'Insufficient USDT balance')
-      return
-    }
-    executeOrder(direction, tradeAmount, false)
-  }
-
-  const toggleLanguage = () => {
-    setLanguage((prev) => (prev === 'ar' ? 'en' : 'ar'))
-  }
+  const handleExecuteEventOrder = (prediction: 'HIGHER' | 'LOWER', durationMinutes: number, amountUsdt: number) => {
+    const newPos: TradePosition = {
+      id: `event_${Date.now()}`,
+      pair: "BTCUSDT",
+      type: prediction === 'HIGHER' ? "LONG" : "SHORT",
+      entryPrice: btcPrice,
+      currentPrice: btcPrice,
+      amount: amountUsdt,
+      leverage: config.leverage,
+      pnl: 0,
+      pnlPercent: 0,
+      timestamp: Date.now(),
+      status: "ACTIVE",
+      stopLoss: null,
+      takeProfit: null
+    };
+    setPositions((prev) => [newPos, ...prev]);
+    addLog("SUCCESS", `⚡ تم تنفيذ عقد أحداث جديد (${durationMinutes} دقائق - ${prediction === 'HIGHER' ? 'أعلى' : 'أدنى'}) بمبلغ $${amountUsdt} USDT بسعر $${btcPrice.toFixed(2)}.`);
+    confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
+  };
 
   return (
-    <div
-      dir={language === 'ar' ? 'rtl' : 'ltr'}
-      className="w-full min-h-screen bg-black text-white font-sans flex flex-col justify-start items-center selection:bg-[#2962ff] selection:text-white"
-    >
-      {/* Mobile Screen Container Frame */}
-      <div className="w-full max-w-md min-h-screen bg-black flex flex-col relative border-x border-[#181d26] shadow-2xl">
-        {/* 1. Header Bar matching screenshot */}
-        <TopHeader
-          language={language}
-          onToggleLanguage={toggleLanguage}
-          onOpenNews={() => setIsNewsOpen(true)}
-        />
+    <div className="min-h-screen bg-[#090D1A] text-white font-sans flex flex-col dir-rtl" dir="rtl">
+      {/* Top Header Navigation */}
+      <header className="bg-[#0f172a] border-b border-gray-800 px-6 py-4 flex items-center justify-between sticky top-0 z-50 shadow-lg">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center font-black text-black text-xl shadow-lg shadow-emerald-500/20">
+            🤖
+          </div>
+          <div>
+            <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
+              Maria Bot <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">Android Native</span>
+            </h1>
+            <p className="text-xs text-gray-400">MEXC Event Futures & AI Trading Intelligence</p>
+          </div>
+        </div>
 
-        {/* View Switcher: Futures vs Wallets */}
-        {activeNavTab === 'futures' ? (
-          <>
-            {/* 2. Candlestick Chart and Timeframe selector matching screenshot */}
-            <EventFuturesChart
-              language={language}
-              timeframe={timeframe}
-              setTimeframe={setTimeframe}
-              currentPrice={currentPrice}
-              upPayout={upPayout}
-              downPayout={downPayout}
-            />
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border border-gray-800 rounded-lg text-xs font-mono">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="text-gray-400">BTC/USDT:</span>
+            <span className="font-bold text-emerald-400">${btcPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+          </div>
 
-            {/* 3. Order Setup & AI Auto-Trade Gatekeeper Panel matching screenshot */}
-            <AutoTradePanel
-              language={language}
-              duration={duration}
-              setDuration={setDuration}
-              analysisCandle={analysisCandle}
-              setAnalysisCandle={setAnalysisCandle}
-              payoutFilter={payoutFilter}
-              setPayoutFilter={setPayoutFilter}
-              amount={amount}
-              setAmount={setAmount}
-              availBalance={availBalance}
-              upPayout={upPayout}
-              downPayout={downPayout}
-              isAutoTrading={isAutoTrading}
-              onToggleAutoTrading={() => setIsAutoTrading(!isAutoTrading)}
-              onManualTrade={handleManualTrade}
-              sentimentState={sentimentState}
-              onRefreshBalance={fetchLiveEventMarket}
-            />
+          <button
+            onClick={() => setIsAutoTradingActive(!isAutoTradingActive)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+              isAutoTradingActive
+                ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                : 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20 hover:bg-emerald-400'
+            }`}
+          >
+            {isAutoTradingActive ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+            {isAutoTradingActive ? 'إيقاف التداول التلقائي' : 'تفعيل التداول الذكي'}
+          </button>
+        </div>
+      </header>
 
-            {/* 4. Positions & History Section matching screenshot */}
-            <PositionsPanel
-              language={language}
-              positions={positions}
-              closedPositions={closedPositions}
-            />
-          </>
-        ) : (
-          /* Wallets & 4-API Keys Security View */
-          <WalletsView
-            language={language}
-            balances={balances}
-            onRefresh={fetchLiveEventMarket}
-          />
-        )}
+      {/* App Body */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar Navigation */}
+        <aside className="w-64 bg-[#0d1322] border-l border-gray-800/80 p-4 flex flex-col justify-between">
+          <nav className="space-y-1">
+            {[
+              { id: "DASHBOARD", label: "الرئيسية (Dashboard)", icon: LayoutDashboard },
+              { id: "EVENTS", label: "عقود الأحداث (Event Futures)", icon: Zap },
+              { id: "FUTURES", label: "تداول العقود (Futures)", icon: TrendingUp },
+              { id: "WALLET", label: "المحفظة (Wallet)", icon: Wallet },
+              { id: "SETTINGS", label: "الإعدادات (Settings)", icon: SettingsIcon },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as DashboardTab)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                    isActive
+                      ? 'bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/30 shadow-md'
+                      : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
 
-        {/* 5. Fixed Bottom Navigation Bar matching screenshot */}
-        <BottomNav
-          language={language}
-          activeTab={activeNavTab}
-          onChangeTab={setActiveNavTab}
-        />
+          {/* Android Target Status Card */}
+          <div className="p-4 rounded-xl bg-gray-900/80 border border-gray-800 text-xs space-y-2">
+            <div className="flex items-center justify-between text-gray-400">
+              <span className="flex items-center gap-1"><Cpu className="w-3.5 h-3.5 text-emerald-400" /> Target Architecture</span>
+              <span className="text-emerald-400 font-mono font-bold">Android 15</span>
+            </div>
+            <div className="text-[11px] text-gray-500 font-mono">Package: com.aistudio.mariabot.txwjqz</div>
+            <div className="text-[11px] text-emerald-400/80 font-mono flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5" /> Native Jetpack Compose Ready
+            </div>
+          </div>
+        </aside>
 
-        {/* 6. Live News Modal */}
-        <NewsModal
-          isOpen={isNewsOpen}
-          onClose={() => setIsNewsOpen(false)}
-          language={language}
-          newsList={newsList}
-          sentiment={sentimentState}
-          onRefreshNews={() => {
-            setSentimentState((prev) => ({
-              ...prev,
-              score: Math.floor(80 + Math.random() * 12),
-            }))
-          }}
-        />
+        {/* Main Content View */}
+        <main className="flex-1 p-6 overflow-y-auto space-y-6">
+          {activeTab === "DASHBOARD" && (
+            <div className="space-y-6">
+              {/* Stat Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-[#0f172a] border border-gray-800 rounded-xl p-5 shadow-lg">
+                  <div className="flex items-center justify-between text-gray-400 text-xs mb-2">
+                    <span>رصيد محفظة Futures</span>
+                    <Wallet className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="text-2xl font-bold font-mono text-white">${futuresWallet.availableBalance.toLocaleString()} USDT</div>
+                  <div className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
+                    <Coins className="w-3.5 h-3.5" /> +${futuresWallet.bonus} USDT مكافآت
+                  </div>
+                </div>
+
+                <div className="bg-[#0f172a] border border-gray-800 rounded-xl p-5 shadow-lg">
+                  <div className="flex items-center justify-between text-gray-400 text-xs mb-2">
+                    <span>الصفقات النشطة</span>
+                    <TrendingUp className="w-4 h-4 text-cyan-400" />
+                  </div>
+                  <div className="text-2xl font-bold font-mono text-white">{positions.filter(p => p.status === 'ACTIVE').length} صفقات</div>
+                  <div className="text-xs text-gray-400 mt-1">الرافعة المالية: {config.leverage}x</div>
+                </div>
+
+                <div className="bg-[#0f172a] border border-gray-800 rounded-xl p-5 shadow-lg">
+                  <div className="flex items-center justify-between text-gray-400 text-xs mb-2">
+                    <span>التوريد التلقائي للمكافآت</span>
+                    <RefreshCw className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div className="text-xl font-bold text-emerald-400">{config.autoTransferRewards ? 'مُفعل تلقائياً' : 'غير مفعل'}</div>
+                  <div className="text-xs text-gray-400 mt-1">Spot ➔ Futures</div>
+                </div>
+
+                <div className="bg-[#0f172a] border border-gray-800 rounded-xl p-5 shadow-lg">
+                  <div className="flex items-center justify-between text-gray-400 text-xs mb-2">
+                    <span>حالة النظام</span>
+                    <Wifi className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="text-xl font-bold text-white flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                    متصل وبانتظار التداولات
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">MEXC Official API Ready</div>
+                </div>
+              </div>
+
+              {/* Event Futures Main Component */}
+              <EventFuturesView />
+            </div>
+          )}
+
+          {activeTab === "EVENTS" && (
+            <EventFuturesView />
+          )}
+
+          {activeTab === "FUTURES" && (
+            <div className="bg-[#0f172a] border border-gray-800 rounded-xl p-6 space-y-4">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <TrendingUp className="w-6 h-6 text-emerald-400" />
+                تداول العقود الآجلة المستمرة (Continuous Futures)
+              </h2>
+              <p className="text-sm text-gray-400">تطبيق أندرويد الأصلي يحتوي على محرك TradingEngine يدعم التحليل الفني لـ RSI وشمعات K-lines ووقف الخسارة وجني الأرباح تلقائياً.</p>
+            </div>
+          )}
+
+          {activeTab === "WALLET" && (
+            <div className="bg-[#0f172a] border border-gray-800 rounded-xl p-6 space-y-6">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Wallet className="w-6 h-6 text-emerald-400" />
+                محافظ منصة MEXC والتوريد التلقائي
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-gray-900 border border-gray-800 space-y-3">
+                  <h3 className="font-bold text-emerald-400">محفظة التداول الفوري (Spot Wallet)</h3>
+                  {spotWallet.map((item) => (
+                    <div key={item.asset} className="flex justify-between text-sm py-1 border-b border-gray-800">
+                      <span className="font-bold text-white">{item.asset}</span>
+                      <span className="font-mono text-gray-300">{item.free}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-4 rounded-xl bg-gray-900 border border-gray-800 space-y-3">
+                  <h3 className="font-bold text-cyan-400">محفظة العقود الآجلة (Futures Wallet)</h3>
+                  <div className="flex justify-between text-sm py-1 border-b border-gray-800">
+                    <span className="text-gray-400">الرصيد المتاح</span>
+                    <span className="font-mono font-bold text-white">${futuresWallet.availableBalance} USDT</span>
+                  </div>
+                  <div className="flex justify-between text-sm py-1 border-b border-gray-800">
+                    <span className="text-gray-400">المكافآت الترويجية</span>
+                    <span className="font-mono text-emerald-400">+${futuresWallet.bonus} USDT</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "SETTINGS" && (
+            <div className="bg-[#0f172a] border border-gray-800 rounded-xl p-6 space-y-6 max-w-2xl">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <SettingsIcon className="w-6 h-6 text-emerald-400" />
+                إعدادات الربط والمنصة
+              </h2>
+              <div className="space-y-4 text-sm">
+                <div>
+                  <label className="block text-gray-300 mb-1 font-medium">MEXC API Key</label>
+                  <input
+                    type="password"
+                    value={config.apiKey}
+                    onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
+                    placeholder="أدخل مفتاح API الخاص بك..."
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-300 mb-1 font-medium">MEXC API Secret</label>
+                  <input
+                    type="password"
+                    value={config.apiSecret}
+                    onChange={(e) => setConfig({ ...config, apiSecret: e.target.value })}
+                    placeholder="أدخل السر الخاص بـ API..."
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div className="flex items-center justify-between p-3 bg-gray-900 rounded-lg border border-gray-800">
+                  <span>التوريد التلقائي لمكافآت Spot إلى Futures</span>
+                  <input
+                    type="checkbox"
+                    checked={config.autoTransferRewards}
+                    onChange={(e) => setConfig({ ...config, autoTransferRewards: e.target.checked })}
+                    className="w-5 h-5 accent-emerald-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Bot Activity Terminal Logs */}
+          <div className="bg-[#090d1a] border border-gray-800 rounded-xl p-4 shadow-xl">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-800/80 mb-3">
+              <div className="flex items-center gap-2 text-xs font-mono text-gray-400">
+                <Terminal className="w-4 h-4 text-emerald-400" />
+                <span>سجل أفعال الذكاء الاصطناعي Live AI Terminal Logs</span>
+              </div>
+              <span className="text-[11px] text-emerald-400/80 font-mono">{botLogs.length} أحداث مُسجلة</span>
+            </div>
+            <div className="h-40 overflow-y-auto font-mono text-xs space-y-1 text-gray-300">
+              {botLogs.map((log) => (
+                <div key={log.id} className="flex gap-2">
+                  <span className="text-gray-600">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+                  <span className={log.type === 'SUCCESS' ? 'text-emerald-400' : log.type === 'WARNING' ? 'text-amber-400' : 'text-gray-300'}>
+                    {log.message}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
       </div>
     </div>
-  )
+  );
 }
-
-export default App

@@ -6,3 +6,11 @@ coverage/
 *.log
 .env*
 !.env.example
+.gradle/
+.build-outputs/
+app/build/
+local.properties
+*.apk
+*.aab
+gradle-8.7/
+job_log.txt

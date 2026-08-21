@@ -1,16 +1,26 @@
 export interface MEXCConfig {
   apiKey: string;
   apiSecret: string;
-  isSandbox: boolean;
+  isLiveMode: boolean;
   autoTransferRewards: boolean;
-  leverage: number;
-  eventDurationMinutes: number;
+  leverage: 1 | 2 | 5 | 10;
+  eventDurationMinutes: 10 | 30;
+  selectedCandleInterval: "5m" | "15m";
+}
+
+export interface BlockpitConfig {
+  apiKey: string;
+  apiSecret: string;
+  isConnected: boolean;
+  lastSyncTimestamp: number | null;
+  autoExportTrades: boolean;
+  taxYear: string;
 }
 
 export interface TradePosition {
   id: string;
   pair: string;
-  type: "LONG" | "SHORT";
+  type: "CALL_HIGHER" | "PUT_LOWER";
   entryPrice: number;
   currentPrice: number;
   amount: number;
@@ -18,11 +28,12 @@ export interface TradePosition {
   pnl: number;
   pnlPercent: number;
   timestamp: number;
-  status: "ACTIVE" | "CLOSED";
-  stopLoss: number | null;
-  takeProfit: number | null;
+  durationMinutes: 10 | 30;
+  expirationTimestamp: number;
+  candleTimeframe: "5m" | "15m";
+  status: "ACTIVE" | "WON" | "LOST";
+  payoutReturned: number;
   closePrice?: number;
-  closeTimestamp?: number;
 }
 
 export interface RewardTransferLog {
@@ -49,36 +60,25 @@ export interface Candle {
   low: number;
   close: number;
   volume: number;
+  trend: "BULLISH" | "BEARISH" | "NEUTRAL";
 }
 
 export interface MarketInsight {
   asset: string;
-  sentiment: "BULLISH" | "BEARISH" | "NEUTRAL";
-  sentimentScore: number;
-  volatility: "HIGH" | "MEDIUM" | "LOW";
+  candle5mTrend: "BULLISH" | "BEARISH" | "NEUTRAL";
+  candle15mTrend: "BULLISH" | "BEARISH" | "NEUTRAL";
   rsi: number;
-  volumeBreakout: boolean;
-  openInterestTrend: "INCREASING" | "DECREASING" | "FLAT";
-  suggestedSignal: "BUY_LONG" | "SELL_SHORT" | "HOLD_NEUTRAL";
-}
-
-export interface NewsArticle {
-  id: string;
-  title: string;
-  category: "BTC" | "ETH" | "Altcoins" | "Global" | string;
-  source: string;
-  timestamp: number;
-  sentiment: "BULLISH" | "BEARISH" | "NEUTRAL" | "POSITIVE" | "NEGATIVE";
-  impactScore: number;
+  confidenceScore: number;
+  recommendedSignal: "CALL_HIGHER" | "PUT_LOWER" | "WAIT";
+  targetTimeframe: "10m" | "30m";
 }
 
 export type DashboardTab =
   | "DASHBOARD"
-  | "MARKETS"
-  | "FUTURES"
   | "EVENTS"
+  | "WORKFLOW"
   | "WALLET"
-  | "ORDERS"
+  | "BLOCKPIT"
   | "SETTINGS";
 
 export interface SpotAssetBalance {

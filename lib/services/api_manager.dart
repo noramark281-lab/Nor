@@ -1,128 +1,140 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show debugPrint;
+
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../utils/constants.dart';
 
-/// ═══════════════════════════════════════════════════════════════════
-/// MEXC Futures API v1 Authentication Manager
-/// ═══════════════════════════════════════════════════════════════════
+/// MEXC Futures API authentication manager.
 ///
-/// MEXC Futures v1 Auth Requirements:
-///   - Headers: ApiKey, Request-Time, Signature, Content-Type
-///   - Signature = HMAC-SHA256(secretKey, accessKey + timestamp + paramString)
-///   - GET  → paramString = query string (e.g. "symbol=BTC_USDT")
-///   - POST → paramString = request body JSON string
-///   - timestamp = milliseconds since epoch
-///
-/// Uses SharedPreferences for cross-platform storage (Android, iOS, Windows, macOS, Linux)
-///
+/// API credentials are stored only on the account owner's device through the
+/// platform secure store. They are never accepted from build-time definitions
+/// and therefore are never embedded in a distributable APK.
 class MexcApiManager {
   static final MexcApiManager _instance = MexcApiManager._internal();
   factory MexcApiManager() => _instance;
   MexcApiManager._internal();
 
-  // ── SharedPreferences (cross-platform including Windows) ────────
   static const _kApiKey = 'mexc_api_key';
   static const _kSecretKey = 'mexc_secret_key';
+  static const _defaultBaseUrl = 'https://api.mexc.com';
+
+  static final FlutterSecureStorage _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
+  );
 
   String? _apiKey;
   String? _secretKey;
   bool _isInitialized = false;
 
-  // ── Getters ─────────────────────────────────────────────────────
   bool get isInitialized => _isInitialized;
   String? get apiKey => _apiKey;
   String? get secretKey => _secretKey;
   String? get apiSecret => _secretKey;
 
-  // ── Initialization ──────────────────────────────────────────────
+  /// Loads the owner-supplied credentials from Android Keystore / iOS Keychain.
+  ///
+  /// Existing plaintext SharedPreferences entries are migrated once and removed.
   Future<void> initialize() async {
-    final prefs = await SharedPreferences.getInstance();
-    _apiKey = prefs.getString(_kApiKey);
-    _secretKey = prefs.getString(_kSecretKey);
+    _apiKey = await _secureStorage.read(key: _kApiKey);
+    _secretKey = await _secureStorage.read(key: _kSecretKey);
 
-    // Fallback to build-time dart-define values (CI/CD / GitHub Actions)
-    if (_apiKey == null || _apiKey!.isEmpty) {
-      _apiKey = AppConstants.buildTimeApiKey.isNotEmpty ? AppConstants.buildTimeApiKey : null;
-    }
-    if (_secretKey == null || _secretKey!.isEmpty) {
-      _secretKey = AppConstants.buildTimeApiSecret.isNotEmpty ? AppConstants.buildTimeApiSecret : null;
+    if ((_apiKey?.isEmpty ?? true) || (_secretKey?.isEmpty ?? true)) {
+      await _migrateLegacyCredentials();
     }
 
-    _isInitialized = (_apiKey?.isNotEmpty ?? false) && (_secretKey?.isNotEmpty ?? false);
+    _isInitialized = (_apiKey?.isNotEmpty ?? false) &&
+        (_secretKey?.isNotEmpty ?? false);
     debugPrint('[MexcApiManager] initialized=$_isInitialized');
   }
 
-  // ── Key Management ──────────────────────────────────────────────
-  Future<void> setCredentials({required String apiKey, required String secretKey}) async {
-    _apiKey = apiKey.trim();
-    _secretKey = secretKey.trim();
+  Future<void> _migrateLegacyCredentials() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kApiKey, _apiKey!);
-    await prefs.setString(_kSecretKey, _secretKey!);
+    final legacyApiKey = prefs.getString(_kApiKey)?.trim();
+    final legacySecretKey = prefs.getString(_kSecretKey)?.trim();
+
+    if (legacyApiKey?.isNotEmpty == true && legacySecretKey?.isNotEmpty == true) {
+      await _secureStorage.write(key: _kApiKey, value: legacyApiKey);
+      await _secureStorage.write(key: _kSecretKey, value: legacySecretKey);
+      await prefs.remove(_kApiKey);
+      await prefs.remove(_kSecretKey);
+      _apiKey = legacyApiKey;
+      _secretKey = legacySecretKey;
+      debugPrint('[MexcApiManager] Legacy credentials migrated to secure storage.');
+    }
+  }
+
+  Future<void> setCredentials({
+    required String apiKey,
+    required String secretKey,
+  }) async {
+    final normalizedApiKey = apiKey.trim();
+    final normalizedSecretKey = secretKey.trim();
+    if (normalizedApiKey.isEmpty || normalizedSecretKey.isEmpty) {
+      throw ArgumentError('مفتاح API والمفتاح السري مطلوبان.');
+    }
+
+    await _secureStorage.write(key: _kApiKey, value: normalizedApiKey);
+    await _secureStorage.write(key: _kSecretKey, value: normalizedSecretKey);
+    _apiKey = normalizedApiKey;
+    _secretKey = normalizedSecretKey;
     _isInitialized = true;
-    debugPrint('[MexcApiManager] Credentials saved.');
+    debugPrint('[MexcApiManager] Credentials saved in secure storage.');
   }
 
   Future<void> clearCredentials() async {
+    await _secureStorage.delete(key: _kApiKey);
+    await _secureStorage.delete(key: _kSecretKey);
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kApiKey);
     await prefs.remove(_kSecretKey);
+
     _apiKey = null;
     _secretKey = null;
     _isInitialized = false;
     debugPrint('[MexcApiManager] Credentials cleared.');
   }
 
-  // ── Signature Generation (Futures v1) ───────────────────────────
-  /// Generates MEXC Futures v1 signature.
-  /// Signature = HMAC-SHA256(secretKey, accessKey + timestamp + paramString)
   String _generateSignature({
     required String timestamp,
-    required String paramString,
+    required String parameterString,
   }) {
-    if (_secretKey == null || _secretKey!.isEmpty) {
-      throw Exception('Secret key not available');
+    final apiKey = _apiKey;
+    final secretKey = _secretKey;
+    if (apiKey == null || apiKey.isEmpty || secretKey == null || secretKey.isEmpty) {
+      throw StateError('مفاتيح MEXC غير مهيأة.');
     }
-    final payload = '$_apiKey$timestamp$paramString';
-    final hmac = Hmac(sha256, utf8.encode(_secretKey!));
-    final digest = hmac.convert(utf8.encode(payload));
-    return digest.toString();
+
+    final payload = '$apiKey$timestamp$parameterString';
+    return Hmac(sha256, utf8.encode(secretKey)).convert(utf8.encode(payload)).toString();
   }
 
-  // ── Headers Builder ─────────────────────────────────────────────
-  /// Builds authenticated headers for MEXC Futures v1 API requests.
   Map<String, String> buildAuthHeaders({
     required String method,
     String? queryString,
     String? bodyString,
   }) {
     if (!_isInitialized) {
-      throw Exception('API keys not initialized. Please configure API credentials first.');
+      throw StateError('مفاتيح MEXC غير مهيأة. أدخل المفاتيح من إعدادات التطبيق.');
     }
 
     final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+    final parameterString = method.toUpperCase() == 'GET'
+        ? (queryString ?? '')
+        : (bodyString ?? '');
 
-    // Determine paramString based on method
-    String paramString;
-    if (method.toUpperCase() == 'GET') {
-      paramString = queryString ?? '';
-    } else {
-      paramString = bodyString ?? '';
-    }
-
-    final signature = _generateSignature(
-      timestamp: timestamp,
-      paramString: paramString,
-    );
-
-    final headers = {
+    final headers = <String, String>{
       'ApiKey': _apiKey!,
       'Request-Time': timestamp,
-      'Signature': signature,
+      'Signature': _generateSignature(
+        timestamp: timestamp,
+        parameterString: parameterString,
+      ),
       'Accept': 'application/json',
+      'Language': 'en-US',
     };
     if (method.toUpperCase() == 'POST') {
       headers['Content-Type'] = 'application/json';
@@ -130,119 +142,118 @@ class MexcApiManager {
     return headers;
   }
 
-  // ── Convenience: GET Auth Headers ───────────────────────────────
   Map<String, String> getAuthHeadersForGet(String queryString) {
     return buildAuthHeaders(method: 'GET', queryString: queryString);
   }
 
-  // ── Convenience: POST Auth Headers ──────────────────────────────
   Map<String, String> getAuthHeadersForPost(String bodyString) {
     return buildAuthHeaders(method: 'POST', bodyString: bodyString);
   }
 
-  // ── Spot API v3 Support ─────────────────────────────────────────
-  /// Sign Spot query string: HMAC-SHA256(secretKey, queryString)
   String signSpotQuery(String queryString) {
-    if (_secretKey == null || _secretKey!.isEmpty) {
-      throw Exception('Secret key not available');
+    final secretKey = _secretKey;
+    if (secretKey == null || secretKey.isEmpty) {
+      throw StateError('المفتاح السري غير متاح.');
     }
-    final hmac = Hmac(sha256, utf8.encode(_secretKey!));
-    final digest = hmac.convert(utf8.encode(queryString));
-    return digest.toString();
+    return Hmac(sha256, utf8.encode(secretKey)).convert(utf8.encode(queryString)).toString();
   }
 
-  /// Get Spot request headers
   Map<String, String> getSpotHeaders() {
-    return {
+    return <String, String>{
       'Content-Type': 'application/json',
       'X-MEXC-APIKEY': _apiKey ?? '',
       'Accept': 'application/json',
     };
   }
 
-  // ── Test Connectivity ───────────────────────────────────────────
-  /// Quick validation: check if we can read account assets.
-  /// Returns true if API call succeeds, false otherwise.
+  /// Verifies the credentials through an authenticated MEXC account request.
+  /// It never treats locally available headers as proof of a valid connection.
   Future<bool> testConnection() async {
     try {
-      final headers = buildAuthHeaders(method: 'GET', queryString: '');
-      debugPrint('[MexcApiManager] Test connection headers ready.');
-      return headers.isNotEmpty;
-    } catch (e) {
-      debugPrint('[MexcApiManager] testConnection error: $e');
+      final response = await http
+          .get(
+            Uri.parse('$_defaultBaseUrl/api/v1/private/account/assets'),
+            headers: getAuthHeadersForGet(''),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) return false;
+
+      final payload = jsonDecode(response.body);
+      return payload is Map && payload['success'] == true;
+    } catch (error) {
+      debugPrint('[MexcApiManager] testConnection error: $error');
       return false;
     }
   }
 
-  // ── Public & Signed Request Helpers ─────────────────────────────
-  static const String _defaultBaseUrl = 'https://contract.mexc.com';
-
-  /// Execute public HTTP GET request
   Future<dynamic> publicGet(
     String endpoint, {
     Map<String, dynamic>? queryParameters,
     String baseUrl = _defaultBaseUrl,
   }) async {
     try {
-      final uri = Uri.parse('$baseUrl$endpoint').replace(
-        queryParameters: queryParameters?.map((key, value) => MapEntry(key, value.toString())),
-      );
-      final response = await http.get(uri, headers: {
+      final queryString = _buildSortedQueryString(queryParameters);
+      final uri = Uri.parse('$baseUrl$endpoint${queryString.isEmpty ? '' : '?$queryString'}');
+      final response = await http.get(uri, headers: const {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       });
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
+      if (response.statusCode == 200) return jsonDecode(response.body);
       return {'success': false, 'code': response.statusCode, 'message': response.body};
-    } catch (e) {
-      debugPrint('[MexcApiManager] publicGet error: $e');
-      return {'success': false, 'message': e.toString()};
+    } catch (error) {
+      debugPrint('[MexcApiManager] publicGet error: $error');
+      return {'success': false, 'message': error.toString()};
     }
   }
 
-  /// Execute signed HTTP GET request
   Future<dynamic> signedGet(
     String endpoint, {
     Map<String, dynamic>? queryParameters,
     String baseUrl = _defaultBaseUrl,
   }) async {
     try {
-      final queryPairs = queryParameters?.entries.map((e) => '${e.key}=${e.value}').toList() ?? [];
-      final queryString = queryPairs.join('&');
-      final uri = Uri.parse('$baseUrl$endpoint${queryString.isNotEmpty ? '?$queryString' : ''}');
-      final headers = buildAuthHeaders(method: 'GET', queryString: queryString);
-
-      final response = await http.get(uri, headers: headers);
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
+      final queryString = _buildSortedQueryString(queryParameters);
+      final uri = Uri.parse('$baseUrl$endpoint${queryString.isEmpty ? '' : '?$queryString'}');
+      final response = await http.get(
+        uri,
+        headers: getAuthHeadersForGet(queryString),
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
       return {'success': false, 'code': response.statusCode, 'message': response.body};
-    } catch (e) {
-      debugPrint('[MexcApiManager] signedGet error: $e');
-      return {'success': false, 'message': e.toString()};
+    } catch (error) {
+      debugPrint('[MexcApiManager] signedGet error: $error');
+      return {'success': false, 'message': error.toString()};
     }
   }
 
-  /// Execute signed HTTP POST request
   Future<dynamic> signedPost(
     String endpoint, {
     Map<String, dynamic>? body,
     String baseUrl = _defaultBaseUrl,
   }) async {
     try {
-      final bodyString = body != null ? jsonEncode(body) : '';
-      final uri = Uri.parse('$baseUrl$endpoint');
-      final headers = buildAuthHeaders(method: 'POST', bodyString: bodyString);
-
-      final response = await http.post(uri, headers: headers, body: bodyString.isNotEmpty ? bodyString : null);
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
+      final bodyString = jsonEncode(body ?? const <String, dynamic>{});
+      final response = await http.post(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: getAuthHeadersForPost(bodyString),
+        body: bodyString,
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
       return {'success': false, 'code': response.statusCode, 'message': response.body};
-    } catch (e) {
-      debugPrint('[MexcApiManager] signedPost error: $e');
-      return {'success': false, 'message': e.toString()};
+    } catch (error) {
+      debugPrint('[MexcApiManager] signedPost error: $error');
+      return {'success': false, 'message': error.toString()};
     }
+  }
+
+  String _buildSortedQueryString(Map<String, dynamic>? queryParameters) {
+    if (queryParameters == null || queryParameters.isEmpty) return '';
+    final entries = queryParameters.entries
+        .where((entry) => entry.value != null)
+        .toList()
+      ..sort((left, right) => left.key.compareTo(right.key));
+    return entries
+        .map((entry) => '${Uri.encodeQueryComponent(entry.key)}=${Uri.encodeQueryComponent(entry.value.toString())}')
+        .join('&');
   }
 }

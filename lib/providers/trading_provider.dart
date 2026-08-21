@@ -230,6 +230,7 @@ class TradingProvider with ChangeNotifier {
         side: 'BUY_OPEN',
         type: 'MARKET',
         volume: amount,
+        price: contract.currentPrice,
         leverage: leverage ?? 1,
         openType: 'ISOLATED',
       );
@@ -237,7 +238,7 @@ class TradingProvider with ChangeNotifier {
       _lastSuccess = '✅ تم فتح صفقة شراء ${contract.symbol} بنجاح';
       _lastSignal = 'BUY';
       _openTrades.add(TradeRecord(
-        id: result?['orderId']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        id: _confirmedOrderId(result),
         symbol: contract.symbol,
         side: 'BUY',
         amount: amount,
@@ -272,6 +273,7 @@ class TradingProvider with ChangeNotifier {
         side: 'SELL_OPEN',
         type: 'MARKET',
         volume: amount,
+        price: contract.currentPrice,
         leverage: leverage ?? 1,
         openType: 'ISOLATED',
       );
@@ -279,7 +281,7 @@ class TradingProvider with ChangeNotifier {
       _lastSuccess = '✅ تم فتح صفقة بيع ${contract.symbol} بنجاح';
       _lastSignal = 'SELL';
       _openTrades.add(TradeRecord(
-        id: result?['orderId']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        id: _confirmedOrderId(result),
         symbol: contract.symbol,
         side: 'SELL',
         amount: amount,
@@ -313,13 +315,15 @@ class TradingProvider with ChangeNotifier {
           ? 'SELL_CLOSE'
           : 'BUY_CLOSE';
 
-      await _api.placeOrder(
+      final result = await _api.placeOrder(
         symbol: contract.symbol,
         side: closeSide,
         type: 'MARKET',
         volume: amount,
+        price: contract.currentPrice,
         openType: 'ISOLATED',
       );
+      _confirmedOrderId(result);
 
       _lastSuccess = '✅ تم إغلاق مركز ${contract.symbol} بنجاح';
 
@@ -372,7 +376,7 @@ class TradingProvider with ChangeNotifier {
     try {
       final apiSide = side.toUpperCase() == 'BUY' ? 'BUY_OPEN' : 'SELL_OPEN';
 
-      await _api.placeOrder(
+      final result = await _api.placeOrder(
         symbol: symbol,
         side: apiSide,
         type: 'LIMIT',
@@ -381,6 +385,7 @@ class TradingProvider with ChangeNotifier {
         leverage: leverage ?? 1,
         openType: 'ISOLATED',
       );
+      _confirmedOrderId(result);
 
       _lastSuccess = '✅ تم وضع أمر محدد $side لـ $symbol @ $price';
       await syncOrders();
@@ -557,21 +562,23 @@ class TradingProvider with ChangeNotifier {
           side = change >= 0 ? 'BUY_OPEN' : 'SELL_OPEN';
       }
 
-      // Place a small market order (minimum volume)
-      await _api.placeOrder(
+      // Place a market order only after an explicit bot start action.
+      final result = await _api.placeOrder(
         symbol: symbol,
         side: side,
         type: 'MARKET',
         volume: 1,
+        price: price,
         leverage: 1,
         openType: 'ISOLATED',
       );
+      final orderId = _confirmedOrderId(result);
 
       _lastSignal = side.contains('BUY') ? 'BUY' : 'SELL';
       _lastSuccess = '✅ البوت: تم ${side.contains('BUY') ? 'شراء' : 'بيع'} $symbol تلقائياً (الاستراتيجية: $strategyName)';
 
       _openTrades.add(TradeRecord(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        id: orderId,
         symbol: symbol,
         side: side.contains('BUY') ? 'BUY' : 'SELL',
         amount: 1,
@@ -604,6 +611,14 @@ class TradingProvider with ChangeNotifier {
   void _clearMessages() {
     _lastError = null;
     _lastSuccess = null;
+  }
+
+  String _confirmedOrderId(Map<String, dynamic> result) {
+    final orderId = result['orderId']?.toString();
+    if (orderId == null || orderId.isEmpty) {
+      throw StateError('لم تتلقَ MEXC رقم طلب صالحاً.');
+    }
+    return orderId;
   }
 
   double _parseDouble(dynamic value) {

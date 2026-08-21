@@ -1,145 +1,58 @@
-# MEXC Event Trader
+# Nor — MEXC Futures Trader
 
-تطبيق تداول العقود المستقبلية في منصة MEXC (MEXC Futures Trading App).
+هذا المستودع يحتوي تطبيق Flutter لأندرويد مخصصاً للتعامل المباشر مع واجهات **MEXC Futures**. يعتمد التطبيق على أسعار وبيانات حساب صادرة من MEXC، ولا ينشئ نتيجة صفقة ناجحة في الواجهة إلا إذا أعادت المنصة استجابة نجاح تتضمن رقم طلب صالحاً.
 
-## المميزات
+> **تنبيه مخاطر:** هذا مشروع تقني للتكامل مع منصة تداول ولا يمثل نصيحة استثمارية أو ضماناً للربح. قد تؤدي الأوامر الحقيقية إلى خسارة رأس المال، ولذلك يجب استخدام مفاتيح API بصلاحيات مقيدة ومن دون صلاحية سحب.
 
-- ✅ تداول **حقيقي** مباشر على منصة MEXC (عقود مستقبلية - Futures Trading)
-- ✅ تنفيذ أوامر السوق (Market Orders) والأوامر المحددة (Limit Orders)
-- ✅ رصيد USDT حقيقي مباشر من حسابك
-- ✅ تحديث فوري للأسعار والأرباح/الخسائر (PnL)
-- ✅ 5 استراتيجيات تداول آلية
-- ✅ مصادقة بيومترية (بصمة الوجه / البصمة)
-- ✅ تخزين آمن لمفاتيح API
-- ✅ شاشة تحليل فني متقدمة (RSI, SMA, EMA, MACD)
-- ✅ واجهة عربية كاملة
-- ✅ تاريخ الصفقات والأرباح
+## أساس الإصدار
 
----
+اعتمدت بنية Flutter في جذر المستودع، وهي المطابقة لمصدر `nor.zip` المرفوع في المستودع. الإصدار الإنتاجي يستخدم فقط الإجراء الموحد [`android-production-release.yml`](.github/workflows/android-production-release.yml)، الذي يجري فحص المصدر، ويبني APK وAAB موقّعين، ويتحقق من توقيع APK، ثم ينشرهما في صفحة Releases عند الدمج في فرع `main`.
 
-## ⚠️ تحذير هام
+| المورد | الرابط |
+| --- | --- |
+| صفحة آخر إصدار موثوق | <https://github.com/noramark281-lab/Nor/releases/latest> |
+| سجل عمليات البناء | <https://github.com/noramark281-lab/Nor/actions/workflows/android-production-release.yml> |
+| مصدر المشروع | <https://github.com/noramark281-lab/Nor> |
 
-هذا التطبيق يقوم بـ **تداول حقيقي** بأموال حقيقية. تأكد من:
-- فهمك الكامل لمخاطر التداول قبل البدء.
-- استخدام مفاتيح API فقط بصلاحيات **Spot/تداول فوري** (لا تمنع صلاحيات السحب).
-- اختبار الاستراتيجيات بمبالغ صغيرة أولاً.
+## إعداد مفاتيح MEXC
 
----
+يُدخل مالك الحساب مفتاح الوصول والمفتاح السري من داخل شاشة إعداد API في التطبيق. تُحفظ هذه القيم محلياً فقط عبر **Android Keystore** أو **iOS Keychain** باستخدام `flutter_secure_storage`، ولا يقرأ إجراء البناء مفاتيح MEXC ولا يضمّنها في APK أو AAB. توضح MEXC أن الواجهات الخاصة تحتاج إلى مفاتيح API وتوقيع HMAC-SHA256، وأن تقييد المفاتيح بعناوين IP موصى به. [1]
 
-## طرق إعداد مفاتيح API
+ينبغي إنشاء مفتاح مخصص للتطبيق، تعطيل صلاحية السحب، وتفعيل أقل صلاحيات ضرورية فقط. يتطلب تفعيل صلاحية أوامر Futures استيفاء متطلبات التحقق في MEXC بحسب إعدادات الحساب. [1]
 
-### الطريقة 1: إدخال داخل التطبيق (موصى به للمستخدمين العاديين)
+## إعداد توقيع إصدار Android
 
-1. افتح التطبيق وانتقل إلى **الإعدادات > إعداد API**.
-2. أدخل `API Key` و `Secret Key` الخاصين بك من MEXC.
-3. سيتم تخزينهما بشكل آمن داخل الجهاز عبر `flutter_secure_storage`.
-4. يتطلب فتح التطبيق المصادقة البيومترية (بصمة / وجه).
+لإنشاء إصدار يمكن تحديثه مستقبلاً، يحتاج الإجراء الموحد إلى هوية توقيع ثابتة. تحفظ القيم التالية في **Settings → Secrets and variables → Actions** داخل المستودع، ولا تُحفظ في الشيفرة أو في ملفات APK.
 
-### الطريقة 2: تضمين عند البناء (Build-time) - للمطورين/CI
+| اسم السر | الغرض |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | محتوى ملف keystore بترميز Base64. |
+| `ANDROID_KEYSTORE_PASSWORD` | كلمة مرور keystore. |
+| `ANDROID_KEY_ALIAS` | الاسم المستعار لمفتاح الإصدار. |
+| `ANDROID_KEY_PASSWORD` | كلمة مرور المفتاح. |
 
-إذا كنت تبني APK خاص بك أو تستخدم CI/CD:
+لا تُستخدم أسرار MEXC في إعدادات البناء. إذا لم تكن أسرار التوقيع موجودة، يتوقف الإجراء بدلاً من إنشاء مفتاح عشوائي؛ ذلك يمنع إنتاج نسخ لا يمكن تحديثها لاحقاً.
+
+## بناء محلي
+
+بعد تهيئة Flutter وAndroid SDK، يمكن تشغيل التحقق والبناء محلياً دون أي مفاتيح تداول مضمّنة.
 
 ```bash
-flutter build apk --release \
-  --dart-define=MEXC_API_KEY=your_api_key_here \
-  --dart-define=MEXC_SECRET_KEY=your_secret_key_here
-```
-
-في GitHub Actions، أضف المفاتيح كـ **Repository Secrets**:
-- `MEXC_API_KEY`
-- `MEXC_SECRET_KEY`
-
-ثم يقوم workflow `.github/workflows/build_apk.yml` بقراءتهما تلقائياً وتضمينها في البناء.
-
----
-
-## الحصول على مفاتيح API من MEXC
-
-1. سجل الدخول إلى [MEXC](https://www.mexc.com).
-2. اذهب إلى **API Management** (إدارة API) ← اختر **Futures API**.
-3. أنشئ مفتاح جديد.
-4. فعّل صلاحيات **Futures/Contract Trading** فقط.
-5. احفظ الـ `API Key` و `Secret Key` في مكان آمن (لن يُعرض الـ Secret مرة أخرى).
-
----
-
-## التثبيت
-
-1. قم بتحميل APK من [Releases](https://github.com/noramark281-lab/Nor/releases/latest).
-2. فعّل "تثبيت من مصادر غير معروفة" في إعدادات Android.
-3. ثبّت التطبيق وافتحه.
-4. أدخل مفاتيح API الخاصة بك (أو استخدم نسخة مُبنية مسبقاً بالمفاتيح).
-5. ابدأ التداول!
-
----
-
-## بناء المشروع محلياً
-
-```bash
-# 1. تثبيت الاعتماديات
 flutter pub get
-
-# 2. بناء APK عادي (بدون مفاتيح مُضمنة - يُدخلها المستخدم لاحقاً)
+flutter analyze --fatal-infos
+flutter test
 flutter build apk --release
-
-# 3. بناء APK مع مفاتيح مُضمنة (للتداول المباشر فور التثبيت)
-flutter build apk --release \
-  --dart-define=MEXC_API_KEY=your_api_key \
-  --dart-define=MEXC_SECRET_KEY=your_secret_key
+flutter build appbundle --release
 ```
 
----
+يستخدم ملف APK الناتج لتثبيت التطبيق مباشرة، بينما يستخدم ملف AAB للرفع إلى Google Play Console. أي بناء محلي للنشر يجب أن يستخدم هوية التوقيع الثابتة نفسها المحفوظة للإجراء الموحد.
 
-## الأمان
+## تكامل MEXC Futures
 
-- مفاتيح API تُخزّن باستخدام **flutter_secure_storage** (Android Keystore / iOS Keychain).
-- تشفير AES-256 للبيانات الحساسة.
-- يتطلب المصادقة البيومترية (بصمة الوجه / البصمة) للوصول إلى مفاتيح API.
-- **لا يُرسل المفاتيح أبداً خارج الجهاز**.
-- توقيع HMAC-SHA256 لكل طلب API مع مزامنة الوقت مع خادم MEXC.
-- حماية من هجمات التكرار (Rate Limiting) وإعادة المحاولة الذكية.
+يعتمد التطبيق عنوان Futures API `https://api.mexc.com` ويستخدم مسار إنشاء الأمر `POST /api/v1/private/order/create`. وفق وثائق MEXC، يجب أن تتضمن الاستجابة الناجحة `success: true` و`data.orderId`؛ ومن دون ذلك يعرض التطبيق فشلاً ولا ينشئ مركزاً محلياً على أنه صفقة حقيقية. [1] [2]
 
----
+### المراجع
 
-## CI/CD
+[1] [MEXC Futures API — Introduction](https://www.mexc.com/api-docs/futures/integration-guide)
 
-يتم بناء APK تلقائياً عبر GitHub Actions ونشره في Releases.
-
-### متطلبات تشغيل Workflow
-
-أضف secrets التالية في إعدادات المستودع (Settings > Secrets and variables > Actions):
-
-| Secret Name       | الوصف                              |
-|-------------------|-----------------------------------|
-| `MEXC_API_KEY`    | مفتاح API الخاص بك من MEXC         |
-| `MEXC_SECRET_KEY` | المفتاح السري الخاص بك من MEXC      |
-
-### رابط آخر إصدار
-https://github.com/noramark281-lab/Nor/releases/latest
-
-### متطلبات التشغيل
-- Android 6.0+ (API 23+)
-- اتصال إنترنت مستقر
-- مفاتيح API من MEXC (للتداول الحقيقي)
-
----
-
-## الاستراتيجيات المتوفرة
-
-1. **Trend Following** - تتبع الاتجاه باستخدام SMA و EMA.
-2. **RSI Reversal** - دخول عند ذروة الشراء/البيع باستخدام مؤشر RSI.
-3. **MACD Crossover** - دخول عند تقاطع خطوط MACD.
-4. **Breakout** - دخول عند اختراق مستويات الدعم/المقاومة.
-5. **Grid Trading** - شبكة أوامر بيع/شراء على فترات سعرية متساوية.
-
----
-
-## المساهمة
-
-نرحب بالمساهمات! يرجى فتح Issue أو Pull Request.
-
----
-
-## الترخيص
-
-هذا المشروع مفتوح المصدر. استخدمه على مسؤوليتك الخاصة.
+[2] [MEXC Futures API — Place Order](https://www.mexc.com/api-docs/futures/account-and-trading-endpoints/place-order)

@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'api_manager.dart';
 import '../models/trading_pair.dart';
-import '../utils/constants.dart';
 
 /// ═══════════════════════════════════════════════════════════════════
 /// MEXC Futures API v1 Service
@@ -18,12 +17,12 @@ import '../utils/constants.dart';
 /// Private Endpoints (auth required):
 ///   GET  /api/v1/private/account/assets           → wallet balances
 ///   GET  /api/v1/private/order/list/open_orders   → open orders
-///   POST /api/v1/private/order/submit             → place order
+///   POST /api/v1/private/order/create             → place order
 ///   POST /api/v1/private/order/cancel             → cancel order
 ///   GET  /api/v1/private/order/list/order_deals   → trade history
 ///
 class MexcApiService {
-  static const String _baseUrl = 'https://contract.mexc.com';
+  static const String _baseUrl = 'https://api.mexc.com';
 
   // ── Supported Futures Pairs (MEXC format: BTC_USDT) ─────────────
   static const List<Map<String, String>> eventPairs = [
@@ -146,7 +145,7 @@ class MexcApiService {
   // PRIVATE ENDPOINTS (Auth Required)
   // ═════════════════════════════════════════════════════════════════
 
-  /// Get account assets / wallet balances with comprehensive Futures + Spot + Backend fallback
+  /// Get balances only from authenticated MEXC Futures and Spot endpoints.
   Future<Map<String, Map<String, double>>> getRealBalances() async {
     final manager = MexcApiManager();
     if (!manager.isInitialized) {
@@ -253,24 +252,6 @@ class MexcApiService {
       if (lastError.isEmpty) lastError = e.toString();
     }
 
-    // 3. Try Backend Server (if SERVER_IP / backendUrl configured)
-    if (!foundAnyBalance && AppConstants.serverIp.isNotEmpty) {
-      try {
-        final backendUrl = Uri.parse('${AppConstants.backendUrl}/api/status');
-        final bRes = await _client.get(backendUrl).timeout(const Duration(seconds: 5));
-        if (bRes.statusCode == 200) {
-          final bData = jsonDecode(bRes.body);
-          if (bData is Map && bData.containsKey('balance')) {
-            final bal = _parseDouble(bData['balance']);
-            balances['USDT'] = {'free': bal, 'locked': 0.0};
-            foundAnyBalance = true;
-          }
-        }
-      } catch (e) {
-        debugPrint('[MexcApiService] Backend status check error: $e');
-      }
-    }
-
     // Always guarantee USDT entry
     if (!balances.containsKey('USDT')) {
       balances['USDT'] = {'free': 0.0, 'locked': 0.0};
@@ -310,49 +291,78 @@ class MexcApiService {
     }
   }
 
-  /// Place a new futures order
-  Future<Map<String, dynamic>?> placeOrder({
+  /// Places a Futures order and returns only a MEXC-confirmed order result.
+  ///
+  /// The application does not create a local success record if the exchange
+  /// rejects the request or omits `data.orderId`.
+  Future<Map<String, dynamic>> placeOrder({
     required String symbol,
-    required String side,        // "BUY_OPEN" / "SELL_OPEN" / "BUY_CLOSE" / "SELL_CLOSE"
-    required String type,        // "LIMIT" / "MARKET"
-    required double volume,      // position size
-    double? price,               // required for LIMIT
+    required String side,
+    required String type,
+    required double volume,
+    required double price,
     double? leverage,
-    String? openType,            // "ISOLATED" / "CROSSED"
+    String openType = 'ISOLATED',
   }) async {
     final manager = MexcApiManager();
     if (!manager.isInitialized) {
-      throw Exception('مفاتيح API غير مفعلة');
+      throw StateError('مفاتيح API غير مفعلة.');
+    }
+    if (volume <= 0 || price <= 0) {
+      throw ArgumentError('الكمية والسعر يجب أن يكونا أكبر من صفر.');
+    }
+
+    final normalizedSide = side.toUpperCase();
+    final normalizedType = type.toUpperCase();
+    final sideCode = <String, int>{
+      'BUY_OPEN': 1,
+      'SELL_CLOSE': 2,
+      'SELL_OPEN': 3,
+      'BUY_CLOSE': 4,
+    }[normalizedSide];
+    final typeCode = <String, int>{
+      'LIMIT': 1,
+      'MARKET': 5,
+    }[normalizedType];
+    final openTypeCode = <String, int>{
+      'ISOLATED': 1,
+      'CROSSED': 2,
+    }[openType.toUpperCase()];
+
+    if (sideCode == null || typeCode == null || openTypeCode == null) {
+      throw ArgumentError('معلمات أمر MEXC غير صالحة.');
     }
 
     final body = <String, dynamic>{
       'symbol': symbol,
-      'side': side,
-      'type': type,
+      'price': price,
       'vol': volume,
-      if (price != null) 'price': price,
-      if (leverage != null) 'leverage': leverage,
-      if (openType != null) 'openType': openType,
+      'side': sideCode,
+      'type': typeCode,
+      'openType': openTypeCode,
+      if (leverage != null && (normalizedSide == 'BUY_OPEN' || normalizedSide == 'SELL_OPEN'))
+        'leverage': leverage.round(),
     };
-
     final bodyString = jsonEncode(body);
-    final headers = manager.getAuthHeadersForPost(bodyString);
-    final url = Uri.parse('$_baseUrl/api/v1/private/order/submit');
+    final url = Uri.parse('$_baseUrl/api/v1/private/order/create');
+    final response = await _client
+        .post(url, headers: manager.getAuthHeadersForPost(bodyString), body: bodyString)
+        .timeout(const Duration(seconds: 15));
 
-    debugPrint('[MexcApiService] POST $url body=$bodyString');
-
-    final response = await _client.post(url, headers: headers, body: bodyString);
-    debugPrint('[MexcApiService] order/submit status=${response.statusCode}');
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data is Map && data.containsKey('data')) {
-        return data['data'] as Map<String, dynamic>;
-      }
-      return data as Map<String, dynamic>?;
-    } else {
-      throw Exception('فشل في إرسال الأمر: ${response.statusCode} ${response.body}');
+    debugPrint('[MexcApiService] order/create status=${response.statusCode}');
+    if (response.statusCode != 200) {
+      throw Exception('رفضت MEXC الأمر (${response.statusCode}): ${response.body}');
     }
+
+    final payload = jsonDecode(response.body);
+    if (payload is Map && payload['success'] == true && payload['data'] is Map) {
+      final order = Map<String, dynamic>.from(payload['data'] as Map);
+      final orderId = order['orderId']?.toString();
+      if (orderId != null && orderId.isNotEmpty) return order;
+    }
+
+    final message = payload is Map ? payload['message']?.toString() : null;
+    throw Exception('لم تؤكد MEXC إنشاء الأمر${message == null || message.isEmpty ? '' : ': $message'}');
   }
 
   /// Cancel an order
@@ -379,10 +389,9 @@ class MexcApiService {
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       if (data is Map) {
-        final success = data['success'] ?? true;
-        return success == true || success == 1;
+        return data['success'] == true;
       }
-      return true;
+      return false;
     }
     return false;
   }

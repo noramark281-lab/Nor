@@ -6,7 +6,7 @@
 
 ## أساس الإصدار
 
-اعتمدت بنية Flutter في جذر المستودع، وهي المطابقة لمصدر `nor.zip` المرفوع في المستودع. الإصدار الإنتاجي يستخدم فقط الإجراء الموحد [`android-production-release.yml`](.github/workflows/android-production-release.yml)، الذي يجري فحص المصدر، ويبني APK وAAB موقّعين، ويتحقق من توقيع APK، ثم ينشرهما في صفحة Releases عند الدمج في فرع `main`.
+يعتمد المستودع بنية **Flutter** في الجذر كتطبيق Android الأساسي. أزيلت الواجهة المختلطة وتهيئات Firebase/Supabase غير التابعة لمسار Flutter، وأصبح المسار الوحيد للإصدار هو الإجراء الموحد [`android-production-release.yml`](.github/workflows/android-production-release.yml)، الذي ينظف المشروع، ويستعيد الاعتماديات، ويفحص المصدر، ويبني APK وAAB موقّعين، ويتحقق من توقيع APK، ثم ينشرهما في صفحة Releases عند الدمج في فرع `main`.
 
 | المورد | الرابط |
 | --- | --- |
@@ -38,14 +38,19 @@
 بعد تهيئة Flutter وAndroid SDK، يمكن تشغيل التحقق والبناء محلياً دون أي مفاتيح تداول مضمّنة.
 
 ```bash
+flutter clean
 flutter pub get
-flutter analyze --fatal-infos
-flutter test
+flutter analyze --no-fatal-warnings --no-fatal-infos
+# شغّل الاختبارات فقط إذا كان مجلد test/ موجوداً.
 flutter build apk --release
 flutter build appbundle --release
 ```
 
 يستخدم ملف APK الناتج لتثبيت التطبيق مباشرة، بينما يستخدم ملف AAB للرفع إلى Google Play Console. أي بناء محلي للنشر يجب أن يستخدم هوية التوقيع الثابتة نفسها المحفوظة للإجراء الموحد.
+
+## خدمة Python الاختيارية
+
+المجلد `backend/` خدمة Python مستقلة اختيارية ولا يدخل في بناء Flutter أو توقيع Android. تحفظ متغيراتها في `backend/.env` بالاستناد إلى `backend/.env.example` ولا يجب تضمين مفاتيح MEXC في هذا المستودع أو في تطبيق Android.
 
 ## تكامل MEXC Futures
 

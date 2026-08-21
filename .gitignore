@@ -1,8 +1,52 @@
-node_modules/
+# Flutter and Dart
+.dart_tool/
+.packages
+.pub/
 build/
+.flutter-plugins
+.flutter-plugins-dependencies
+android/.gradle/
+android/local.properties
+android/key.properties
+android/app/*.jks
+android/app/*.keystore
+android/app/release-upload.jks
+ios/Flutter/ephemeral/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Pods/
+ios/.symlinks/
+macos/Flutter/ephemeral/
+windows/flutter/ephemeral/
+linux/flutter/ephemeral/
+
+# Android and IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Python services
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Node/Vite artifacts
+node_modules/
 dist/
 coverage/
-.DS_Store
-*.log
-.env*
+*.tsbuildinfo
+
+# Environment, logs, and OS metadata
+.env
+.env.*
 !.env.example
+*.log
+.DS_Store
+
+# Source archives are not part of the application source.
+/nor.zip

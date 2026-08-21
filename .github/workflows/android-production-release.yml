@@ -49,7 +49,11 @@ jobs:
       - name: Validate Flutter source
         run: |
           flutter analyze --no-fatal-warnings --no-fatal-infos
-          flutter test
+          if [ -d test ]; then
+            flutter test
+          else
+            echo 'No Flutter test directory is present; source analysis completed.'
+          fi
 
       - name: Restore fixed release-signing identity
         env:

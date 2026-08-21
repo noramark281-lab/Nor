@@ -1,6 +1,6 @@
 {
   "name": "zizo Bot",
-  "description": "تطبيق تداول العقود الآجلة للحدث (Event Futures) على منصة MEXC مع تتبع شموع 5m و 15m، وإدارة المحفظة والمكافآت، ومولد GitHub Actions لبناء تطبيقات أندرويد 15 لجهاز LT_9904.",
+  "description": "منصة التداول الفوري 3D والعقود الآجلة للحدث (Spot & Event Futures 1$) مع ربط MEXC و Blockpit و Firebase، ومزامنة التوقيت اللحظي بدقة الميلي ثانية، ومولد GitHub Actions لأندرويد 15 لجهاز LT_9904.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

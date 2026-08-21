@@ -21,8 +21,7 @@ export const EventFuturesChart: React.FC<EventFuturesChartProps> = ({
   downPayout,
   onOpenSettings,
 }) => {
-  const timeframes = ['1m', '5m', '15m', '1h', '4h', '1D', 'Index Price']
-  const [showPairDropdown, setShowPairDropdown] = useState(false)
+  const timeframes = ['1m', '5m', '15m', 'Index Price']
 
   // Candlestick mock sample bars styled identical to MEXC Event Futures
   const candles = [
@@ -36,52 +35,31 @@ export const EventFuturesChart: React.FC<EventFuturesChartProps> = ({
     { type: 'bull', top: 72, bottom: 54, high: 75, low: 50 },
     { type: 'bear', top: 62, bottom: 42, high: 65, low: 38 },
     { type: 'bear', top: 52, bottom: 32, high: 56, low: 26 },
-    { type: 'bear', top: 44, bottom: 28, high: 48, low: 24 },
+    { type: 'bull', top: 60, bottom: 38, high: 64, low: 35 },
+    { type: 'bull', top: 74, bottom: 44, high: 79, low: 40 },
   ]
 
   return (
     <div className="w-full bg-black flex flex-col border-b border-[#181d26] select-none">
       {/* Pair Header & Top Payout Ratios */}
       <div className="flex items-center justify-between px-3 pt-2 pb-1.5">
-        {/* Pair Name & Dropdown */}
-        <div className="relative">
-          <button
-            id="btn-select-pair"
-            onClick={() => setShowPairDropdown(!showPairDropdown)}
-            className="flex items-center gap-1 text-white hover:text-gray-200 transition-colors font-black text-base cursor-pointer tracking-tight"
-          >
-            <span>BTCUSDT</span>
-            <ChevronDown size={16} className="text-gray-400" />
-          </button>
-
-          {showPairDropdown && (
-            <div className="absolute top-full left-0 mt-1 w-44 bg-[#141822] border border-[#232b3c] rounded-xl shadow-2xl z-40 py-1">
-              <div className="px-3 py-1.5 text-[11px] text-gray-400 font-bold border-b border-[#1d2535]">
-                {language === 'ar' ? 'أزواج العقود المتاحة' : 'Available Event Pairs'}
-              </div>
-              {['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT'].map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setShowPairDropdown(false)}
-                  className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-[#1f283a] transition-colors cursor-pointer ${
-                    p === 'BTCUSDT' ? 'text-[#00c087] font-bold bg-[#172030]' : 'text-gray-300'
-                  }`}
-                >
-                  <span>{p}</span>
-                  <span className="text-[10px] text-gray-500">80% / 89%</span>
-                </button>
-              ))}
-            </div>
-          )}
+        {/* Pair Name - Strictly BTC/USDT */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 text-white font-black text-base tracking-tight">
+            <span>BTC/USDT</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono border border-emerald-500/20">
+              {language === 'ar' ? 'عقود الحدث' : 'Event Futures'}
+            </span>
+          </div>
         </div>
 
-        {/* Payout Ratios & Options Menu matching screenshot */}
+        {/* Payout Ratios & Options Menu */}
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 text-xs font-semibold">
-            <span className="text-gray-400">Up:</span>
+            <span className="text-gray-400">{language === 'ar' ? 'صعود:' : 'Up:'}</span>
             <span className="text-[#00c087] font-bold">{upPayout}%</span>
             <span className="text-gray-600 font-mono">|</span>
-            <span className="text-gray-400">Down:</span>
+            <span className="text-gray-400">{language === 'ar' ? 'هبوط:' : 'Down:'}</span>
             <span className="text-[#00c087] font-bold">{downPayout}%</span>
           </div>
 

@@ -67,7 +67,7 @@ export const AutoTradePanel: React.FC<AutoTradePanelProps> = ({
   const upSettlement = numAmount > 0 ? (numAmount * (1 + upPayout / 100)).toFixed(2) : '--'
   const downSettlement = numAmount > 0 ? (numAmount * (1 + downPayout / 100)).toFixed(2) : '--'
 
-  const durations: TradeDuration[] = ['10m', '30m', '1H', '1D']
+  const durations: TradeDuration[] = ['10m', '30m']
 
   const handleStep = (step: number) => {
     const current = parseFloat(amount) || 10
@@ -77,26 +77,30 @@ export const AutoTradePanel: React.FC<AutoTradePanelProps> = ({
 
   return (
     <div className="w-full bg-black flex flex-col px-3 py-3 gap-3 border-b border-[#181d26] select-none">
-      {/* 1. Time Unit Selection */}
+      {/* 1. Expiry Selection (مدة انتهاء الحدث: 10 دقائق و 30 دقيقة فقط) */}
       <div className="flex flex-col gap-1.5">
-        <div className="text-xs text-gray-400 font-medium">
-          {language === 'ar' ? 'وحدة الوقت (Time Unit)' : 'Time Unit'}
+        <div className="flex items-center justify-between text-xs text-gray-400 font-medium">
+          <span>{language === 'ar' ? 'مدة انتهاء الحدث (Expiry)' : 'Event Expiry Duration'}</span>
+          <span className="text-[10px] text-gray-500 font-mono">10m / 30m</span>
         </div>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {durations.map((d) => {
             const isActive = duration === d
+            const label = d === '10m' 
+              ? (language === 'ar' ? '10 دقائق (10m)' : '10 Minutes (10m)')
+              : (language === 'ar' ? '30 دقيقة (30m)' : '30 Minutes (30m)')
             return (
               <button
                 key={d}
                 id={`duration-${d}`}
                 onClick={() => setDuration(d)}
-                className={`py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                   isActive
-                    ? 'bg-[#121a2b] border-2 border-[#2962ff] text-white shadow-[0_0_12px_rgba(41,98,255,0.3)]'
+                    ? 'bg-[#121a2b] border-2 border-[#2962ff] text-white shadow-[0_0_15px_rgba(41,98,255,0.35)]'
                     : 'bg-[#141822] border border-[#202735] text-gray-400 hover:text-gray-200'
                 }`}
               >
-                {d}
+                <span>{label}</span>
               </button>
             )
           })}

@@ -1,14 +1,14 @@
 export type Language = 'ar' | 'en'
 
-export type TradeDuration = '10m' | '30m' | '1H' | '1D'
+export type TradeDuration = '10m' | '30m'
 
-export type AnalysisCandle = '1m' | '5m' | '15m' | '1h' | '4h' | '1D'
+export type AnalysisCandle = '1m' | '5m' | '15m'
 
 export type PayoutFilter = 75 | 80 | 85
 
 export type TradeDirection = 'LONG' | 'SHORT'
 
-export type CandleTimeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1d'
+export type CandleTimeframe = '1m' | '5m' | '15m'
 
 export type MinPayoutThreshold = 70 | 75 | 80 | 85 | 90
 

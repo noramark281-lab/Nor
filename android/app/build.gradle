@@ -74,6 +74,9 @@ android {
                 def candidateFiles = [
                     sFile ? file(sFile) : null,
                     sFile ? rootProject.file(sFile) : null,
+                    file("release-upload.jks"),
+                    rootProject.file("release-upload.jks"),
+                    rootProject.file("app/release-upload.jks"),
                     file("my-Albader-key.jks"),
                     rootProject.file("my-Albader-key.jks"),
                     rootProject.file("app/my-Albader-key.jks"),

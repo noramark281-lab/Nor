@@ -30,6 +30,7 @@ class TradingProvider with ChangeNotifier {
   String? _lastSignal;
   int _consecutiveLosses = 0;
   double _balance = 0.0;
+  FuturesTradingReadiness? _futuresReadiness;
 
   final List<String> _availableStrategies = [
     'Hybrid',
@@ -69,6 +70,8 @@ class TradingProvider with ChangeNotifier {
   String? get lastSignal => _lastSignal;
   int get consecutiveLosses => _consecutiveLosses;
   double get balance => _balance;
+  FuturesTradingReadiness? get futuresReadiness => _futuresReadiness;
+  bool get isFuturesReady => _futuresReadiness?.canPlaceOrders ?? false;
   List<String> get availableStrategies => _availableStrategies;
   List<TradeRecord> get openTrades => List.unmodifiable(_openTrades);
   List<TradeRecord> get closedTrades => List.unmodifiable(_closedTrades);
@@ -182,8 +185,22 @@ class TradingProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void startAutoTrading() {
+  /// Checks Futures readiness before enabling the recurring trading timer.
+  /// No order is sent during this verification.
+  Future<void> startAutoTrading() async {
+    _setLoading(true);
+    _clearMessages();
+    final readiness = await refreshFuturesReadiness();
+    if (!readiness.canPlaceOrders) {
+      _isTrading = false;
+      _lastError = '⚠️ لا يمكن تشغيل البوت: ${readiness.message}';
+      _setLoading(false);
+      notifyListeners();
+      return;
+    }
+
     _isTrading = true;
+    _setLoading(false);
     notifyListeners();
 
     _botTimer?.cancel();
@@ -192,8 +209,19 @@ class TradingProvider with ChangeNotifier {
       await runBotAutoTrade(_selectedStrategy);
     });
 
-    // Run immediately
+    // The first order attempt is still subject to contract and order checks.
     runBotAutoTrade(_selectedStrategy);
+  }
+
+  /// Verifies authenticated Futures access and the selected contract without
+  /// submitting a live order.
+  Future<FuturesTradingReadiness> refreshFuturesReadiness({String? symbol}) async {
+    final readiness = await _api.verifyFuturesReadiness(
+      symbol: symbol ?? _selectedSymbol ?? 'BTC_USDT',
+    );
+    _futuresReadiness = readiness;
+    notifyListeners();
+    return readiness;
   }
 
   void stopAutoTrading() {
@@ -562,7 +590,18 @@ class TradingProvider with ChangeNotifier {
           side = change >= 0 ? 'BUY_OPEN' : 'SELL_OPEN';
       }
 
-      // Place a market order only after an explicit bot start action.
+      // Verify the actual contract selected by the strategy before any order.
+      final readiness = await refreshFuturesReadiness(symbol: symbol);
+      if (!readiness.canPlaceOrders) {
+        throw MexcApiException(
+          readiness.message,
+          code: readiness.status == FuturesTradingStatus.contractUnavailable ? 1002 : null,
+        );
+      }
+
+      // Place a market order only after an explicit bot start action and a
+      // readiness check. A local trade record is created only after MEXC
+      // returns an order ID.
       final result = await _api.placeOrder(
         symbol: symbol,
         side: side,
@@ -590,6 +629,22 @@ class TradingProvider with ChangeNotifier {
 
       await syncOrders();
       await syncBalance();
+    } on MexcApiException catch (e) {
+      _isTrading = false;
+      _botTimer?.cancel();
+      _botTimer = null;
+      _lastSignal = 'WAIT';
+      _lastError = e.isContractUnavailable
+          ? '⚠️ أُوقف البوت: ${e.message}'
+          : '❌ فشل البوت: ${e.message}';
+      if (e.isContractUnavailable || e.isApiPermissionUnavailable) {
+        _futuresReadiness = FuturesTradingReadiness(
+          status: e.isContractUnavailable
+              ? FuturesTradingStatus.contractUnavailable
+              : FuturesTradingStatus.apiUnavailable,
+          message: e.message,
+        );
+      }
     } catch (e) {
       _lastError = '❌ فشل البوت: $e';
       _consecutiveLosses++;

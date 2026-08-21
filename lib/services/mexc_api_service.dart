@@ -4,11 +4,50 @@ import 'package:http/http.dart' as http;
 import 'api_manager.dart';
 import '../models/trading_pair.dart';
 
+enum FuturesTradingStatus {
+  notConfigured,
+  ready,
+  contractUnavailable,
+  accountUnavailable,
+  apiUnavailable,
+  unknownError,
+}
+
+class FuturesTradingReadiness {
+  final FuturesTradingStatus status;
+  final String message;
+  final String? symbol;
+
+  const FuturesTradingReadiness({
+    required this.status,
+    required this.message,
+    this.symbol,
+  });
+
+  bool get canPlaceOrders => status == FuturesTradingStatus.ready;
+}
+
+class MexcApiException implements Exception {
+  final String message;
+  final int? code;
+
+  const MexcApiException(this.message, {this.code});
+
+  bool get isContractUnavailable =>
+      code == 1002 || message.toLowerCase().contains('contract not activated');
+
+  bool get isApiPermissionUnavailable =>
+      code == 511 || code == 701 || code == 702 || code == 703 || code == 704;
+
+  @override
+  String toString() => message;
+}
+
 /// ═══════════════════════════════════════════════════════════════════
 /// MEXC Futures API v1 Service
 /// ═══════════════════════════════════════════════════════════════════
 ///
-/// Base URL: https://contract.mexc.com
+/// Base URL: https://api.mexc.com
 ///
 /// Public Endpoints (no auth):
 ///   GET /api/v1/contract/detail       → contract details
@@ -43,9 +82,13 @@ class MexcApiService {
   // PUBLIC ENDPOINTS
   // ═════════════════════════════════════════════════════════════════
 
-  /// Get all contract details (public)
+  /// Get all contract details (public).
+  ///
+  /// MEXC exposes country-aware contract metadata at this endpoint, including
+  /// `state` and `apiAllowed`, both of which must permit trading before an
+  /// automated strategy may submit an order.
   Future<List<Map<String, dynamic>>> getContractDetails() async {
-    final url = Uri.parse('$_baseUrl/api/v1/contract/detail');
+    final url = Uri.parse('$_baseUrl/api/v1/contract/detail/country');
     debugPrint('[MexcApiService] GET $url');
 
     final response = await _client.get(url, headers: {
@@ -53,19 +96,126 @@ class MexcApiService {
       'Accept': 'application/json',
     });
 
-    debugPrint('[MexcApiService] contract/detail status=${response.statusCode}');
+    debugPrint('[MexcApiService] contract/detail/country status=${response.statusCode}');
+    if (response.statusCode != 200) {
+      throw MexcApiException('تعذر جلب حالة عقود MEXC (${response.statusCode}).');
+    }
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data is Map && data.containsKey('data')) {
-        final list = data['data'];
-        if (list is List) {
-          return list.map((e) => e as Map<String, dynamic>).toList();
+    final payload = jsonDecode(response.body);
+    if (payload is Map && payload['success'] == true) {
+      final rawData = payload['data'];
+      if (rawData is List) {
+        return rawData.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+      }
+      if (rawData is Map) return [Map<String, dynamic>.from(rawData)];
+    }
+    return [];
+  }
+
+  /// Returns status information for exactly one requested Futures contract.
+  Future<Map<String, dynamic>?> getContractInfo(String symbol) async {
+    final url = Uri.parse('$_baseUrl/api/v1/contract/detail/country?symbol=$symbol');
+    final response = await _client.get(url, headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    }).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode != 200) {
+      throw MexcApiException('تعذر التحقق من العقد $symbol (${response.statusCode}).');
+    }
+
+    final payload = jsonDecode(response.body);
+    if (payload is Map && payload['success'] == true) {
+      final rawData = payload['data'];
+      if (rawData is Map) return Map<String, dynamic>.from(rawData);
+      if (rawData is List) {
+        for (final item in rawData) {
+          if (item is Map && item['symbol']?.toString() == symbol) {
+            return Map<String, dynamic>.from(item);
+          }
         }
       }
-      return [];
-    } else {
-      throw Exception('فشل في جلب تفاصيل العقود: ${response.statusCode} ${response.body}');
+    }
+    return null;
+  }
+
+  /// Verifies account access and public contract availability without placing
+  /// an order. This deliberately does not test write permission by submitting
+  /// a real trade.
+  Future<FuturesTradingReadiness> verifyFuturesReadiness({
+    String symbol = 'BTC_USDT',
+  }) async {
+    final manager = MexcApiManager();
+    if (!manager.isInitialized) {
+      return const FuturesTradingReadiness(
+        status: FuturesTradingStatus.notConfigured,
+        message: 'أدخل مفاتيح MEXC أولاً قبل استخدام العقود.',
+      );
+    }
+
+    try {
+      final contract = await getContractInfo(symbol);
+      final state = int.tryParse(contract?['state']?.toString() ?? '');
+      final apiAllowed = contract?['apiAllowed'] == true ||
+          contract?['apiAllowed']?.toString().toLowerCase() == 'true';
+      if (contract == null || state != 0 || !apiAllowed) {
+        return FuturesTradingReadiness(
+          status: FuturesTradingStatus.contractUnavailable,
+          symbol: symbol,
+          message: 'العقد $symbol غير متاح حالياً لتداول API. اختر عقداً مفعّلاً أو راجع حالة العقود في MEXC.',
+        );
+      }
+
+      final response = await _client
+          .get(
+            Uri.parse('$_baseUrl/api/v1/private/account/assets'),
+            headers: manager.getAuthHeadersForGet(''),
+          )
+          .timeout(const Duration(seconds: 10));
+      final payload = jsonDecode(response.body);
+      if (response.statusCode == 200 && payload is Map && payload['success'] == true) {
+        return FuturesTradingReadiness(
+          status: FuturesTradingStatus.ready,
+          symbol: symbol,
+          message: 'حساب Futures والعقد $symbol متاحان. تأكد أيضاً من صلاحية وضع الأوامر لمفتاح API قبل التداول.',
+        );
+      }
+
+      final code = payload is Map ? int.tryParse(payload['code']?.toString() ?? '') : null;
+      final message = payload is Map ? payload['message']?.toString() : null;
+      if (code == 1002 || (message?.toLowerCase().contains('contract not activated') ?? false)) {
+        return FuturesTradingReadiness(
+          status: FuturesTradingStatus.contractUnavailable,
+          symbol: symbol,
+          message: 'رفضت MEXC العقد $symbol لأنه غير مفعّل أو غير متاح لتداول API.',
+        );
+      }
+      if (code == 511 || code == 701 || code == 702 || code == 703 || code == 704) {
+        return FuturesTradingReadiness(
+          status: FuturesTradingStatus.apiUnavailable,
+          symbol: symbol,
+          message: 'صلاحيات مفتاح MEXC لا تسمح بالوصول إلى Futures. فعّل Read وTrade/Futures للمفتاح ثم أعد التحقق.',
+        );
+      }
+      return FuturesTradingReadiness(
+        status: FuturesTradingStatus.accountUnavailable,
+        symbol: symbol,
+        message: 'تعذر التحقق من حساب Futures${message == null || message.isEmpty ? '' : ': $message'}',
+      );
+    } on MexcApiException catch (e) {
+      return FuturesTradingReadiness(
+        status: e.isContractUnavailable ? FuturesTradingStatus.contractUnavailable : FuturesTradingStatus.unknownError,
+        symbol: symbol,
+        message: e.isContractUnavailable
+            ? 'العقد $symbol غير مفعّل أو غير متاح لتداول API في MEXC.'
+            : e.message,
+      );
+    } catch (_) {
+      return FuturesTradingReadiness(
+        status: FuturesTradingStatus.unknownError,
+        symbol: symbol,
+        message: 'تعذر التحقق من جاهزية Futures. تحقق من الاتصال ومفاتيح API ثم أعد المحاولة.',
+      );
     }
   }
 
@@ -153,7 +303,6 @@ class MexcApiService {
     }
 
     final balances = <String, Map<String, double>>{};
-    bool foundAnyBalance = false;
     String lastError = '';
 
     // 1. Try MEXC Futures Assets
@@ -182,7 +331,6 @@ class MexcApiService {
                     'free': free,
                     'locked': locked,
                   };
-                  foundAnyBalance = true;
                 }
               }
             }
@@ -350,19 +498,32 @@ class MexcApiService {
         .timeout(const Duration(seconds: 15));
 
     debugPrint('[MexcApiService] order/create status=${response.statusCode}');
-    if (response.statusCode != 200) {
-      throw Exception('رفضت MEXC الأمر (${response.statusCode}): ${response.body}');
+    dynamic payload;
+    try {
+      payload = jsonDecode(response.body);
+    } catch (_) {
+      payload = null;
     }
 
-    final payload = jsonDecode(response.body);
+    if (response.statusCode != 200) {
+      throw _orderException(
+        payload,
+        symbol: symbol,
+        fallback: 'رفضت MEXC الأمر (${response.statusCode}).',
+      );
+    }
+
     if (payload is Map && payload['success'] == true && payload['data'] is Map) {
       final order = Map<String, dynamic>.from(payload['data'] as Map);
       final orderId = order['orderId']?.toString();
       if (orderId != null && orderId.isNotEmpty) return order;
     }
 
-    final message = payload is Map ? payload['message']?.toString() : null;
-    throw Exception('لم تؤكد MEXC إنشاء الأمر${message == null || message.isEmpty ? '' : ': $message'}');
+    throw _orderException(
+      payload,
+      symbol: symbol,
+      fallback: 'لم تؤكد MEXC إنشاء الأمر.',
+    );
   }
 
   /// Cancel an order
@@ -510,6 +671,33 @@ class MexcApiService {
   // ═════════════════════════════════════════════════════════════════
   // HELPERS
   // ═════════════════════════════════════════════════════════════════
+
+  MexcApiException _orderException(
+    dynamic payload, {
+    required String symbol,
+    required String fallback,
+  }) {
+    final code = payload is Map ? int.tryParse(payload['code']?.toString() ?? '') : null;
+    final serverMessage = payload is Map ? payload['message']?.toString().trim() : null;
+    final normalizedMessage = serverMessage?.toLowerCase() ?? '';
+
+    if (code == 1002 || normalizedMessage.contains('contract not activated')) {
+      return MexcApiException(
+        'لم يُنشأ أي أمر: العقد $symbol غير مفعّل أو لا يسمح بتداول API حالياً. افتح/فعّل Futures في MEXC، وتأكد أن العقد متاح، ثم أعد التحقق.',
+        code: 1002,
+      );
+    }
+    if (code == 511 || code == 701 || code == 702 || code == 703 || code == 704) {
+      return MexcApiException(
+        'لم يُنشأ أي أمر: مفتاح MEXC لا يملك الصلاحية المطلوبة لقراءة أو وضع أوامر Futures. فعّل Read وTrade/Futures للمفتاح ثم أعد التحقق.',
+        code: code,
+      );
+    }
+    return MexcApiException(
+      '$fallback${serverMessage == null || serverMessage.isEmpty ? '' : ' $serverMessage'}',
+      code: code,
+    );
+  }
 
   double _parseDouble(dynamic value) {
     if (value == null) return 0.0;

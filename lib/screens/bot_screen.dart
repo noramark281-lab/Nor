@@ -75,16 +75,33 @@ class _BotScreenState extends State<BotScreen> {
               child: Column(
                 children: [
                   Icon(
-                    bot.isTrading ? Icons.play_circle : Icons.pause_circle,
+                    bot.isTrading
+                        ? Icons.play_circle
+                        : bot.isFuturesReady
+                            ? Icons.verified_outlined
+                            : Icons.warning_amber_rounded,
                     size: 64,
                     color: Colors.white,
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    bot.isTrading ? 'البوت يعمل حالياً (تداول حقيقي)' : 'البوت متوقف',
+                    bot.isTrading
+                        ? 'البوت يعمل حالياً (تداول حقيقي)'
+                        : bot.isFuturesReady
+                            ? 'Futures متاح — البوت متوقف'
+                            : 'Futures غير جاهز لتداول API',
                     style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
+                  if (!bot.isTrading && bot.futuresReadiness != null)
+                    Text(
+                      bot.futuresReadiness!.message,
+                      style: TextStyle(color: Colors.white.withOpacity(0.8), fontFamily: 'Cairo', fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                  if (!bot.isTrading && bot.futuresReadiness != null)
+                    const SizedBox(height: 8),
                   Text(
                     'الاستراتيجية: ${bot.selectedStrategy}',
                     style: TextStyle(color: Colors.white.withOpacity(0.8), fontFamily: 'Cairo'),
@@ -253,10 +270,14 @@ class _BotScreenState extends State<BotScreen> {
                         bot.stopAutoTrading();
                         _stopBotWalletSync();
                       } else {
-                        bot.startAutoTrading();
-                        _startBotWalletSync(wallet);
+                        await bot.startAutoTrading();
+                        if (bot.isTrading) {
+                          _startBotWalletSync(wallet);
+                        } else {
+                          _stopBotWalletSync();
+                        }
                       }
-                      // مزامنة المحفظة بعد تغيير الحالة
+                      // مزامنة المحفظة بعد تغيير الحالة أو التحقق.
                       await wallet.syncAll();
                     },
               icon: bot.loading
@@ -271,7 +292,9 @@ class _BotScreenState extends State<BotScreen> {
                     ? 'جاري التنفيذ...'
                     : bot.isTrading
                         ? 'إيقاف البوت'
-                        : 'تشغيل البوت',
+                        : bot.isFuturesReady
+                            ? 'تشغيل البوت (بعد التحقق)'
+                            : 'تحقق من Futures ثم شغّل البوت',
                 style: const TextStyle(fontSize: 18, fontFamily: 'Cairo'),
               ),
             ),

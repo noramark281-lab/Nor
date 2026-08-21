@@ -346,7 +346,6 @@ class MexcApiService {
                   'free': free,
                   'locked': locked,
                 };
-                foundAnyBalance = true;
               }
             });
           }
@@ -389,7 +388,6 @@ class MexcApiService {
                     'locked': locked,
                   };
                 }
-                foundAnyBalance = true;
               }
             }
           }

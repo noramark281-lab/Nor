@@ -28,9 +28,8 @@ class _WalletScreenState extends State<WalletScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await context.read<WalletProvider>().initialize();
-      await context.read<TradingProvider>().refreshFuturesReadiness();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<WalletProvider>().initialize();
     });
   }
 
@@ -59,12 +58,7 @@ class _WalletScreenState extends State<WalletScreen>
           IconButton(
             icon: const Icon(Icons.sync, color: Colors.white70),
             tooltip: 'مزامنة المحفظة',
-            onPressed: wallet.loading
-                ? null
-                : () async {
-                    await wallet.syncAll();
-                    await trading.refreshFuturesReadiness();
-                  },
+            onPressed: wallet.loading ? null : () => wallet.syncAll(),
           ),
         ],
         bottom: TabBar(
@@ -133,22 +127,6 @@ class _WalletScreenState extends State<WalletScreen>
   // بطاقة الرصيد الرئيسية
   // ═══════════════════════════════════════════════════════════════
   Widget _buildBalanceCard(WalletProvider wallet, TradingProvider trading) {
-    final hasCredentials = MexcApiManager().isInitialized;
-    final readiness = trading.futuresReadiness;
-    final futuresReady = trading.isFuturesReady;
-    final statusLabel = !hasCredentials
-        ? 'مفاتيح API غير مهيأة'
-        : readiness == null
-            ? 'جارٍ التحقق من Futures'
-            : futuresReady
-                ? 'Futures جاهز'
-                : 'Futures غير جاهز';
-    final statusColor = futuresReady
-        ? const Color(0xFF00C087)
-        : readiness == null && hasCredentials
-            ? const Color(0xFFFFB800)
-            : const Color(0xFFFF3B30);
-
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
@@ -176,26 +154,32 @@ class _WalletScreenState extends State<WalletScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.2),
+                  color: MexcApiManager().isInitialized
+                      ? const Color(0xFF00C087).withOpacity(0.2)
+                      : const Color(0xFFFF3B30).withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      futuresReady
-                          ? Icons.verified
-                          : readiness == null && hasCredentials
-                              ? Icons.hourglass_top
-                              : Icons.warning_amber_rounded,
-                      color: statusColor,
+                      MexcApiManager().isInitialized
+                          ? Icons.cloud_done
+                          : Icons.cloud_off,
+                      color: MexcApiManager().isInitialized
+                          ? const Color(0xFF00C087)
+                          : const Color(0xFFFF3B30),
                       size: 14,
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      statusLabel,
+                      MexcApiManager().isInitialized
+                          ? 'متصل بـ MEXC'
+                          : 'غير متصل',
                       style: TextStyle(
-                        color: statusColor,
+                        color: MexcApiManager().isInitialized
+                            ? const Color(0xFF00C087)
+                            : const Color(0xFFFF3B30),
                         fontSize: 12,
                         fontFamily: 'Cairo',
                       ),
@@ -204,7 +188,7 @@ class _WalletScreenState extends State<WalletScreen>
                 ),
               ),
               const Text(
-                'إجمالي الأرصدة (Spot + Futures)',
+                'إجمالي الرصيد',
                 style: TextStyle(
                   color: Colors.white70,
                   fontFamily: 'Cairo',

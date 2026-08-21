@@ -70,17 +70,14 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
 
       final usdtFree = balances['USDT']?['free'] ?? 0.0;
       final assetCount = balances.values.where((b) => ((b['free'] ?? 0) + (b['locked'] ?? 0)) > 0).length;
-      final readiness = await api.verifyFuturesReadiness();
 
       setState(() {
         _loading = false;
-        _statusMsg = readiness.canPlaceOrders
-            ? '✅ تم التحقق من حساب Futures والعقد. رصيد USDT المتاح: $usdtFree (إجمالي الأصول: $assetCount). لم يُنفذ التطبيق أمراً اختبارياً.'
-            : '⚠️ تم حفظ المفاتيح، لكن Futures غير جاهز: ${readiness.message}';
-        _statusIsError = !readiness.canPlaceOrders;
+        _statusMsg = '✅ تم التحقق والاتصال بنجاح! رصيد USDT المتاح: $usdtFree (إجمالي الأصول: $assetCount)';
+        _statusIsError = false;
       });
 
-      if (readiness.canPlaceOrders && widget.nextScreen != null && mounted) {
+      if (widget.nextScreen != null && mounted) {
         Future.delayed(const Duration(milliseconds: 600), () {
           if (mounted) {
             Navigator.of(context).pushReplacement(
@@ -93,7 +90,7 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
       // Keep credentials saved in SharedPreferences so user doesn't lose them
       setState(() {
         _loading = false;
-        _statusMsg = '⚠️ تم حفظ المفاتيح ولكن تعذر التحقق من Futures: $e\nتحقق من KYC، وتفعيل Futures/Contract، وصلاحيات Read وTrade للمفتاح، وقائمة IP إن كانت مفعلة.';
+        _statusMsg = '⚠️ تم حفظ المفاتيح ولكن حدث تنبيه أثناء الفحص: $e\nتأكد من تفعيل صلاحيات التداول (Spot/Futures) في منصة MEXC وعدم حظر الـ IP.';
         _statusIsError = true;
       });
     }
@@ -259,9 +256,9 @@ class _ApiSetupScreenState extends State<ApiSetupScreen> {
                 children: const [
                   '1. سجّل الدخول إلى MEXC',
                   '2. اذهب إلى: الحساب ← API Management',
-                  '3. أكمل KYC وافتح حساب Futures/Contract في MEXC',
-                  '4. أنشئ مفتاح API جديد وفعّل صلاحيات: Read + Trade/Futures',
-                  '5. تأكد أن العقد المطلوب متاح لتداول API، ثم انسخ ApiKey وSecretKey والصقهما هنا',
+                  '3. أنشئ مفتاح API جديد (Futures)',
+                  '4. فعّل صلاحيات: Read + Trade',
+                  '5. انسخ ApiKey و SecretKey والصقهما هنا',
                 ],
               ),
               const SizedBox(height: 16),

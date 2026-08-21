@@ -30,7 +30,6 @@ class TradingProvider with ChangeNotifier {
   String? _lastSignal;
   int _consecutiveLosses = 0;
   double _balance = 0.0;
-  FuturesTradingReadiness? _futuresReadiness;
 
   final List<String> _availableStrategies = [
     'Hybrid',
@@ -70,8 +69,6 @@ class TradingProvider with ChangeNotifier {
   String? get lastSignal => _lastSignal;
   int get consecutiveLosses => _consecutiveLosses;
   double get balance => _balance;
-  FuturesTradingReadiness? get futuresReadiness => _futuresReadiness;
-  bool get isFuturesReady => _futuresReadiness?.canPlaceOrders ?? false;
   List<String> get availableStrategies => _availableStrategies;
   List<TradeRecord> get openTrades => List.unmodifiable(_openTrades);
   List<TradeRecord> get closedTrades => List.unmodifiable(_closedTrades);
@@ -185,22 +182,8 @@ class TradingProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Checks Futures readiness before enabling the recurring trading timer.
-  /// No order is sent during this verification.
-  Future<void> startAutoTrading() async {
-    _setLoading(true);
-    _clearMessages();
-    final readiness = await refreshFuturesReadiness();
-    if (!readiness.canPlaceOrders) {
-      _isTrading = false;
-      _lastError = '⚠️ لا يمكن تشغيل البوت: ${readiness.message}';
-      _setLoading(false);
-      notifyListeners();
-      return;
-    }
-
+  void startAutoTrading() {
     _isTrading = true;
-    _setLoading(false);
     notifyListeners();
 
     _botTimer?.cancel();
@@ -209,19 +192,8 @@ class TradingProvider with ChangeNotifier {
       await runBotAutoTrade(_selectedStrategy);
     });
 
-    // The first order attempt is still subject to contract and order checks.
+    // Run immediately
     runBotAutoTrade(_selectedStrategy);
-  }
-
-  /// Verifies authenticated Futures access and the selected contract without
-  /// submitting a live order.
-  Future<FuturesTradingReadiness> refreshFuturesReadiness({String? symbol}) async {
-    final readiness = await _api.verifyFuturesReadiness(
-      symbol: symbol ?? _selectedSymbol ?? 'BTC_USDT',
-    );
-    _futuresReadiness = readiness;
-    notifyListeners();
-    return readiness;
   }
 
   void stopAutoTrading() {
@@ -258,7 +230,6 @@ class TradingProvider with ChangeNotifier {
         side: 'BUY_OPEN',
         type: 'MARKET',
         volume: amount,
-        price: contract.currentPrice,
         leverage: leverage ?? 1,
         openType: 'ISOLATED',
       );
@@ -266,7 +237,7 @@ class TradingProvider with ChangeNotifier {
       _lastSuccess = '✅ تم فتح صفقة شراء ${contract.symbol} بنجاح';
       _lastSignal = 'BUY';
       _openTrades.add(TradeRecord(
-        id: _confirmedOrderId(result),
+        id: result?['orderId']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
         symbol: contract.symbol,
         side: 'BUY',
         amount: amount,
@@ -301,7 +272,6 @@ class TradingProvider with ChangeNotifier {
         side: 'SELL_OPEN',
         type: 'MARKET',
         volume: amount,
-        price: contract.currentPrice,
         leverage: leverage ?? 1,
         openType: 'ISOLATED',
       );
@@ -309,7 +279,7 @@ class TradingProvider with ChangeNotifier {
       _lastSuccess = '✅ تم فتح صفقة بيع ${contract.symbol} بنجاح';
       _lastSignal = 'SELL';
       _openTrades.add(TradeRecord(
-        id: _confirmedOrderId(result),
+        id: result?['orderId']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
         symbol: contract.symbol,
         side: 'SELL',
         amount: amount,
@@ -343,15 +313,13 @@ class TradingProvider with ChangeNotifier {
           ? 'SELL_CLOSE'
           : 'BUY_CLOSE';
 
-      final result = await _api.placeOrder(
+      await _api.placeOrder(
         symbol: contract.symbol,
         side: closeSide,
         type: 'MARKET',
         volume: amount,
-        price: contract.currentPrice,
         openType: 'ISOLATED',
       );
-      _confirmedOrderId(result);
 
       _lastSuccess = '✅ تم إغلاق مركز ${contract.symbol} بنجاح';
 
@@ -404,7 +372,7 @@ class TradingProvider with ChangeNotifier {
     try {
       final apiSide = side.toUpperCase() == 'BUY' ? 'BUY_OPEN' : 'SELL_OPEN';
 
-      final result = await _api.placeOrder(
+      await _api.placeOrder(
         symbol: symbol,
         side: apiSide,
         type: 'LIMIT',
@@ -413,7 +381,6 @@ class TradingProvider with ChangeNotifier {
         leverage: leverage ?? 1,
         openType: 'ISOLATED',
       );
-      _confirmedOrderId(result);
 
       _lastSuccess = '✅ تم وضع أمر محدد $side لـ $symbol @ $price';
       await syncOrders();
@@ -590,34 +557,21 @@ class TradingProvider with ChangeNotifier {
           side = change >= 0 ? 'BUY_OPEN' : 'SELL_OPEN';
       }
 
-      // Verify the actual contract selected by the strategy before any order.
-      final readiness = await refreshFuturesReadiness(symbol: symbol);
-      if (!readiness.canPlaceOrders) {
-        throw MexcApiException(
-          readiness.message,
-          code: readiness.status == FuturesTradingStatus.contractUnavailable ? 1002 : null,
-        );
-      }
-
-      // Place a market order only after an explicit bot start action and a
-      // readiness check. A local trade record is created only after MEXC
-      // returns an order ID.
-      final result = await _api.placeOrder(
+      // Place a small market order (minimum volume)
+      await _api.placeOrder(
         symbol: symbol,
         side: side,
         type: 'MARKET',
         volume: 1,
-        price: price,
         leverage: 1,
         openType: 'ISOLATED',
       );
-      final orderId = _confirmedOrderId(result);
 
       _lastSignal = side.contains('BUY') ? 'BUY' : 'SELL';
       _lastSuccess = '✅ البوت: تم ${side.contains('BUY') ? 'شراء' : 'بيع'} $symbol تلقائياً (الاستراتيجية: $strategyName)';
 
       _openTrades.add(TradeRecord(
-        id: orderId,
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
         symbol: symbol,
         side: side.contains('BUY') ? 'BUY' : 'SELL',
         amount: 1,
@@ -629,22 +583,6 @@ class TradingProvider with ChangeNotifier {
 
       await syncOrders();
       await syncBalance();
-    } on MexcApiException catch (e) {
-      _isTrading = false;
-      _botTimer?.cancel();
-      _botTimer = null;
-      _lastSignal = 'WAIT';
-      _lastError = e.isContractUnavailable
-          ? '⚠️ أُوقف البوت: ${e.message}'
-          : '❌ فشل البوت: ${e.message}';
-      if (e.isContractUnavailable || e.isApiPermissionUnavailable) {
-        _futuresReadiness = FuturesTradingReadiness(
-          status: e.isContractUnavailable
-              ? FuturesTradingStatus.contractUnavailable
-              : FuturesTradingStatus.apiUnavailable,
-          message: e.message,
-        );
-      }
     } catch (e) {
       _lastError = '❌ فشل البوت: $e';
       _consecutiveLosses++;
@@ -666,14 +604,6 @@ class TradingProvider with ChangeNotifier {
   void _clearMessages() {
     _lastError = null;
     _lastSuccess = null;
-  }
-
-  String _confirmedOrderId(Map<String, dynamic> result) {
-    final orderId = result['orderId']?.toString();
-    if (orderId == null || orderId.isEmpty) {
-      throw StateError('لم تتلقَ MEXC رقم طلب صالحاً.');
-    }
-    return orderId;
   }
 
   double _parseDouble(dynamic value) {

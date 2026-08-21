@@ -61,6 +61,19 @@ android {
         targetSdk = 35
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName
+        multiDexEnabled true
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+        resources {
+            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
     }
 
     signingConfigs {
@@ -69,6 +82,9 @@ android {
             def kPassword = keystoreProperties.getProperty('keyPassword')?.trim()
             def kAlias = keystoreProperties.getProperty('keyAlias')?.trim()
             def sFile = keystoreProperties.getProperty('storeFile')?.trim()
+
+            v1SigningEnabled true
+            v2SigningEnabled true
 
             if (sPassword && kPassword && kAlias) {
                 def candidateFiles = [

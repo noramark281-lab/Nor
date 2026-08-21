@@ -143,8 +143,13 @@ jobs:
           cp -f android/key.properties android/app/key.properties
           echo "key.properties configured successfully."
 
-      - name: Build signed APK
-        run: flutter build apk --release --no-tree-shake-icons
+      - name: Build signed APK (Universal & Split ABIs)
+        run: |
+          echo "Building Universal Release APK..."
+          flutter build apk --release --no-tree-shake-icons
+          
+          echo "Building Split Per-ABI Release APKs (for arm64-v8a / Android 15)..."
+          flutter build apk --release --split-per-abi --no-tree-shake-icons
 
       - name: Build signed AAB
         run: flutter build appbundle --release --no-tree-shake-icons
@@ -153,42 +158,72 @@ jobs:
         id: prepare_assets
         run: |
           VERSION=$(awk -F ': ' '/^version:/{print $2}' pubspec.yaml | cut -d '+' -f 1)
-          [ -z "$VERSION" ] && VERSION="1.0.0"
+          [ -z "$VERSION" ] && VERSION="1.8.0"
+          BUILD_NUM="${{ github.run_number }}"
           mkdir -p release-assets
-          cp build/app/outputs/flutter-apk/app-release.apk release-assets/Nor-MEXC-Trader-${VERSION}.apk
-          cp build/app/outputs/flutter-apk/app-release.apk release-assets/app-release.apk
-          cp build/app/outputs/bundle/release/app-release.aab release-assets/Nor-MEXC-Trader-${VERSION}.aab
-          cp build/app/outputs/bundle/release/app-release.aab release-assets/app-release.aab
+          
+          # Universal APK
+          if [ -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            cp -f build/app/outputs/flutter-apk/app-release.apk "release-assets/Nor-MEXC-Trader-v${VERSION}-universal.apk"
+            cp -f build/app/outputs/flutter-apk/app-release.apk release-assets/app-release.apk
+          fi
+          
+          # 64-bit arm64-v8a (Essential for Android 15 & modern 64-bit devices)
+          if [ -f "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk" ]; then
+            cp -f build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "release-assets/Nor-MEXC-Trader-v${VERSION}-arm64-v8a.apk"
+            cp -f build/app/outputs/flutter-apk/app-arm64-v8a-release.apk release-assets/app-arm64-v8a-release.apk
+          fi
+          
+          # 32-bit armeabi-v7a
+          if [ -f "build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk" ]; then
+            cp -f build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk "release-assets/Nor-MEXC-Trader-v${VERSION}-armeabi-v7a.apk"
+          fi
+          
+          # AAB Bundle
+          if [ -f "build/app/outputs/bundle/release/app-release.aab" ]; then
+            cp -f build/app/outputs/bundle/release/app-release.aab "release-assets/Nor-MEXC-Trader-v${VERSION}.aab"
+            cp -f build/app/outputs/bundle/release/app-release.aab release-assets/app-release.aab
+          fi
+          
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build_num=$BUILD_NUM" >> "$GITHUB_OUTPUT"
           ls -lh release-assets/
 
-      - name: Upload APK build artifact
+      - name: Upload APK build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Nor-MEXC-Trader-APK
-          path: release-assets/app-release.apk
+          name: Nor-MEXC-Trader-APK-Build-${{ github.run_number }}
+          path: release-assets/*.apk
           retention-days: 60
 
       - name: Upload AAB build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Nor-MEXC-Trader-AAB
-          path: release-assets/app-release.aab
+          name: Nor-MEXC-Trader-AAB-Build-${{ github.run_number }}
+          path: release-assets/*.aab
           retention-days: 60
 
       - name: Publish GitHub Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.prepare_assets.outputs.version }}-build-${{ github.run_number }}
-          name: Nor MEXC Event Trader v${{ steps.prepare_assets.outputs.version }} (Build #${{ github.run_number }})
+          tag_name: v${{ steps.prepare_assets.outputs.version }}-build-${{ steps.prepare_assets.outputs.build_num }}
+          name: Nor MEXC Event Trader v${{ steps.prepare_assets.outputs.version }} (Build #${{ steps.prepare_assets.outputs.build_num }})
           target_commitish: ${{ github.sha }}
-          generate_release_notes: true
-          fail_on_unmatched_files: true
+          generate_release_notes: false
+          body: |
+            ## 🚀 Nor MEXC Event Trader v${{ steps.prepare_assets.outputs.version }} (Build #${{ steps.prepare_assets.outputs.build_num }})
+            
+            ### 📱 Android Installation Guide (دليل التثبيت):
+            - **لهواتف Android 15 و 64-bit الحديثة (مثل K35):** حمل ملف `Nor-MEXC-Trader-v${{ steps.prepare_assets.outputs.version }}-arm64-v8a.apk` أو `Nor-MEXC-Trader-v${{ steps.prepare_assets.outputs.version }}-universal.apk`.
+            - **تنبيه هام:** إذا كان لديك إصدار قديم مثبت على الهاتف، يرجى **إلغاء تثبيت النسخة القديمة أولاً** لتجنب تعارض الشهادات الرقمية.
+            
+            ### 📦 Release Assets (الملفات المرفقة):
+            - `Nor-MEXC-Trader-v${{ steps.prepare_assets.outputs.version }}-arm64-v8a.apk` (موصى به لأجهزة Android 14/15)
+            - `Nor-MEXC-Trader-v${{ steps.prepare_assets.outputs.version }}-universal.apk` (الحزمة الشاملة)
+            - `Nor-MEXC-Trader-v${{ steps.prepare_assets.outputs.version }}.aab` (Google Play Bundle)
+          fail_on_unmatched_files: false
           files: |
-            release-assets/Nor-MEXC-Trader-*.apk
-            release-assets/Nor-MEXC-Trader-*.aab
-            release-assets/app-release.apk
-            release-assets/app-release.aab
+            release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

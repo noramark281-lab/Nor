@@ -7,7 +7,6 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.Toast
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
@@ -31,7 +30,8 @@ class MainActivity : Activity() {
             }
         }
 
-        webView.loadUrl("https://noramark281-lab.github.io/Nor/")
+        // Bundle the UI locally so the APK works on first install without depending on Pages.
+        webView.loadUrl("file:///android_asset/index.html")
     }
 
     @Deprecated("Deprecated in Android API 33")

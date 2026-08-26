@@ -15,74 +15,51 @@ jobs:
     name: Build & Publish DrMalekApp APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: 'gradle'
-
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.7'
-
       - name: Generate / Ensure Gradle Wrapper
         run: |
           gradle wrapper --gradle-version 8.7 --distribution-type all
           chmod +x ./gradlew
-
       - name: Prepare Keystore & Signing Configuration
         run: |
           mkdir -p app
           KEYSTORE_VALID=false
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore 2>/dev/null || rm -f app/release.keystore
-          elif [ -n "${{ secrets.CM_KEYSTORE }}" ]; then
-            echo "${{ secrets.CM_KEYSTORE }}" | base64 --decode > app/release.keystore 2>/dev/null || rm -f app/release.keystore
-          fi
-          STORE_PASS="${{ secrets.KEYSTORE_PASSWORD }}"
-          [ -z "$STORE_PASS" ] && STORE_PASS="${{ secrets.CM_KEYSTORE_PASSWORD }}"
-          ALIAS="${{ secrets.KEY_ALIAS }}"
-          [ -z "$ALIAS" ] && ALIAS="${{ secrets.CM_KEY_ALIAS }}"
-          KEY_PASS="${{ secrets.KEY_PASSWORD }}"
-          [ -z "$KEY_PASS" ] && KEY_PASS="$STORE_PASS"
-          if [ -f app/release.keystore ] && [ -n "$STORE_PASS" ] && [ -n "$ALIAS" ] && keytool -list -keystore app/release.keystore -storepass "$STORE_PASS" -alias "$ALIAS" >/dev/null 2>&1; then
-            KEYSTORE_VALID=true
-          fi
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore 2>/dev/null || rm -f app/release.keystore; fi
+          if [ ! -f app/release.keystore ] && [ -n "${{ secrets.CM_KEYSTORE }}" ]; then echo "${{ secrets.CM_KEYSTORE }}" | base64 --decode > app/release.keystore 2>/dev/null || rm -f app/release.keystore; fi
+          STORE_PASS="${{ secrets.KEYSTORE_PASSWORD }}"; [ -z "$STORE_PASS" ] && STORE_PASS="${{ secrets.CM_KEYSTORE_PASSWORD }}"
+          ALIAS="${{ secrets.KEY_ALIAS }}"; [ -z "$ALIAS" ] && ALIAS="${{ secrets.CM_KEY_ALIAS }}"
+          KEY_PASS="${{ secrets.KEY_PASSWORD }}"; [ -z "$KEY_PASS" ] && KEY_PASS="$STORE_PASS"
+          if [ -f app/release.keystore ] && [ -n "$STORE_PASS" ] && [ -n "$ALIAS" ] && keytool -list -keystore app/release.keystore -storepass "$STORE_PASS" -alias "$ALIAS" >/dev/null 2>&1; then KEYSTORE_VALID=true; fi
           if [ "$KEYSTORE_VALID" = true ]; then
-            echo "storeFile=release.keystore" > key.properties
-            echo "storePassword=$STORE_PASS" >> key.properties
-            echo "keyAlias=$ALIAS" >> key.properties
-            echo "keyPassword=$KEY_PASS" >> key.properties
+            printf '%s\n' 'storeFile=release.keystore' "storePassword=$STORE_PASS" "keyAlias=$ALIAS" "keyPassword=$KEY_PASS" > key.properties
           else
             keytool -genkeypair -v -keystore app/release.keystore -storepass androidci -keypass androidci -alias release -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=DrMalekApp,O=Dr Malek,L=City,ST=State,C=YE"
-            echo "storeFile=release.keystore" > key.properties
-            echo "storePassword=androidci" >> key.properties
-            echo "keyAlias=release" >> key.properties
-            echo "keyPassword=androidci" >> key.properties
+            printf '%s\n' 'storeFile=release.keystore' 'storePassword=androidci' 'keyAlias=release' 'keyPassword=androidci' > key.properties
           fi
-
       - name: Build Release APK
         run: ./gradlew assembleRelease --no-daemon --stacktrace
-
       - name: Verify APK exists
         run: |
           test -f app/build/outputs/apk/release/app-release.apk
           ls -lh app/build/outputs/apk/release/app-release.apk
-
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: DrMalekApp-APK
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-
       - name: Publish APK as public GitHub Release asset
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2

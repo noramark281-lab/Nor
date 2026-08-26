@@ -20,19 +20,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-
       - name: Install dependencies
         run: npm install --legacy-peer-deps
-
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
-
+        with:
+          enablement: true
       - name: Build web app for GitHub Pages
         env:
           GITHUB_ACTIONS: true
@@ -41,7 +39,6 @@ jobs:
           mkdir -p dist
           touch dist/.nojekyll
           cp dist/index.html dist/404.html 2>/dev/null || true
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

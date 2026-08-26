@@ -27,40 +27,22 @@ export default function App() {
 
   return (
     <main className="app-shell" dir="rtl">
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
+      <div className="ambient ambient-one" /><div className="ambient ambient-two" />
       <section className="phone-stage">
         <header className="hero">
           <div className="brand-mark">G</div>
-          <div className="brand-copy">
-            <span className="eyebrow">Dr. Malek • Smart Hub</span>
-            <h1>مركزك الرقمي</h1>
-            <p>بحث، فيديو، أصدقاء، منشورات، مجموعات، مقالات وألعاب في واجهة واحدة.</p>
-          </div>
+          <div className="brand-copy"><span className="eyebrow">Dr. Malek • Smart Hub</span><h1>مركزك الرقمي</h1><p>بحث، فيديو، أصدقاء، منشورات، مجموعات، مقالات وألعاب في واجهة واحدة.</p></div>
         </header>
-
         <section className="search-card" aria-label="Google search">
           <div className="google-letter">G</div>
           <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && searchGoogle()} placeholder="ابحث في Google..." aria-label="ابحث في Google" />
           <button className="search-button" onClick={searchGoogle} aria-label="بحث">⌕</button>
         </section>
-
         <section className="grid" aria-label="الأقسام">
-          {filteredCards.map((card) => (
-            <a className="hub-card" key={card.title} href={card.href} target="_blank" rel="noreferrer">
-              <span className="card-icon" style={{ background: card.gradient }}>{card.icon}</span>
-              <span className="card-text"><strong>{card.title}</strong><small>{card.subtitle}</small></span>
-              <span className="arrow">←</span>
-            </a>
-          ))}
+          {filteredCards.map((card) => <a className="hub-card" key={card.title} href={card.href} rel="noreferrer"><span className="card-icon" style={{ background: card.gradient }}>{card.icon}</span><span className="card-text"><strong>{card.title}</strong><small>{card.subtitle}</small></span><span className="arrow">←</span></a>)}
         </section>
-
         {filteredCards.length === 0 && <div className="empty">لا توجد نتيجة داخل الأقسام. اضغط Enter للبحث في Google.</div>}
-
-        <footer className="footer-card">
-          <div><strong>تصميم وبرمجة الدكتور / مالك الرميمة</strong><span>واجهة عالية الدقة • تعمل على الويب وAndroid</span></div>
-          <a href="tel:771134103">771134103</a>
-        </footer>
+        <footer className="footer-card"><div><strong>تصميم وبرمجة الدكتور / مالك الرميمة</strong><span>واجهة عالية الدقة • تعمل على الويب وAndroid</span></div><a href="tel:771134103">771134103</a></footer>
       </section>
     </main>
   );

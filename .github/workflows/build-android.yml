@@ -33,16 +33,23 @@ jobs:
       - name: Prepare Keystore & Signing Configuration
         run: |
           mkdir -p app
+          rm -f app/release.keystore key.properties
           KEYSTORE_VALID=false
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore 2>/dev/null || rm -f app/release.keystore; fi
-          if [ ! -f app/release.keystore ] && [ -n "${{ secrets.CM_KEYSTORE }}" ]; then echo "${{ secrets.CM_KEYSTORE }}" | base64 --decode > app/release.keystore 2>/dev/null || rm -f app/release.keystore; fi
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore 2>/dev/null || rm -f app/release.keystore
+          elif [ -n "${{ secrets.CM_KEYSTORE }}" ]; then
+            echo "${{ secrets.CM_KEYSTORE }}" | base64 --decode > app/release.keystore 2>/dev/null || rm -f app/release.keystore
+          fi
           STORE_PASS="${{ secrets.KEYSTORE_PASSWORD }}"; [ -z "$STORE_PASS" ] && STORE_PASS="${{ secrets.CM_KEYSTORE_PASSWORD }}"
           ALIAS="${{ secrets.KEY_ALIAS }}"; [ -z "$ALIAS" ] && ALIAS="${{ secrets.CM_KEY_ALIAS }}"
           KEY_PASS="${{ secrets.KEY_PASSWORD }}"; [ -z "$KEY_PASS" ] && KEY_PASS="$STORE_PASS"
-          if [ -f app/release.keystore ] && [ -n "$STORE_PASS" ] && [ -n "$ALIAS" ] && keytool -list -keystore app/release.keystore -storepass "$STORE_PASS" -alias "$ALIAS" >/dev/null 2>&1; then KEYSTORE_VALID=true; fi
+          if [ -f app/release.keystore ] && [ -n "$STORE_PASS" ] && [ -n "$ALIAS" ] && keytool -list -keystore app/release.keystore -storepass "$STORE_PASS" -alias "$ALIAS" >/dev/null 2>&1; then
+            KEYSTORE_VALID=true
+          fi
           if [ "$KEYSTORE_VALID" = true ]; then
             printf '%s\n' 'storeFile=release.keystore' "storePassword=$STORE_PASS" "keyAlias=$ALIAS" "keyPassword=$KEY_PASS" > key.properties
           else
+            rm -f app/release.keystore
             keytool -genkeypair -v -keystore app/release.keystore -storepass androidci -keypass androidci -alias release -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=DrMalekApp,O=Dr Malek,L=City,ST=State,C=YE"
             printf '%s\n' 'storeFile=release.keystore' 'storePassword=androidci' 'keyAlias=release' 'keyPassword=androidci' > key.properties
           fi

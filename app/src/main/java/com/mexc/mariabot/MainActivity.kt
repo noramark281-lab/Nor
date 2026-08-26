@@ -1,69 +1,41 @@
 package com.mexc.mariabot
 
+import android.annotation.SuppressLint
+import android.app.Activity
 import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import com.mexc.mariabot.database.AppDatabaseHelper
-import com.mexc.mariabot.network.MexcApiService
-import com.mexc.mariabot.repository.BotRepository
-import com.mexc.mariabot.ui.MariaBotViewModel
-import com.mexc.mariabot.ui.screens.DashboardScreen
-import com.mexc.mariabot.ui.theme.MariaBotTheme
-import com.mexc.mariabot.worker.BotStatusWorker
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
-import java.util.concurrent.TimeUnit
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.Toast
 
-class MainActivity : ComponentActivity() {
+class MainActivity : Activity() {
+    private lateinit var webView: WebView
 
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        webView = WebView(this)
+        setContentView(webView)
 
-        // 1. Initialize Local SQLite Database Helper
-        val dbHelper = AppDatabaseHelper(applicationContext)
-
-        // 2. Initialize Notification Channels & Request Permission on API 33+
-        com.mexc.mariabot.util.NotificationCenter.initChannels(applicationContext)
-        if (android.os.Build.VERSION.SDK_INT >= 33) {
-            val permission = android.Manifest.permission.POST_NOTIFICATIONS
-            if (androidx.core.content.ContextCompat.checkSelfPermission(this, permission) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                androidx.core.app.ActivityCompat.requestPermissions(this, arrayOf(permission), 101)
+        webView.settings.javaScriptEnabled = true
+        webView.settings.domStorageEnabled = true
+        webView.settings.loadsImagesAutomatically = true
+        webView.settings.mediaPlaybackRequiresUserGesture = false
+        webView.settings.userAgentString = "DrMalekApp/1.0 Android WebView"
+        webView.webChromeClient = WebChromeClient()
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                view.loadUrl(request.url.toString())
+                return true
             }
         }
 
-        // 3. Initialize official MEXC Retrofit API Service
-        val retrofit = Retrofit.Builder()
-            .baseUrl("https://api.mexc.com/") // Official MEXC Spot/Futures Base Endpoint
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-        val apiService = retrofit.create(MexcApiService::class.java)
+        webView.loadUrl("https://noramark281-lab.github.io/Nor/")
+    }
 
-        // 3. Initialize Repository & ViewModel via standard Constructor Injection
-        val repository = BotRepository(dbHelper, apiService)
-        val viewModel = MariaBotViewModel(repository)
-
-        // 4. Schedule Background Periodic Telemetry Checks via WorkManager
-        try {
-            val statusWorkRequest = PeriodicWorkRequestBuilder<BotStatusWorker>(15, TimeUnit.MINUTES)
-                .build()
-            WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
-                "MariaBotStatusTelemetry",
-                ExistingPeriodicWorkPolicy.KEEP,
-                statusWorkRequest
-            )
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-
-        setContent {
-            MariaBotTheme {
-                DashboardScreen(viewModel)
-            }
-        }
+    @Deprecated("Deprecated in Android API 33")
+    override fun onBackPressed() {
+        if (webView.canGoBack()) webView.goBack() else super.onBackPressed()
     }
 }

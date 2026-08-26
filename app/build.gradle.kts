@@ -7,32 +7,24 @@ plugins {
 }
 
 android {
-    namespace = "com.mexc.mariabot"
+    namespace = "com.drmalek.app"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.aistudio.mariabot.txwjqz"
+        applicationId = "com.drmalek.app"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    buildFeatures {
-        compose = true
-    }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
-    }
+    buildFeatures { compose = true }
+    composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }
 
     val keyPropertiesFile = rootProject.file("key.properties")
     val keystoreProps = Properties()
-    if (keyPropertiesFile.exists()) {
-        keystoreProps.load(FileInputStream(keyPropertiesFile))
-    }
+    if (keyPropertiesFile.exists()) keystoreProps.load(FileInputStream(keyPropertiesFile))
 
     signingConfigs {
         create("release") {
@@ -40,14 +32,12 @@ android {
             var keystorePassword = System.getenv("CM_KEYSTORE_PASSWORD") ?: ""
             var keyAlias = System.getenv("CM_KEY_ALIAS") ?: ""
             var keyPassword = System.getenv("CM_KEYSTORE_PASSWORD") ?: ""
-
             if (keyPropertiesFile.exists()) {
                 keystoreProps.getProperty("storeFile")?.let { keystoreFile = file(it) }
                 keystoreProps.getProperty("storePassword")?.let { keystorePassword = it }
                 keystoreProps.getProperty("keyAlias")?.let { keyAlias = it }
                 keystoreProps.getProperty("keyPassword")?.let { keyPassword = it }
             }
-
             if (keystoreFile.exists() && keystorePassword.isNotBlank() && keyAlias.isNotBlank()) {
                 storeFile = keystoreFile
                 storePassword = keystorePassword
@@ -61,23 +51,12 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfigs.findByName("release")?.let { s ->
-                if (s.storeFile != null) signingConfig = s
-            }
+            signingConfigs.findByName("release")?.let { if (it.storeFile != null) signingConfig = it }
         }
     }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
-    lint {
-        abortOnError = false
-        checkReleaseBuilds = false
-    }
+    compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
+    kotlinOptions { jvmTarget = "17" }
+    lint { abortOnError = false; checkReleaseBuilds = false }
 }
 
 dependencies {
@@ -85,8 +64,6 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
-
-    // Jetpack Compose dependencies
     val composeVersion = "1.6.1"
     implementation("androidx.compose.ui:ui:$composeVersion")
     implementation("androidx.compose.ui:ui-graphics:$composeVersion")
@@ -96,21 +73,14 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.8.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
-
-    // WorkManager
     implementation("androidx.work:work-runtime-ktx:2.9.0")
-
-    // Retrofit & OkHttp
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-
-    // Room
     val roomVersion = "2.6.1"
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
-
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
